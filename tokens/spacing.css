@@ -1,0 +1,34 @@
+/* 灵机阁 Lingji Forge — Spacing & Layout Tokens (4px base grid) */
+
+:root {
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+  --space-13: 128px;
+
+  /* ── Layout rails ───────────────────────────────────────── */
+  --container-max: 1280px;
+  --container-wide: 1440px;
+  --gutter: 24px;
+
+  /* Creation studio (创作台) three-column rails */
+  --studio-nav-w: 248px;     /* left: asset-type nav */
+  --studio-param-w: 320px;   /* right: parameter panel */
+  --studio-header-h: 64px;
+
+  /* Generic app chrome */
+  --topbar-h: 68px;
+  --control-h-sm: 32px;
+  --control-h: 40px;
+  --control-h-lg: 48px;
+}

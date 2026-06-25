@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵机阁 · 创作台</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style>
+  html, body { margin: 0; height: 100%; background: var(--bg-base); overflow: hidden; }
+  #root { height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script>window.LF_ICON_BASE = "../../";</script>
+<script src="/ui_kits/i18n.js"></script>
+<script>window.__lf.setPageTitle("studio.title");</script>
+<script type="text/babel" src="/ui_kits/studio/StudioTopBar.jsx"></script>
+<script type="text/babel" src="/ui_kits/studio/StudioNav.jsx"></script>
+<script type="text/babel" src="/ui_kits/studio/StudioCanvas.jsx"></script>
+<script type="text/babel" src="/ui_kits/studio/ParamPanel.jsx"></script>
+<script type="text/babel" src="/ui_kits/studio/AdModal.jsx"></script>
+<script type="text/babel">
+const COST = { "32x32": 1, "48x48": 1, "64x64": 1, "128x128": 3 };
+function calcCost(p) {
+  let c = COST[p.size] || 1;
+  if (p.view === "4方向" || p.view === "4方向（4-way）" || p.view === "4-way") c = Math.max(c, 4);
+  if (p.view === "8方向" || p.view === "8方向（8-way）" || p.view === "8-way") c = Math.max(c, 6);
+  if (p.format === "Sprite Sheet" || p.format === "GIF") c = Math.max(c, 8);
+  if (p.batch) c += 10;
+  if (p.lock) c += 15;
+  return c;
+}
+
+function StudioApp() {
+  const { StudioTopBar, StudioNav, StudioCanvas, ParamPanel, AdRewardModal } = window;
+  const cfg = window.__lf.raw("studio.defaults", {
+    activeTab: "角色",
+    prompt: "",
+    params: {
+      genre: "仙侠",
+      style: "国风",
+      view: "8方向",
+      action: "行走",
+      size: "64x64",
+      usage: "Unity",
+      format: "Sprite Sheet",
+      alpha: true,
+      lock: false,
+      batch: false,
+    },
+  });
+  const [spirit, setSpirit] = React.useState(128);
+  const [active, setActive] = React.useState(cfg.activeTab);
+  const [prompt, setPrompt] = React.useState(cfg.prompt);
+  const [params, setParams] = React.useState(cfg.params);
+  const setParam = (k, v) => setParams((p) => ({ ...p, [k]: v }));
+  const [phase, setPhase] = React.useState("done");
+  const [progress, setProgress] = React.useState(0);
+  const [ad, setAd] = React.useState({ open: false, insufficient: false });
+  const cost = calcCost(params);
+
+  React.useEffect(() => { const t = setInterval(() => window.lucide && window.lucide.createIcons(), 120); return () => clearInterval(t); });
+
+  const generate = () => {
+    if (phase === "generating") return;
+    if (spirit < cost) { setAd({ open: true, insufficient: true }); return; }
+    setSpirit((s) => s - cost);
+    setPhase("generating"); setProgress(0);
+    const id = setInterval(() => setProgress((p) => {
+      if (p >= 100) { clearInterval(id); setPhase("done"); return 100; }
+      return p + 5;
+    }), 80);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <StudioTopBar spirit={spirit} onAd={() => setAd({ open: true, insufficient: false })} />
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <StudioNav active={active} setActive={setActive} />
+        <StudioCanvas params={params} setParam={setParam} phase={phase} progress={progress} onGenerate={generate} prompt={prompt} setPrompt={setPrompt} cost={cost} />
+        <ParamPanel params={params} setParam={setParam} cost={cost} spirit={spirit} onGenerate={generate} generating={phase === "generating"} />
+      </div>
+      <AdRewardModal open={ad.open} insufficient={ad.insufficient} onClose={() => setAd({ open: false, insufficient: false })} onReward={(n) => setSpirit((s) => s + n)} />
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<StudioApp />);
+</script>
+</body>
+</html>

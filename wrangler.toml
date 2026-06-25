@@ -1,0 +1,12 @@
+name = "lingji-forge-design-system"
+main = "src/worker.js"
+compatibility_date = "2026-06-24"
+
+# 本仓库直接托管静态文件（样式、组件、UI KIt 页面）
+# 站点所有文件放在当前仓库目录，建议后续按需收敛到 public/
+[assets]
+directory = "."
+binding = "ASSETS"
+
+# 可选：如果你要绑定自定义域名，在 Cloudflare 后台添加路由和自定义域后再放开。
+# route = "www.example.com/*"

@@ -1,0 +1,43 @@
+<!-- @dsCard group="Colors" viewport="700x190" name="月光蓝 · 朱砂 · 玉白" subtitle="Info, danger-accent & light values" -->
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  body{margin:0;padding:22px;background:var(--bg-base);font-family:var(--font-sans);}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .grp{border:1px solid var(--border-subtle);border-radius:var(--radius-md);overflow:hidden;}
+  .h{font-size:11px;letter-spacing:var(--tracking-wide);color:var(--text-secondary);padding:8px 10px;border-bottom:1px solid var(--divider);}
+  .swrow{display:flex;}
+  .sw{flex:1;height:64px;display:flex;align-items:flex-end;padding:7px;}
+  .n{font-family:var(--font-mono);font-size:10px;font-weight:600;}
+</style></head>
+<body>
+<div class="grid">
+  <div class="grp">
+    <div class="h">月光蓝 · Info</div>
+    <div class="swrow">
+      <div class="sw" style="background:var(--moon-300);color:#1a2733"><span class="n">300</span></div>
+      <div class="sw" style="background:var(--moon-400);color:#1a2733"><span class="n">400</span></div>
+      <div class="sw" style="background:var(--moon-500);color:#fff"><span class="n">500</span></div>
+      <div class="sw" style="background:var(--moon-700);color:#fff"><span class="n">700</span></div>
+    </div>
+  </div>
+  <div class="grp">
+    <div class="h">朱砂 · 点缀/危险</div>
+    <div class="swrow">
+      <div class="sw" style="background:var(--cinnabar-400);color:#fff"><span class="n">400</span></div>
+      <div class="sw" style="background:var(--cinnabar-500);color:#fff"><span class="n">500</span></div>
+      <div class="sw" style="background:var(--cinnabar-600);color:#fff"><span class="n">600</span></div>
+    </div>
+  </div>
+  <div class="grp">
+    <div class="h">玉白 · 玉简竹简</div>
+    <div class="swrow">
+      <div class="sw" style="background:var(--jade-white);color:#333"><span class="n">玉白</span></div>
+      <div class="sw" style="background:var(--paper-100);color:#333"><span class="n">100</span></div>
+      <div class="sw" style="background:var(--paper-200);color:#333"><span class="n">200</span></div>
+      <div class="sw" style="background:var(--paper-300);color:#333"><span class="n">300</span></div>
+    </div>
+  </div>
+</div>
+</body></html>

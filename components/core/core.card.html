@@ -1,0 +1,76 @@
+<!-- @dsCard group="Components" viewport="700x440" name="Core · 按钮 / 灵石 / 卡片" subtitle="Button · IconButton · SpiritStone · Badge · Avatar · Card" -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; padding: 24px; background: var(--bg-base); }
+  .row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .lbl { font-family: var(--font-sans); font-size: 11px; letter-spacing: var(--tracking-wider); color: var(--text-muted); text-transform: uppercase; margin: 0 0 10px; }
+  .sec { margin-bottom: 22px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { Button, IconButton, SpiritStone, Badge, Avatar, Card } = window.LingjiForgeDesignSystem_e6d384;
+const I = (n) => <i data-lucide={n} style={{ width: 16, height: 16 }} />;
+
+function Demo() {
+  return (
+    <div>
+      <div className="sec">
+        <p className="lbl">Button — 变体</p>
+        <div className="row">
+          <Button variant="gold" icon={I("sparkles")}>开始生成</Button>
+          <Button variant="jade" icon={I("clapperboard")}>看广告领取灵石</Button>
+          <Button variant="outline">导出素材</Button>
+          <Button variant="ghost" icon={I("rotate-cw")}>重新推演</Button>
+          <Button variant="danger" icon={I("trash-2")}>删除</Button>
+          <Button variant="gold" loading>推演中</Button>
+        </div>
+        <div className="row">
+          <Button size="sm" variant="gold">小</Button>
+          <Button size="md" variant="gold">中</Button>
+          <Button size="lg" variant="gold">大 · 开始造物</Button>
+          <Button variant="gold" disabled>禁用</Button>
+        </div>
+      </div>
+
+      <div className="sec">
+        <p className="lbl">IconButton · SpiritStone · Badge · Avatar</p>
+        <div className="row">
+          <IconButton label="放大">{I("maximize-2")}</IconButton>
+          <IconButton variant="surface" active label="网格">{I("grid-2x2")}</IconButton>
+          <IconButton variant="gold" label="生成">{I("wand-sparkles")}</IconButton>
+          <SpiritStone count={128} onAdd={() => {}} />
+          <SpiritStone count={2} low onAdd={() => {}} />
+          <Badge tone="gold">PRO</Badge>
+          <Badge tone="jade">透明 PNG</Badge>
+          <Badge tone="moon" solid>NEW</Badge>
+          <Avatar name="青" />
+          <Avatar name="李白" size={40} />
+        </div>
+      </div>
+
+      <div>
+        <p className="lbl">Card — 炼器台 plate</p>
+        <div style={{ display: "flex", gap: 14 }}>
+          <Card style={{ flex: 1 }}><b style={{ color: "var(--text-primary)" }}>默认卡片</b><div style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 6 }}>圆角 · 细金描边</div></Card>
+          <Card cut glow="gold" interactive style={{ flex: 1 }}><b style={{ color: "var(--gold-200)" }}>切角发光卡片</b><div style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 6 }}>机关阁切角 · hover 浮起</div></Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+setTimeout(() => window.lucide && window.lucide.createIcons(), 60);
+</script>
+</body>
+</html>

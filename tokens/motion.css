@@ -1,0 +1,18 @@
+/* 灵机阁 Lingji Forge — Motion Tokens
+ * 克制、顺滑、有"灵气流动"的感觉。Easing 偏 out，时长偏短。无弹跳浮夸。 */
+
+:root {
+  --dur-instant: 80ms;   /* @kind other */
+  --dur-fast: 140ms;     /* @kind other */
+  --dur-base: 220ms;     /* @kind other */
+  --dur-slow: 360ms;     /* @kind other */
+  --dur-slower: 560ms;   /* @kind other */
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);  /* @kind other */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* @kind other */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);          /* @kind other */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);  /* @kind other */
+
+  /* Press feedback: subtle shrink, never bounce */
+  --press-scale: 0.97;     /* @kind other */
+}

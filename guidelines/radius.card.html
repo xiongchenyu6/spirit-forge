@@ -1,0 +1,16 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Radius & 切角" subtitle="圆角阶梯 + 机关切角 motif" -->
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8" />
+<link rel="stylesheet" href="../styles.css" />
+<style>body{margin:0;padding:24px;background:var(--bg-base);font-family:var(--font-sans);display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;}
+.box{width:78px;height:78px;background:var(--surface-card);border:1px solid var(--border-default);display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;}
+.t{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);}
+</style></head>
+<body>
+<div class="box" style="border-radius:var(--radius-sm)"><span class="t">sm·5</span></div>
+<div class="box" style="border-radius:var(--radius-md)"><span class="t">md·8</span></div>
+<div class="box" style="border-radius:var(--radius-lg)"><span class="t">lg·12</span></div>
+<div class="box" style="border-radius:var(--radius-xl)"><span class="t">xl·16</span></div>
+<div class="box" style="border-radius:50%"><span class="t">circle</span></div>
+<div class="box" style="border-radius:0;clip-path:var(--cut-corner);border-color:var(--border-strong)"><span class="t">切角</span></div>
+</body></html>

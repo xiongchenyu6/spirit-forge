@@ -1,0 +1,27 @@
+/* 灵机阁 Lingji Forge — Elevation: shadows, glows & focus rings
+ * Dark UI: depth comes from deep shadow + emissive gold/jade glow (灵石光效). */
+
+:root {
+  /* ── Shadows (cast into the ink) ────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.45);
+  --shadow-panel: 0 10px 34px rgba(0, 0, 0, 0.50);
+  --shadow-pop: 0 18px 52px rgba(0, 0, 0, 0.62);
+  --shadow-modal: 0 28px 80px rgba(0, 0, 0, 0.70);
+
+  /* ── Glows (emissive 灵光) ───────────────────────────────── */
+  --glow-gold: 0 0 24px rgba(201, 163, 91, 0.32);
+  --glow-gold-strong: 0 0 36px rgba(218, 185, 120, 0.50);
+  --glow-jade: 0 0 24px rgba(47, 110, 100, 0.42);
+  --glow-moon: 0 0 22px rgba(110, 146, 184, 0.38);
+  --glow-spirit: 0 0 18px rgba(218, 185, 120, 0.55), 0 0 40px rgba(218, 185, 120, 0.25); /* 灵石 */
+
+  /* ── Inset / inner light (玉/石 material) ───────────────── */
+  --inset-top: inset 0 1px 0 rgba(244, 241, 232, 0.06);
+  --inset-edge: inset 0 0 0 1px rgba(201, 163, 91, 0.12);
+
+  /* ── Focus rings ────────────────────────────────────────── */
+  --ring-focus: 0 0 0 3px rgba(201, 163, 91, 0.34);
+  --ring-jade: 0 0 0 3px rgba(116, 176, 164, 0.30);
+  --ring-danger: 0 0 0 3px rgba(192, 57, 43, 0.32);
+}

@@ -1,0 +1,9 @@
+/* 灵机阁 Lingji Forge — Webfonts
+ * Display / 国风 serif: Noto Serif SC (宋明体气质，用于标题与品牌)
+ * UI / body sans:        Noto Sans SC (现代清晰，用于正文与界面)
+ * Calligraphy accent:    Ma Shan Zheng (手写国风，仅用于品牌字与点缀)
+ * Mono / 参数:           JetBrains Mono (尺寸、坐标、Metadata)
+ * Loaded from Google Fonts CDN. Substitution note: if licensed brand fonts
+ * become available, swap the @import targets here only. */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Ma+Shan+Zheng&family=JetBrains+Mono:wght@400;500;700&display=swap');

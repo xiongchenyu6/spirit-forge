@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵机阁 · 我的素材库</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style> html, body { margin: 0; height: 100%; background: var(--bg-base); overflow: hidden; } #root { height: 100vh; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script>window.LF_ICON_BASE = "../../";</script>
+<script src="/ui_kits/i18n.js"></script>
+<script>window.__lf.setPageTitle("library.title");</script>
+<script type="text/babel">
+const { Button, IconButton, Input, Badge, SpiritStone, Avatar, NavItem, Tag, Banner } = window.LingjiForgeDesignSystem_e6d384;
+const t = window.__lf.raw("library");
+const nav = t.nav || { links: window.__lf.raw("landing.nav.links"), start: window.__lf.t("landing.nav.start") };
+const layout = t.layoutText || { grid: "网格", list: "列表", create: t.action };
+const sections = {
+  collections: t.collectionsLabel || (window.__lf.lang === "en" ? "Collections" : "集合"),
+  projects: t.projectLabel || (window.__lf.lang === "en" ? "Projects" : "项目"),
+};
+const ART = {
+  仙侠: { from: "#2f6e64", to: "#0e211f", icon: "sword" }, 西幻: { from: "#5b4b9c", to: "#181333", icon: "wand-sparkles" },
+  科幻: { from: "#3f6e8f", to: "#0f1d28", icon: "bot" }, 赛博朋克: { from: "#a8327f", to: "#1a0f24", icon: "skull" },
+  Q版: { from: "#5a9a4e", to: "#1d2e16", icon: "sprout" }, 像素: { from: "#7a6a4a", to: "#211a12", icon: "map" },
+  现代: { from: "#3a5a78", to: "#101a24", icon: "layout-panel-top" }, 暗黑: { from: "#8f3a3a", to: "#220f0f", icon: "ghost" },
+};
+const ASSETS = t.assets;
+
+function Thumb({ a }) {
+  const art = ART[a[1]] || ART.仙侠;
+  return (
+    <div style={{ position: "relative", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border-subtle)", background: "var(--surface-card)", cursor: "pointer", transition: "transform var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.boxShadow = "var(--shadow-panel)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.boxShadow = "none"; }}>
+      <div style={{ position: "relative", aspectRatio: "1" }}>
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(45deg,#1a2227 25%,transparent 25%),linear-gradient(-45deg,#1a2227 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1a2227 75%),linear-gradient(-45deg,transparent 75%,#1a2227 75%)", backgroundSize: "14px 14px", backgroundPosition: "0 0,0 7px,7px -7px,-7px 0", opacity: 0.4 }} />
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 90% at 50% 32%, ${art.from}, ${art.to} 74%)` }} />
+        <div style={{ position: "absolute", top: "42%", left: "50%", transform: "translate(-50%,-50%)", color: "rgba(255,255,255,0.92)" }}><i data-lucide={art.icon} style={{ width: 44, height: 44 }} /></div>
+        <span style={{ position: "absolute", top: 8, left: 8, fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--gold-200)", background: "rgba(7,9,11,0.7)", borderRadius: 4, padding: "2px 7px" }}>{a[1]}</span>
+        <span style={{ position: "absolute", bottom: 8, right: 8, fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.75)", background: "rgba(7,9,11,0.7)", borderRadius: 4, padding: "2px 6px" }}>{a[4]}</span>
+      </div>
+      <div style={{ padding: "11px 12px 13px" }}>
+        <div style={{ fontFamily: "var(--font-sans)", fontSize: 14, fontWeight: 500, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a[0]}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{a[2]}</span>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+            {a[3].map((f) => <span key={f} style={{ fontSize: 10, color: "var(--jade-200)", background: "rgba(47,110,100,0.16)", border: "1px solid var(--border-jade)", borderRadius: 4, padding: "1px 6px" }}>{f}</span>)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Library() {
+  const [filter, setFilter] = React.useState(t.filterAll);
+  React.useEffect(() => { const tmr = setInterval(() => window.lucide && window.lucide.createIcons(), 120); return () => clearInterval(tmr); });
+  const cats = t.filters;
+  const shown = filter === t.filterAll ? ASSETS : ASSETS.filter((a) => filter === a[2] || filter.startsWith(a[2]) || a[2] === filter.split(" ")[0]);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <header style={{ height: "var(--studio-header-h)", display: "flex", alignItems: "center", gap: 16, padding: "0 18px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-elevated)", flex: "none" }}>
+        <img src="../../assets/logo-emblem-transparent.png" style={{ width: 30, height: 30, objectFit: "contain" }} />
+        <span style={{ fontFamily: "var(--font-serif)", fontWeight: 800, fontSize: 19, color: "var(--text-primary)", letterSpacing: "0.04em" }}>{window.__lf.t("app.brand")}</span>
+        <span style={{ width: 1, height: 20, background: "var(--divider)" }} />
+        <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{t.title}</span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <SpiritStone count={128} onAdd={() => {}} />
+          <Button variant="gold" size="sm" icon={<i data-lucide="wand-sparkles" style={{ width: 15, height: 15 }} />}>{t.action}</Button>
+          <Avatar name="青" size={32} />
+        </div>
+      </header>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <nav className="lf-scroll" style={{ width: 220, flex: "none", borderRight: "1px solid var(--border-subtle)", padding: "14px 12px", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 14, paddingBottom: 14, borderBottom: "1px solid var(--divider)" }}>
+            <Banner variant="teal" size={58}>青</Banner>
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--text-secondary)" }}>{t.headerBadge}</span>
+          </div>
+          <div style={{ fontSize: 11, letterSpacing: "var(--tracking-wider)", color: "var(--text-faint)", textTransform: "uppercase", padding: "0 10px 8px" }}>{sections.collections}</div>
+          {t.emptyTags.map(([label, icon, count], i) => (
+            <NavItem key={label + i} icon={<i data-lucide={icon} style={{ width: 17, height: 17 }} />} active={label === filter} count={count}>{label}</NavItem>
+          ))}
+          <div style={{ fontSize: 11, letterSpacing: "var(--tracking-wider)", color: "var(--text-faint)", textTransform: "uppercase", padding: "16px 10px 8px" }}>{sections.projects}</div>
+          {t.projects.map((name) => (
+            <NavItem key={name} icon={<i data-lucide="folder" style={{ width: 17, height: 17 }} />} count={86}>{name}</NavItem>
+          ))}
+        </nav>
+        <main className="lf-scroll lf-bg-deep" style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+            <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 24, color: "var(--text-primary)", margin: 0 }}>{t.filterAll}</h1>
+            <Badge tone="neutral">{shown.length} {t.allCountSuffix}</Badge>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 220 }}><Input placeholder={t.searchPlaceholder} icon={<i data-lucide="search" style={{ width: 15, height: 15 }} />} size="sm" /></div>
+              <IconButton variant="surface" active label={layout.grid}><i data-lucide="layout-grid" style={{ width: 16, height: 16 }} /></IconButton>
+              <IconButton variant="surface" label={layout.list}><i data-lucide="list" style={{ width: 16, height: 16 }} /></IconButton>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+            {cats.map((c) => <Tag key={c} selected={c === filter} onClick={() => setFilter(c)}>{c}</Tag>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16 }}>
+            {shown.map((a, i) => <Thumb key={i} a={a} />)}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Library />);
+</script>
+</body>
+</html>

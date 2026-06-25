@@ -1,0 +1,19 @@
+/* 灵机阁 Lingji Forge — Radius Tokens
+ * 国风 leans crisp & angular: small radii, plus a "切角/机关" cut-corner motif
+ * expressed as a clip-path for special framed surfaces (炼器台 plates). */
+
+:root {
+  --radius-none: 0;
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* 切角 cut-corner plate — apply as: clip-path: var(--cut-corner); */
+  --cut-corner: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  --cut-corner-sm: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}

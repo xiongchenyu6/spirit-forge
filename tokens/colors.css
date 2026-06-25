@@ -1,0 +1,93 @@
+/* 灵机阁 Lingji Forge — Color Tokens
+ * 墨黑 ink · 玄青 jade · 鎏金 gold · 玉白 jade-white · 月光蓝 moon · 朱砂 cinnabar
+ * Dark-first. The product is "炼器阁/造物台" — deep ink surfaces lit by gold & jade. */
+
+:root {
+  /* ── 墨黑 Ink (base dark surfaces) ───────────────────────── */
+  --ink-950: #07090B;   /* deepest void */
+  --ink-900: #0B0F12;   /* app background */
+  --ink-850: #0F151A;
+  --ink-800: #131B20;   /* elevated surface */
+  --ink-700: #19242A;   /* card / panel */
+  --ink-600: #212F35;   /* raised control */
+  --ink-500: #2B3B42;   /* hairline-on-dark / inset */
+
+  /* ── 玄青 Jade (primary brand teal) ──────────────────────── */
+  --jade-950: #0E211F;
+  --jade-900: #143330;
+  --jade-700: #1E4A44;
+  --jade-600: #265C54;
+  --jade-500: #2F6E64;  /* 玄青 core */
+  --jade-400: #4A8E82;
+  --jade-300: #74B0A4;
+  --jade-200: #A6CFC6;
+
+  /* ── 鎏金 Gold (accent / primary action / 灵石) ───────────── */
+  --gold-800: #7E6128;
+  --gold-700: #9C7A36;
+  --gold-600: #B68E45;
+  --gold-500: #C9A35B;  /* 鎏金 core */
+  --gold-400: #DAB978;
+  --gold-300: #E8D3A1;
+  --gold-200: #F2E5C7;
+
+  /* ── 月光蓝 Moonlight blue (info / secondary glow) ───────── */
+  --moon-700: #3F5D7A;
+  --moon-500: #6E92B8;  /* 月光蓝 core */
+  --moon-400: #8FB0CC;
+  --moon-300: #B3CBE0;
+
+  /* ── 朱砂 Cinnabar (accent dot / danger, sparingly) ──────── */
+  --cinnabar-600: #A82F23;
+  --cinnabar-500: #C0392B;  /* 朱砂 core */
+  --cinnabar-400: #D4574A;
+
+  /* ── 玉白 Jade-white / 玉简竹简 paper (light values) ──────── */
+  --jade-white: #F4F1E8;   /* primary text on dark */
+  --paper-100: #EFEADD;    /* warm jade-paper */
+  --paper-200: #E4DAC4;    /* aged bamboo-slip */
+  --paper-300: #D2C4A2;
+
+  /* ── Semantic: surfaces ─────────────────────────────────── */
+  --bg-base: var(--ink-900);
+  --bg-deep: var(--ink-950);
+  --bg-elevated: var(--ink-800);
+  --surface-card: var(--ink-700);
+  --surface-raised: var(--ink-600);
+  --surface-inset: var(--ink-850);
+  --surface-glass: rgba(19, 27, 32, 0.72);
+
+  /* ── Semantic: text ─────────────────────────────────────── */
+  --text-primary: var(--jade-white);
+  --text-secondary: rgba(244, 241, 232, 0.66);
+  --text-muted: rgba(244, 241, 232, 0.42);
+  --text-faint: rgba(244, 241, 232, 0.26);
+  --text-on-gold: var(--ink-900);
+  --text-on-jade: var(--jade-white);
+  --text-gold: var(--gold-400);
+  --text-jade: var(--jade-300);
+
+  /* ── Semantic: borders & hairlines (gold-tinted) ────────── */
+  --border-subtle: rgba(201, 163, 91, 0.16);
+  --border-default: rgba(201, 163, 91, 0.26);
+  --border-strong: rgba(201, 163, 91, 0.45);
+  --border-jade: rgba(116, 176, 164, 0.30);
+  --divider: rgba(244, 241, 232, 0.08);
+
+  /* ── Semantic: actions & status ─────────────────────────── */
+  --accent: var(--gold-500);
+  --accent-hover: var(--gold-400);
+  --accent-press: var(--gold-600);
+  --brand-jade: var(--jade-500);
+  --spirit-stone: var(--gold-400);   /* 灵石 currency color */
+  --info: var(--moon-400);
+  --success: var(--jade-400);
+  --warning: var(--gold-400);
+  --danger: var(--cinnabar-500);
+
+  /* ── Decorative washes (低透明度水墨/云雾/阵法) ──────────── */
+  --wash-gold: rgba(201, 163, 91, 0.08);
+  --wash-jade: rgba(47, 110, 100, 0.10);
+  --wash-moon: rgba(110, 146, 184, 0.08);
+  --ink-fog: rgba(7, 9, 11, 0.55);
+}

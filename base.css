@@ -1,0 +1,98 @@
+/* 灵机阁 Lingji Forge — Base layer
+ * Minimal reset + brand background motifs (水墨山峦 / 云雾 / 阵法纹理 / 星盘).
+ * These helpers are optional decoration; tokens above are the foundation. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  font-weight: var(--weight-regular);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(201, 163, 91, 0.30);
+  color: var(--jade-white);
+}
+
+/* ── Brand backgrounds ──────────────────────────────────────
+ * .lf-bg-deep   : app-level ink void with a faint gold radial 灵光
+ * .lf-bg-array  : 阵法/星盘 ring texture (low opacity, decorative)
+ * .lf-bg-mist   : 云雾 horizontal fog band at the base
+ * Layer them on a positioned container; they are pointer-events:none ::before/::after. */
+
+.lf-bg-deep {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(47, 110, 100, 0.14), transparent 60%),
+    radial-gradient(90% 60% at 50% 120%, rgba(201, 163, 91, 0.10), transparent 60%),
+    var(--bg-deep);
+}
+
+.lf-bg-array {
+  position: relative;
+  isolation: isolate;
+}
+.lf-bg-array::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 78px, rgba(201, 163, 91, 0.05) 78px 79px);
+  opacity: 0.6;
+  mask-image: radial-gradient(circle at 50% 50%, #000 30%, transparent 72%);
+}
+
+.lf-bg-mist::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 38%;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(110, 146, 184, 0.10), transparent);
+}
+
+/* ── Hairline frame (炼器台 plate edge) ─────────────────────── */
+.lf-plate {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card), var(--inset-top);
+}
+.lf-plate--cut {
+  clip-path: var(--cut-corner);
+}
+
+/* ── Text helpers ───────────────────────────────────────────── */
+.lf-serif { font-family: var(--font-serif); }
+.lf-script { font-family: var(--font-script); }
+.lf-mono { font-family: var(--font-mono); }
+.lf-gold-text {
+  background: linear-gradient(100deg, var(--gold-300), var(--gold-500) 55%, var(--gold-600));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Thin scrollbars in-app ─────────────────────────────────── */
+.lf-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.lf-scroll::-webkit-scrollbar-thumb {
+  background: rgba(201, 163, 91, 0.22);
+  border-radius: var(--radius-pill);
+}
+.lf-scroll::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

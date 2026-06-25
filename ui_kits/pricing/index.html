@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵机阁 · 会员定价</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style> body { margin: 0; background: var(--bg-base); } </style>
+</head>
+<body class="lf-scroll">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script>window.LF_ICON_BASE = "../../";</script>
+<script src="/ui_kits/i18n.js"></script>
+<script>window.__lf.setPageTitle("pricing.title");</script>
+<script type="text/babel">
+const { Button, Badge, SpiritStone, Card } = window.LingjiForgeDesignSystem_e6d384;
+
+function Bar() {
+  const t = window.__lf.raw("pricing.nav");
+  return (
+    <header style={{ height: "var(--topbar-h)", display: "flex", alignItems: "center", gap: 28, padding: "0 40px", borderBottom: "1px solid var(--border-subtle)", background: "rgba(11,15,18,0.8)", backdropFilter: "blur(14px)", position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <img src="../../assets/logo-emblem-transparent.png" style={{ width: 34, height: 34, objectFit: "contain" }} />
+        <span style={{ fontFamily: "var(--font-serif)", fontWeight: 800, fontSize: 21, color: "var(--text-primary)", letterSpacing: "0.04em" }}>{window.__lf.t("app.brand")}</span>
+      </div>
+      <nav style={{ display: "flex", gap: 4, marginLeft: 12 }}>
+        {t.links.map((l, i) => <a key={l} href="#" style={{ padding: "8px 14px", fontSize: 14, color: i === 2 ? "var(--gold-200)" : "var(--text-secondary)", textDecoration: "none" }}>{l}</a>)}
+      </nav>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+        <SpiritStone count={128} onAdd={() => {}} />
+        <Button variant="gold" size="sm">{t.start}</Button>
+      </div>
+    </header>
+  );
+}
+
+function Pricing() {
+  const t = window.__lf.raw("pricing");
+  React.useEffect(() => { setTimeout(() => window.lucide && window.lucide.createIcons(), 40); });
+  return (
+    <div>
+      <Bar />
+      <section className="lf-bg-deep" style={{ padding: "64px 40px 44px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <div className="lf-bg-array" style={{ position: "absolute", inset: 0, opacity: 0.4 }} />
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 999, background: "rgba(201,163,91,0.1)", border: "1px solid var(--border-default)", marginBottom: 20 }}>
+            <span style={{ width: 7, height: 7, background: "var(--gold-400)", transform: "rotate(45deg)" }} />
+            <span style={{ fontSize: 13, color: "var(--gold-200)" }}>{t.badge}</span>
+          </div>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 900, fontSize: 46, color: "var(--text-primary)", margin: 0 }}>{t.headline}</h1>
+          <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 560, margin: "16px auto 0", lineHeight: 1.7 }}>{t.subtitle}</p>
+        </div>
+      </section>
+
+      <section style={{ padding: "0 40px 64px", maxWidth: 1240, margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18, marginTop: -8 }}>
+          {t.plans.map((p) => (
+            <div key={p.name} style={{ position: "relative", padding: 26, borderRadius: "var(--radius-xl)", background: p.hot ? "linear-gradient(180deg, rgba(201,163,91,0.12), var(--surface-card))" : "var(--surface-card)", border: "1px solid " + (p.hot ? "var(--border-strong)" : "var(--border-subtle)"), boxShadow: p.hot ? "var(--glow-gold)" : "none" }}>
+              {p.tag && <div style={{ position: "absolute", top: 18, right: 18 }}><Badge tone="gold" solid>{p.tag}</Badge></div>}
+              <div style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 22, color: "var(--text-primary)" }}>{p.name}</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>{p.desc}</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5, margin: "18px 0 6px" }}>
+                <span style={{ fontFamily: "var(--font-serif)", fontWeight: 900, fontSize: 38, color: p.hot ? "var(--gold-200)" : "var(--text-primary)" }}>{p.price}</span>
+                <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{p.unit}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--gold-300)", marginBottom: 20 }}>{p.note}</div>
+              <Button variant={p.variant} full size="lg">{p.cta}</Button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 22 }}>
+                {p.feats.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 13, color: "var(--text-secondary)" }}>
+                    <i data-lucide="check" style={{ width: 15, height: 15, color: "var(--jade-300)", flex: "none", marginTop: 2 }} />{f}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* spirit rules + ad model */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 18, marginTop: 36 }}>
+          <Card padding={26}>
+            <div style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 20, color: "var(--text-primary)", marginBottom: 4 }}>{t.costTitle}</div>
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>{t.costDesc}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 28px" }}>
+              {t.costs.map(([costType, c]) => (
+                <div key={costType} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid var(--divider)" }}>
+                  <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{costType}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--gold-200)" }}>
+                    <span style={{ width: 9, height: 9, background: "linear-gradient(135deg,var(--gold-300),var(--gold-600))", transform: "rotate(45deg)", borderRadius: 1 }} />{c}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card padding={26} glow="gold" style={{ background: "linear-gradient(160deg, rgba(47,110,100,0.12), var(--surface-card))" }}>
+            <i data-lucide="clapperboard" style={{ width: 28, height: 28, color: "var(--jade-300)" }} />
+            <div style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 20, color: "var(--text-primary)", marginTop: 14 }}>{t.adTitle}</div>
+            <p style={{ fontSize: 14, lineHeight: 1.75, color: "var(--text-secondary)", marginTop: 10 }} dangerouslySetInnerHTML={{ __html: t.adDesc }} />
+            <div style={{ marginTop: 18 }}><Button variant="jade" icon={<i data-lucide="clapperboard" style={{ width: 16, height: 16 }} />}>{t.adTitle}</Button></div>
+          </Card>
+        </div>
+      </section>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Pricing />);
+</script>
+</body>
+</html>

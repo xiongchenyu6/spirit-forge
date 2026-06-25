@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵机阁 · 新手引导</title>
+<link rel="stylesheet" href="../../styles.css" />
+<style> html, body { margin: 0; height: 100%; background: var(--bg-deep); overflow: hidden; } #root { height: 100vh; } </style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+<script>window.LF_ICON_BASE = "../../";</script>
+<script src="/ui_kits/i18n.js"></script>
+<script>window.__lf.setPageTitle("onboarding.title");</script>
+<script type="text/babel">
+const { Button, Tag, SpiritStone, OrbIcon, RewardBurst } = window.LingjiForgeDesignSystem_e6d384;
+function Onboard() {
+  const t = window.__lf.raw("onboarding");
+  const TOTAL = 5;
+  const sep = window.__lf.lang === "en" ? ", " : "、";
+  const [step, setStep] = React.useState(0);
+  const [genres, setGenres] = React.useState(window.__lf.lang === "en" ? ["Xianxia", "Pixel"] : ["仙侠", "像素"]);
+  const [assets, setAssets] = React.useState([window.__lf.lang === "en" ? "Character" : "角色"]);
+  const [claimed, setClaimed] = React.useState(false);
+  React.useEffect(() => { const t = setInterval(() => window.lucide && window.lucide.createIcons(), 100); return () => clearInterval(t); });
+  const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+
+  const GENRES = t.genreList.map((g) => ({ label: g, icon: t.genreIconMap[g] }));
+  const ASSETS = t.assetItems;
+  const shownGenres = genres.slice(0, 3).join(sep);
+  return (
+    <div className="lf-bg-deep" style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+      <div className="lf-bg-array" style={{ position: "absolute", inset: 0, opacity: 0.5 }} />
+      <img src="../../assets/logo-emblem-transparent.png" alt="" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 680, opacity: 0.06, pointerEvents: "none" }} />
+
+      <div style={{ position: "relative", width: 560, maxWidth: "92vw", background: "var(--surface-card)", border: "1px solid var(--border-default)", clipPath: "var(--cut-corner)", boxShadow: "var(--shadow-modal), var(--glow-gold)", padding: 40 }}>
+        <div style={{ display: "flex", gap: 7, marginBottom: 28 }}>
+          {Array.from({ length: TOTAL }).map((_, i) => (
+            <div key={i} style={{ flex: 1, height: 4, borderRadius: 999, background: i <= step ? "linear-gradient(90deg,var(--gold-500),var(--gold-300))" : "var(--surface-inset)", boxShadow: i <= step ? "var(--glow-gold)" : "none", transition: "all var(--dur-base)" }} />
+          ))}
+        </div>
+
+        {step === 0 && (
+          <div style={{ textAlign: "center" }}>
+            <img src="../../assets/logo-emblem-transparent.png" style={{ width: 96, height: 96, objectFit: "contain", filter: "drop-shadow(0 0 20px rgba(201,163,91,0.35))", marginBottom: 18 }} />
+            <h1 style={{ fontFamily: "var(--font-serif)", fontWeight: 900, fontSize: 36, color: "var(--text-primary)", margin: 0 }}>{t.step0Title}</h1>
+            <p style={{ fontFamily: "var(--font-serif)", fontSize: 18, color: "var(--gold-200)", margin: "10px 0 0" }}>{t.brandTag}</p>
+            <p style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1.7, margin: "16px auto 0", maxWidth: 400 }}>{t.step0Text}</p>
+          </div>
+        )}
+        {step === 1 && (
+          <div>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 26, color: "var(--text-primary)", margin: 0 }}>{t.step1Title}</h2>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 8 }}>{t.step1Sub}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
+              {GENRES.map(({ label, icon }) => <Tag key={label} selected={genres.includes(label)} icon={<i data-lucide={icon} style={{ width: 15, height: 15 }} />} onClick={() => toggle(genres, setGenres, label)}>{label}</Tag>)}
+            </div>
+          </div>
+        )}
+        {step === 2 && (
+          <div>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 26, color: "var(--text-primary)", margin: 0 }}>{t.step2Title}</h2>
+            <p style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 8 }}>{t.step2Sub}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 22 }}>
+              {ASSETS.map(([a, ic]) => {
+                const on = assets.includes(a);
+                return (
+                  <button key={a} onClick={() => toggle(assets, setAssets, a)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "14px 8px", borderRadius: "var(--radius-md)", cursor: "pointer", background: on ? "rgba(201,163,91,0.14)" : "var(--surface-inset)", border: "1px solid " + (on ? "var(--border-strong)" : "var(--border-subtle)"), color: on ? "var(--gold-200)" : "var(--text-secondary)", boxShadow: on ? "var(--glow-gold)" : "none", transition: "all var(--dur-base)" }}>
+                    <OrbIcon name={ic} size={44} active={on} />
+                    <span style={{ fontSize: 12, fontFamily: "var(--font-sans)" }}>{a}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {step === 3 && (
+          <div style={{ textAlign: "center" }}>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 26, color: "var(--text-primary)", margin: 0 }}>{t.step3Title}</h2>
+            <div style={{ margin: "18px auto 6px" }}>
+              <RewardBurst size={140} />
+            </div>
+            <p style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 28, color: "var(--gold-200)", margin: 0 }}>{claimed ? t.claimed.title : t.claimed.default}</p>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.7 }}>{claimed ? t.step3DescActive : t.step3DescInactive}</p>
+            {!claimed && <div style={{ marginTop: 20 }}><Button variant="jade" icon={<i data-lucide="clapperboard" style={{ width: 16, height: 16 }} />} onClick={() => setClaimed(true)}>{t.step3Action}</Button></div>}
+          </div>
+        )}
+        {step === 4 && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ margin: "0 auto 18px", width: 72, height: 72, borderRadius: "50%", background: "rgba(47,110,100,0.16)", border: "1px solid var(--border-jade)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <i data-lucide="check" style={{ width: 34, height: 34, color: "var(--jade-300)" }} />
+            </div>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 28, color: "var(--text-primary)", margin: 0 }}>{t.step4Title}</h2>
+            <p style={{ fontSize: 15, color: "var(--text-secondary)", lineHeight: 1.7, margin: "12px auto 0", maxWidth: 380 }}>{window.__lf.t("onboarding.step4Text", { genreList: shownGenres })}</p>
+            <div style={{ display: "inline-flex", marginTop: 20 }}><SpiritStone count={claimed ? 25 : 20} size="lg" /></div>
+          </div>
+        )}
+
+        {/* footer nav */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 32 }}>
+          {step > 0 && <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>{t.buttons.prev}</Button>}
+          {step === 0 && <a href="#" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none" }}>{t.buttons.skip}</a>}
+          <div style={{ marginLeft: "auto" }}>
+            {step < TOTAL - 1
+              ? <Button variant="gold" iconRight={<i data-lucide="arrow-right" style={{ width: 16, height: 16 }} />} onClick={() => setStep((s) => s + 1)}>{step === 0 ? t.buttons.start : t.buttons.next}</Button>
+              : <Button variant="gold" size="lg" icon={<i data-lucide="wand-sparkles" style={{ width: 17, height: 17 }} />}>{t.buttons.enter}</Button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Onboard />);
+</script>
+</body>
+</html>

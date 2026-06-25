@@ -1,0 +1,54 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Brand · 旗幡 / 血条 / 卷轴框" subtitle="Banner · OrnateBar · FeaturePanel" -->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg-base); }
+  .lbl { font-family: var(--font-sans); font-size: 11px; letter-spacing: var(--tracking-wider); color: var(--text-muted); text-transform: uppercase; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+window.LF_ICON_BASE = "../../";
+const { Banner, OrnateBar, FeaturePanel } = window.LingjiForgeDesignSystem_e6d384;
+function Demo() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 26, alignItems: "start" }}>
+      <div>
+        <p className="lbl">Banner · 旗幡</p>
+        <div style={{ display: "flex", gap: 14, marginBottom: 22 }}>
+          <Banner variant="teal" size={64}>Lv5</Banner>
+          <Banner variant="paper" size={64}>新</Banner>
+          <Banner variant="teal" size={64}>VIP</Banner>
+        </div>
+        <p className="lbl">OrnateBar · 血条 / 进度</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <OrnateBar value={72} tone="teal" height={22} label="推演进度" />
+          <OrnateBar value={48} tone="gold" height={20} />
+          <OrnateBar value={88} tone="moon" height={20} />
+          <OrnateBar value={30} tone="cinnabar" height={20} />
+        </div>
+      </div>
+      <div>
+        <p className="lbl">FeaturePanel · 卷轴/匾额弹窗</p>
+        <FeaturePanel style={{ width: "100%" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 22, color: "#eafffb", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>万象模板</div>
+            <div style={{ fontSize: 13, color: "rgba(244,241,232,0.8)", marginTop: 8 }}>一键起步 · 风格统一</div>
+          </div>
+        </FeaturePanel>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Demo />);
+</script>
+</body>
+</html>
