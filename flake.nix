@@ -52,6 +52,7 @@
                 nixfmt
                 nixd
                 nodejs
+                sops
                 self'.packages.default
               ];
               LD_LIBRARY_PATH = "$LD_LIBRARY_PATH:${lib-path}";

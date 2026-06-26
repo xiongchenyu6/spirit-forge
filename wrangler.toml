@@ -1,12 +1,52 @@
-name = "lingji-forge-design-system"
+name = "lingji-forge"
+account_id = "2764ae0fd9a5cb92c9ac67708620e54c"
 main = "src/worker.js"
-compatibility_date = "2026-06-24"
+compatibility_date = "2026-05-25"
 
-# 本仓库直接托管静态文件（样式、组件、UI KIt 页面）
-# 站点所有文件放在当前仓库目录，建议后续按需收敛到 public/
+# Worker Assets 只托管生成后的 public/，避免把 .git、.direnv、
+# secrets/ 等本地文件发布到 Cloudflare。部署前运行：
+#   node scripts/build-worker-assets.mjs
 [assets]
-directory = "."
+directory = "public"
 binding = "ASSETS"
+run_worker_first = true
+
+[[r2_buckets]]
+binding = "ASSET_BUCKET"
+bucket_name = "lingji-forge-assets"
+
+[[durable_objects.bindings]]
+name = "USAGE_LIMITER"
+class_name = "UsageLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UsageLimiter"]
+
+[vars]
+COMFY_ACCOUNT = "worldsmith"
+MISTRAL_MODEL = "mistral-small-latest"
+MISTRAL_BASE_URL = "https://api.mistral.ai/v1"
+COMFY_UPSTREAM_BASE = "https://comfy.101.78.126.6.sslip.io"
+COMFY_REST_PROXY_URL = "https://worldsmith.panda.qzz.io/api/comfy/v1"
+COMFY_WS_URL = "wss://worldsmith-comfy-ws.xiongchenyu6.workers.dev"
+
+# Optional after installing a compatible ComfyUI ControlNet/OpenPose model:
+# POSE_CONTROLNET_MODEL = "..."
+
+# Optional after installing a different native Hunyuan3D image-only checkpoint:
+# HUNYUAN3D_CHECKPOINT = "hunyuan3d-dit-v2.safetensors"
+
+# Required production secrets:
+#   MISTRAL_API_KEY
+#   COMFY_API_TOKEN
+# Optional production access gate:
+#   GENERATOR_ACCESS_TOKEN
+#
+# Set from local SOPS:
+#   sops -d --extract '["MISTRAL_API_KEY"]' secrets/local.env | wrangler secret put MISTRAL_API_KEY
+#   sops -d --extract '["COMFY_API_TOKEN"]' secrets/local.env | wrangler secret put COMFY_API_TOKEN
+#   sops -d --extract '["GENERATOR_ACCESS_TOKEN"]' secrets/local.env | wrangler secret put GENERATOR_ACCESS_TOKEN
 
 # 可选：如果你要绑定自定义域名，在 Cloudflare 后台添加路由和自定义域后再放开。
 # route = "www.example.com/*"
