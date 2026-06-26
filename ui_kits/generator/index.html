@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>灵机阁 · 游戏素材生成台</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  </head>
+  <body class="lf-bg-deep generator-shell">
+    <div class="generator-app">
+      <aside class="forge-rail" aria-label="生成参数">
+        <a class="brand-mark" href="/generator/" aria-label="灵机阁">
+          <img src="../../assets/logo-emblem-transparent.png" alt="" />
+          <span>
+            <strong>灵机阁</strong>
+            <small>Asset Forge</small>
+          </span>
+        </a>
+
+        <div class="mode-tabs" role="tablist" aria-label="生成模式">
+          <button class="mode-tab active" data-mode="2d" type="button">
+            <i data-lucide="image"></i>
+            <span>2D</span>
+          </button>
+          <button class="mode-tab" data-mode="3d" type="button">
+            <i data-lucide="box"></i>
+            <span>3D</span>
+          </button>
+        </div>
+
+        <label class="field">
+          <span>资产线</span>
+          <select id="assetType">
+            <option value="character">角色</option>
+            <option value="creature">怪物</option>
+            <option value="ui">UI</option>
+            <option value="map">地图</option>
+            <option value="vfx">技能特效</option>
+            <option value="prop">道具</option>
+            <option value="weapon">武器</option>
+            <option value="icon">图标</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>视觉风格</span>
+          <select id="style">
+            <option value="production">商业游戏概念</option>
+            <option value="pixel">像素 Sprite</option>
+            <option value="anime">二次元角色</option>
+            <option value="isometric">等距视角</option>
+            <option value="realistic">写实风格化</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>视角</span>
+          <select id="camera">
+            <option value="front">正面</option>
+            <option value="top-down">俯视</option>
+            <option value="isometric">等距</option>
+            <option value="turnaround">3D 友好</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>生产预设</span>
+          <select id="preset">
+            <option value="character-actions">角色动作表 4 帧</option>
+            <option value="monster-actions">怪物动作表 4 帧</option>
+            <option value="skill-vfx">技能特效 4 帧</option>
+            <option value="ui-icons">UI 图标 4×2</option>
+            <option value="map-tiles">地图 Tile 4×2</option>
+            <option value="ui-kit">UI 套件 4×2</option>
+            <option value="square">方图 768</option>
+            <option value="portrait">立绘 768×1024</option>
+            <option value="sprite">Sprite 512</option>
+            <option value="icon">图标 512</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>动作幅度</span>
+          <select id="actionStrength">
+            <option value="balanced">均衡</option>
+            <option value="stable">更稳角色</option>
+            <option value="expressive">更大动作</option>
+          </select>
+        </label>
+      </aside>
+
+      <main class="forge-main">
+        <header class="forge-topbar">
+          <nav class="top-links" aria-label="页面">
+            <a href="/generator/" aria-current="page">生成台</a>
+            <a href="/library/">素材库</a>
+            <a href="/templates/">模板</a>
+          </nav>
+          <div class="status-pill" id="capabilityPill">
+            <span class="pulse-dot"></span>
+            <span>连接中</span>
+          </div>
+        </header>
+
+        <section class="workbench">
+          <div class="prompt-band">
+            <label class="prompt-box">
+              <span>描述</span>
+              <textarea id="brief" rows="4">一名适合动作 RPG 的东方机关剑士，青铜机关臂，玄青披风，腰间有发光玉石核心；需要 idle、walk、attack、hurt 四帧动作</textarea>
+            </label>
+            <div class="action-row">
+              <button class="ghost-button" id="planBtn" type="button">
+                <i data-lucide="wand-sparkles"></i>
+                <span>整理提示词</span>
+              </button>
+              <button class="primary-button" id="generate2dBtn" type="button">
+                <i data-lucide="sparkles"></i>
+                <span>生成 2D</span>
+              </button>
+              <button class="primary-button" id="generatePackBtn" type="button">
+                <i data-lucide="grid-3x3"></i>
+                <span>生成资产包</span>
+              </button>
+              <button class="primary-button secondary" id="generate3dBtn" type="button" disabled>
+                <i data-lucide="cuboid"></i>
+                <span>生成 3D</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="result-stage" id="resultStage">
+            <div class="empty-state" id="emptyState">
+              <img src="../../assets/icons/portal.png" alt="" />
+              <strong>等待生成</strong>
+              <span>2D 资产会显示在这里，3D GLB 可直接预览或下载。</span>
+            </div>
+            <img class="result-image" id="resultImage" alt="生成的 2D 游戏素材" hidden />
+            <video class="result-video" id="resultVideo" controls loop playsinline hidden></video>
+            <div class="result-grid" id="resultGrid" hidden></div>
+            <model-viewer
+              class="model-viewer"
+              id="modelViewer"
+              camera-controls
+              shadow-intensity="0.7"
+              exposure="0.9"
+              environment-image="neutral"
+              hidden
+            ></model-viewer>
+            <div class="stage-overlay" id="stageOverlay" hidden>
+              <span class="spinner"></span>
+              <strong id="stageStatus">生成中</strong>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="forge-inspector" aria-label="生成状态">
+        <section class="inspector-section">
+          <h2>状态</h2>
+          <div class="metric-grid">
+            <div>
+              <span>LLM</span>
+              <strong id="llmStatus">-</strong>
+            </div>
+            <div>
+              <span>Comfy</span>
+              <strong id="comfyStatus">-</strong>
+            </div>
+            <div>
+              <span>2D</span>
+              <strong id="twoDStatus">-</strong>
+            </div>
+            <div>
+              <span>Pose</span>
+              <strong id="poseStatus">-</strong>
+            </div>
+            <div>
+              <span>分层</span>
+              <strong id="layerStatus">-</strong>
+            </div>
+            <div>
+              <span>3D</span>
+              <strong id="threeDStatus">-</strong>
+            </div>
+            <div>
+              <span>Video</span>
+              <strong id="videoStatus">-</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="inspector-section animation-route-section">
+          <h2>动画路线</h2>
+          <div class="route-options">
+            <button class="route-option active" type="button" data-route="frames">
+              <i data-lucide="rows-3"></i>
+              <span>
+                <strong>分帧生成</strong>
+                <small>当前主线</small>
+              </span>
+            </button>
+            <button class="route-option" type="button" data-route="video" disabled>
+              <i data-lucide="film"></i>
+              <span>
+                <strong>视频抽帧</strong>
+                <small id="videoRouteStatus">检测中</small>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="inspector-section route-comparison-section">
+          <div class="section-heading-row">
+            <h2>路线对比</h2>
+            <span class="route-badge" id="routeRecommendation">分帧主线</span>
+          </div>
+          <div class="route-comparison" id="routeComparison"></div>
+        </section>
+
+        <section class="inspector-section motion-control-section" id="motionControlSection" hidden>
+          <div class="section-heading-row">
+            <h2>动作控制</h2>
+            <span class="route-badge" id="motionControlStatus">检测中</span>
+          </div>
+          <div class="motion-control-preview" id="motionControlPreview"></div>
+          <span class="auth-status" id="motionControlDetail">-</span>
+        </section>
+
+        <section class="inspector-section route-ab-section" id="routeAbSection" hidden>
+          <div class="section-heading-row">
+            <h2>A/B 样本</h2>
+            <span class="route-badge video" id="routeAbStatus">等待视频</span>
+          </div>
+          <div class="route-ab-comparison" id="routeAbComparison"></div>
+        </section>
+
+        <section class="inspector-section auth-section" id="authSection" hidden>
+          <h2>访问令牌</h2>
+          <div class="auth-token-row">
+            <input id="accessToken" type="password" autocomplete="off" placeholder="输入访问令牌" />
+            <button class="mini-button" id="saveAccessTokenBtn" type="button">保存</button>
+          </div>
+          <span class="auth-status" id="authStatus">需要访问令牌才能提交生成任务。</span>
+        </section>
+
+        <section class="inspector-section usage-section" id="usageSection" hidden>
+          <div class="section-heading-row">
+            <h2>额度</h2>
+            <button class="mini-button" id="refreshUsageBtn" type="button">刷新</button>
+          </div>
+          <div class="usage-meters">
+            <div>
+              <span>小时剩余</span>
+              <strong id="usageHourly">-</strong>
+              <small id="usageHourlyReset">-</small>
+            </div>
+            <div>
+              <span>今日剩余</span>
+              <strong id="usageDaily">-</strong>
+              <small id="usageDailyReset">-</small>
+            </div>
+          </div>
+          <div class="usage-costs" id="usageCosts"></div>
+          <span class="auth-status" id="usageStatus">保存访问令牌后查看额度。</span>
+        </section>
+
+        <section class="inspector-section queue-section" id="queueSection" hidden>
+          <div class="section-heading-row">
+            <h2>队列</h2>
+            <button class="mini-button" id="refreshQueueBtn" type="button">刷新</button>
+          </div>
+          <div class="queue-meters">
+            <div>
+              <span>运行中</span>
+              <strong id="queueRunning">-</strong>
+            </div>
+            <div>
+              <span>等待中</span>
+              <strong id="queuePending">-</strong>
+            </div>
+          </div>
+          <span class="auth-status" id="queueStatus">保存访问令牌后查看队列。</span>
+        </section>
+
+        <section class="inspector-section cloud-jobs-section" id="cloudJobsSection" hidden>
+          <div class="section-heading-row">
+            <h2>云端任务</h2>
+            <button class="mini-button" id="refreshJobsBtn" type="button">刷新</button>
+          </div>
+          <div class="cloud-job-list" id="cloudJobList"></div>
+          <span class="auth-status" id="cloudJobStatus">保存访问令牌后查看任务。</span>
+        </section>
+
+        <section class="inspector-section">
+          <h2>提示词</h2>
+          <pre id="promptPlan">尚未整理</pre>
+        </section>
+
+        <section class="inspector-section">
+          <h2>输出</h2>
+          <div class="output-actions">
+            <a class="download-link disabled" id="download2d" href="#" download>
+              <i data-lucide="download"></i>
+              <span>下载 PNG</span>
+            </a>
+            <a class="download-link disabled" id="downloadTransparent" href="#" download="lingji_asset_alpha.png">
+              <i data-lucide="scissors"></i>
+              <span>下载透明 PNG</span>
+            </a>
+            <a class="download-link disabled" id="downloadSheet" href="#" download="lingji_sprite_sheet.png">
+              <i data-lucide="table-cells-split"></i>
+              <span>下载 Sheet</span>
+            </a>
+            <a class="download-link disabled" id="downloadMetadata" href="#" download="lingji_asset_pack.json">
+              <i data-lucide="braces"></i>
+              <span>下载 JSON</span>
+            </a>
+            <a class="download-link disabled" id="downloadZip" href="#" download="lingji_asset_pack.zip">
+              <i data-lucide="archive"></i>
+              <span>下载 ZIP</span>
+            </a>
+            <button class="download-link disabled" id="generateLayersBtn" type="button" disabled>
+              <i data-lucide="bone"></i>
+              <span>生成 Spine 分层</span>
+            </button>
+            <a class="download-link disabled" id="downloadPreview" href="#" download="lingji_asset_preview.png">
+              <i data-lucide="eye"></i>
+              <span>下载预览 PNG</span>
+            </a>
+            <a class="download-link disabled" id="download3d" href="#" download>
+              <i data-lucide="box"></i>
+              <span>下载 GLB</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="inspector-section history-section">
+          <div class="section-heading-row">
+            <h2>历史</h2>
+            <button class="mini-button" id="clearHistoryBtn" type="button">清空</button>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </section>
+
+        <section class="inspector-section warnings" id="warnings">
+          <h2>缺口</h2>
+          <ul id="warningList"></ul>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

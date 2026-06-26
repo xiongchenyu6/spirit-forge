@@ -12,6 +12,12 @@ function ParamPanel({ params, setParam, cost, spirit, onGenerate, generating }) 
       }
       return { value: item, label: item };
     });
+  const normalizeOptions = (opts) => opts.map((item) => {
+    if (item && typeof item === "object" && !Array.isArray(item) && Object.prototype.hasOwnProperty.call(item, "value")) {
+      return item;
+    }
+    return pick([item])[0];
+  });
 
   const Group = ({ label, children }) => (
     <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: "1px solid var(--divider)" }}>
@@ -21,7 +27,7 @@ function ParamPanel({ params, setParam, cost, spirit, onGenerate, generating }) 
   );
   const chips = (key, opts) => (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-      {opts.map(({ value, label }) => <Tag key={value} selected={params[key] === value} onClick={() => setParam(key, value)}>{label}</Tag>)}
+      {normalizeOptions(opts).map(({ value, label }) => <Tag key={value} selected={params[key] === value} onClick={() => setParam(key, value)}>{label}</Tag>)}
     </div>
   );
 

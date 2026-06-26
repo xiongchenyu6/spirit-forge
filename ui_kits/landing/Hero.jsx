@@ -13,8 +13,48 @@ function Hero() {
     promptMeta: "",
     chips: [],
     actions: ["", ""],
+    videoDemo: {
+      badge: "真实视频样本",
+      title: "WEBM 视频自动抽帧成 Sprite Sheet",
+      loading: "正在加载视频样本",
+      unavailable: "视频样本暂不可用，显示静态抽帧结果。",
+      frameLabel: "抽帧结果",
+      metrics: ["质量分", "透明帧", "中心偏移", "ZIP 文件"],
+    },
   });
+  const [demo, setDemo] = React.useState(null);
+  const [demoError, setDemoError] = React.useState(null);
   const chipIcons = ["image", "film", "layout-grid", "braces"];
+  const outputFrames = [
+    ["monster-idle.png", "Idle"],
+    ["monster-move.png", "Move"],
+    ["monster-attack.png", "Attack"],
+    ["monster-death.png", "Death"],
+  ];
+  const videoDemo = hero.videoDemo || {};
+  const quality = demo?.quality || {};
+  const demoUrl = demo?.url || "";
+  const metricValues = [
+    quality.score != null ? String(quality.score) : "--",
+    demo?.frames != null ? String(demo.frames) : "--",
+    quality.maxCenterOffset != null ? `${Math.round(quality.maxCenterOffset * 100)}%` : "--",
+    demo?.zipFiles != null ? String(demo.zipFiles) : "--",
+  ];
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/demo/video-sprite")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+      .then((data) => {
+        if (!cancelled) setDemo(data.demo || null);
+      })
+      .catch((error) => {
+        if (!cancelled) setDemoError(error.message || "failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <section className="lf-bg-deep" style={{ position: "relative", overflow: "hidden", padding: "84px 40px 72px" }}>
@@ -38,8 +78,8 @@ function Hero() {
           {hero.description}
         </p>
         <div style={{ display: "flex", gap: 14, marginTop: 34, alignItems: "center" }}>
-          <OrnateButton size="lg" icon={<i data-lucide="wand-sparkles" style={{ width: 18, height: 18 }} />}>{hero.actions[0]}</OrnateButton>
-          <Button variant="jade" size="lg" icon={<i data-lucide="clapperboard" style={{ width: 18, height: 18 }} />}>{hero.actions[1]}</Button>
+          <OrnateButton size="lg" onClick={() => { window.location.href = "/generator/?demo=video-sprite"; }} icon={<i data-lucide="wand-sparkles" style={{ width: 18, height: 18 }} />}>{hero.actions[0]}</OrnateButton>
+          <Button variant="jade" size="lg" onClick={() => { window.location.href = "/studio/"; }} icon={<i data-lucide="clapperboard" style={{ width: 18, height: 18 }} />}>{hero.actions[1]}</Button>
         </div>
         <div style={{ display: "flex", gap: 22, marginTop: 30, flexWrap: "wrap" }}>
           {hero.chips.map((label, i) => (
@@ -61,10 +101,66 @@ function Hero() {
           dangerouslySetInnerHTML={{ __html: hero.promptText }}
         />
         <div style={{ height: 1, background: "var(--divider)", margin: "18px 0" }} />
+        <div style={{
+          position: "relative",
+          minHeight: 244,
+          overflow: "hidden",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid rgba(74,206,178,0.28)",
+          background: "linear-gradient(45deg, rgba(255,255,255,0.045) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.045) 25%, transparent 25%), rgba(2,6,10,0.86)",
+          backgroundSize: "16px 16px",
+          backgroundPosition: "0 0, 0 8px",
+          display: "grid",
+          placeItems: "center",
+        }}>
+          {demoUrl ? (
+            <video src={demoUrl} controls loop muted playsInline autoPlay style={{ width: "100%", height: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(96px, 1fr))", gap: 10, width: "100%", padding: 18 }}>
+              {outputFrames.map(([file, label]) => (
+                <img key={file} src={window.generatedAssetPath(file)} alt={label} loading="lazy" style={{ width: "100%", aspectRatio: "1", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))" }} />
+              ))}
+            </div>
+          )}
+          <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Badge tone={demoUrl ? "jade" : "gold"}>{demoUrl ? videoDemo.badge : "PNG"}</Badge>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{videoDemo.title}</span>
+          </div>
+        </div>
+        {(demoError || (demo && !demoUrl)) && (
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--gold-200)", margin: "8px 0 0" }}>{videoDemo.unavailable}</p>
+        )}
+        {!demo && !demoError && (
+          <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--text-muted)", margin: "8px 0 0" }}>{videoDemo.loading}</p>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 10 }}>
+          {metricValues.map((value, index) => (
+            <div key={videoDemo.metrics[index]} style={{ minHeight: 48, padding: "7px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "rgba(255,255,255,0.035)" }}>
+              <strong style={{ display: "block", fontFamily: "var(--font-mono)", color: "var(--text-primary)", fontSize: 15 }}>{value}</strong>
+              <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{videoDemo.metrics[index]}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "12px 0 8px" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)" }}>{videoDemo.frameLabel}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>alpha-bounds-bottom-anchor-v1</span>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-          {["sword", "wand-sparkles", "bot", "ghost"].map((ic, i) => (
-            <div key={ic} style={{ aspectRatio: "1", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", background: ["radial-gradient(circle at 50% 35%, #2f6e64, #0e211f)", "radial-gradient(circle at 50% 35%, #5b4b9c, #1a1733)", "radial-gradient(circle at 50% 35%, #3f6e8f, #11212e)", "radial-gradient(circle at 50% 35%, #8f3a3a, #2a1212)"][i] }}>
-              <i data-lucide={ic} style={{ width: 22, height: 22, color: "rgba(255,255,255,0.9)" }} />
+          {outputFrames.map(([file, label]) => (
+            <div key={file} title={label} style={{
+              position: "relative",
+              aspectRatio: "1",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-subtle)",
+              display: "grid",
+              placeItems: "center",
+              overflow: "hidden",
+              background: "linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.05) 25%, transparent 25%), rgba(2,6,10,0.82)",
+              backgroundSize: "14px 14px",
+              backgroundPosition: "0 0, 0 7px",
+            }}>
+              <img src={window.generatedAssetPath(file)} alt={label} loading="lazy" style={{ width: "92%", height: "92%", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))" }} />
+              <span style={{ position: "absolute", left: 5, bottom: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(244,241,232,0.72)", background: "rgba(7,9,11,0.68)", borderRadius: "var(--radius-sm)", padding: "1px 4px" }}>{label}</span>
             </div>
           ))}
         </div>

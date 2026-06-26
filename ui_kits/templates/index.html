@@ -20,15 +20,42 @@
 <script type="text/babel">
 const { Button, Badge, SpiritStone, Tag, OrnateButton, FeaturePanel } = window.LingjiForgeDesignSystem_e6d384;
 const t = window.__lf.raw("templates");
+const GENERATED_BASE = "../../assets/generated/official/";
+function generatedImageSrc(file) {
+  return file && file.includes("/") ? file : GENERATED_BASE + file;
+}
+function GeneratedImage({ file, alt, style = {} }) {
+  return (
+    <img src={generatedImageSrc(file)} alt={alt} loading="lazy" style={{
+      width: "100%",
+      height: "100%",
+      objectFit: "contain",
+      imageRendering: "pixelated",
+      filter: "drop-shadow(0 12px 18px rgba(0,0,0,0.4))",
+      ...style,
+    }} />
+  );
+}
 function TplCard({ tpl }) {
+  const image = tpl[8];
   return (
     <div style={{ borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border-subtle)", background: "var(--surface-card)", cursor: "pointer", transition: "transform var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base)" }}
       onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.boxShadow = "var(--shadow-panel)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.boxShadow = "none"; }}>
       <div style={{ position: "relative", aspectRatio: "16 / 10" }}>
         <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 90% at 50% 22%, ${tpl[3]}, ${tpl[4]} 72%)` }} />
-        <div style={{ position: "absolute", inset: 0, background: "repeating-radial-gradient(circle at 50% 32%, transparent 0 24px, rgba(255,255,255,0.03) 24px 25px)", opacity: 0.5 }} />
-        <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", color: "rgba(255,255,255,0.92)", filter: "drop-shadow(0 0 16px rgba(255,255,255,0.3))" }}><i data-lucide={tpl[2]} style={{ width: 54, height: 54 }} /></div>
+        {image ? (
+          <>
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(45deg, rgba(255,255,255,0.045) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.045) 25%, transparent 25%), rgba(2,6,10,0.52)", backgroundSize: "18px 18px", backgroundPosition: "0 0, 0 9px" }} />
+            <GeneratedImage file={image} alt={tpl[0]} style={{ position: "absolute", inset: "12px 16px 32px", width: "calc(100% - 32px)", height: "calc(100% - 44px)" }} />
+            <span style={{ position: "absolute", top: 10, right: 10, fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--jade-200)", background: "rgba(7,9,11,0.72)", border: "1px solid rgba(90,218,178,0.28)", borderRadius: "var(--radius-sm)", padding: "2px 7px" }}>{t.realOutputLabel}</span>
+          </>
+        ) : (
+          <>
+            <div style={{ position: "absolute", inset: 0, background: "repeating-radial-gradient(circle at 50% 32%, transparent 0 24px, rgba(255,255,255,0.03) 24px 25px)", opacity: 0.5 }} />
+            <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", color: "rgba(255,255,255,0.92)", filter: "drop-shadow(0 0 16px rgba(255,255,255,0.3))" }}><i data-lucide={tpl[2]} style={{ width: 54, height: 54 }} /></div>
+          </>
+        )}
         {tpl[7] && <span style={{ position: "absolute", top: 10, left: 10 }}><Badge tone="gold" solid>{t.featured}</Badge></span>}
         <span style={{ position: "absolute", bottom: 10, right: 10, fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.8)", background: "rgba(7,9,11,0.6)", borderRadius: 4, padding: "2px 7px" }}>{tpl[5]} {window.__lf.t("templates.assetCountSuffix", { count: tpl[5], symbol: window.__lf.lang === "en" ? "items" : "素材" })}</span>
       </div>
@@ -46,6 +73,7 @@ function TplCard({ tpl }) {
 
 function Market() {
   const [cat, setCat] = React.useState(t.filters[0]);
+  const heroFrames = t.heroFrames || ["monster-idle.png", "monster-move.png", "monster-attack.png", "monster-death.png"];
   React.useEffect(() => { setTimeout(() => window.lucide && window.lucide.createIcons(), 40); });
   return (
     <div>
@@ -75,11 +103,19 @@ function Market() {
               <Button variant="ghost" size="lg">{t.unlock}</Button>
             </div>
           </div>
-          <FeaturePanel style={{ width: 360, flex: "none" }}>
+          <FeaturePanel style={{ width: 360, flex: "none" }} bodyStyle={{ justifyContent: "space-between", gap: 10 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: 19, color: "#eafffb", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>{t.heroAssetTitle}</div>
               <div style={{ fontSize: 12, color: "rgba(244,241,232,0.78)", marginTop: 6 }}>{t.heroAssetSub}</div>
             </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7 }}>
+              {heroFrames.map((file, i) => (
+                <div key={file} style={{ position: "relative", aspectRatio: "1", borderRadius: "var(--radius-sm)", overflow: "hidden", border: "1px solid rgba(244,241,232,0.16)", background: "rgba(4,8,10,0.72)" }}>
+                  <GeneratedImage file={file} alt={`${t.heroAssetTitle} ${i + 1}`} style={{ position: "absolute", inset: 5, width: "calc(100% - 10px)", height: "calc(100% - 10px)" }} />
+                </div>
+              ))}
+            </div>
+            <span style={{ alignSelf: "center", fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--jade-200)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(90,218,178,0.24)", borderRadius: "var(--radius-sm)", padding: "2px 7px" }}>{t.realOutputLabel}</span>
           </FeaturePanel>
         </div>
 

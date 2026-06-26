@@ -12,7 +12,18 @@ const GENRE_ART = {
   "二次元": { from: "#9c5a7a", to: "#241018", glow: "rgba(240,150,190,0.8)", icon: "heart" },
 };
 
-function ResultTile({ art, label, selected, onClick, loading }) {
+const GENERATED_ASSET_BASE = "../../assets/generated/official/";
+const GENERATED_PREVIEWS = [
+  { action: "Idle", image: "monster-idle.png" },
+  { action: "Move", image: "monster-move.png" },
+  { action: "Attack", image: "monster-attack.png" },
+  { action: "Death", image: "monster-death.png" },
+];
+function generatedAssetSrc(file) {
+  return file && file.includes("/") ? file : GENERATED_ASSET_BASE + file;
+}
+
+function ResultTile({ art, preview, label, selected, onClick, loading }) {
   return (
     <div onClick={onClick} style={{
       position: "relative", aspectRatio: "1", borderRadius: "var(--radius-md)", overflow: "hidden", cursor: "pointer",
@@ -29,16 +40,129 @@ function ResultTile({ art, label, selected, onClick, loading }) {
         </div>
       ) : (
         <>
-          <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 90% at 50% 30%, ${art.from}, ${art.to} 72%)` }} />
-          <div style={{ position: "absolute", top: "44%", left: "50%", transform: "translate(-50%,-50%)", color: "rgba(255,255,255,0.92)", filter: `drop-shadow(0 0 16px ${art.glow})` }}>
-            <i data-lucide={art.icon} style={{ width: 52, height: 52 }} />
-          </div>
+          {preview ? (
+            <img src={generatedAssetSrc(preview.image)} alt={preview.action} loading="lazy" style={{ position: "absolute", inset: "8%", width: "84%", height: "74%", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 12px 18px rgba(0,0,0,0.4))" }} />
+          ) : (
+            <>
+              <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 90% at 50% 30%, ${art.from}, ${art.to} 72%)` }} />
+              <div style={{ position: "absolute", top: "44%", left: "50%", transform: "translate(-50%,-50%)", color: "rgba(255,255,255,0.92)", filter: `drop-shadow(0 0 16px ${art.glow})` }}>
+                <i data-lucide={art.icon} style={{ width: 52, height: 52 }} />
+              </div>
+            </>
+          )}
           <span style={{ position: "absolute", bottom: 8, left: 9, fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(255,255,255,0.7)" }}>{label}</span>
           {selected && <span style={{ position: "absolute", top: 8, right: 8, width: 20, height: 20, borderRadius: "50%", background: "var(--gold-500)", display: "flex", alignItems: "center", justifyContent: "center" }}><i data-lucide="check" style={{ width: 13, height: 13, color: "var(--ink-900)" }} /></span>}
         </>
       )}
       <style>{`@keyframes lf-spin{to{transform:rotate(360deg)}}`}</style>
     </div>
+  );
+}
+
+function VideoSpriteDemoCard() {
+  const { Badge, Button } = window.LingjiForgeDesignSystem_e6d384;
+  const t = window.__lf.raw("studio.canvas.videoDemo", {
+    kicker: "真实 Video-to-Sprite 样本",
+    title: "纯色背景视频 · 自动抽帧成精灵图",
+    sub: "Wan2.2 先生成 WEBM，再由浏览器抽 4 帧、抠背景、脚底对齐并导出 Sprite Sheet / Metadata / ZIP。",
+    loading: "正在加载视频样本",
+    unavailable: "视频样本暂不可用，已保留静态帧预览。",
+    metrics: ["质量分", "透明帧", "中心偏移", "ZIP 文件"],
+    cta: "打开生成器",
+  });
+  const [demo, setDemo] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/demo/video-sprite")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+      .then((data) => {
+        if (!cancelled) setDemo(data.demo || null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || "failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const available = Boolean(demo?.url);
+  const quality = demo?.quality || {};
+  const metricValues = [
+    quality.score != null ? String(quality.score) : "--",
+    demo?.frames != null ? String(demo.frames) : "--",
+    quality.maxCenterOffset != null ? `${Math.round(quality.maxCenterOffset * 100)}%` : "--",
+    demo?.zipFiles != null ? String(demo.zipFiles) : "--",
+  ];
+
+  return (
+    <section style={{
+      marginTop: 16,
+      border: "1px solid rgba(74,206,178,0.28)",
+      borderRadius: "var(--radius-lg)",
+      background: "linear-gradient(135deg, rgba(74,206,178,0.08), rgba(4,9,13,0.78) 48%, rgba(201,163,91,0.08))",
+      boxShadow: "var(--shadow-panel)",
+      overflow: "hidden",
+    }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 0.92fr) 1fr", gap: 0 }}>
+        <div style={{
+          position: "relative",
+          minHeight: 220,
+          background:
+            "linear-gradient(45deg, rgba(255,255,255,0.045) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.045) 25%, transparent 25%), rgba(2,6,10,0.84)",
+          backgroundSize: "16px 16px",
+          backgroundPosition: "0 0, 0 8px",
+          display: "grid",
+          placeItems: "center",
+          borderRight: "1px solid var(--border-subtle)",
+        }}>
+          {available ? (
+            <video src={demo.url} controls loop muted playsInline autoPlay style={{ width: "100%", height: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
+          ) : (
+            <div style={{ width: "100%", padding: 20, display: "grid", gridTemplateColumns: "repeat(2, minmax(72px, 1fr))", gap: 8 }}>
+              {GENERATED_PREVIEWS.map((preview) => (
+                <div key={preview.action} style={{ aspectRatio: "1", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", display: "grid", placeItems: "center", background: "rgba(255,255,255,0.035)" }}>
+                  <img src={generatedAssetSrc(preview.image)} alt={preview.action} loading="lazy" style={{ width: "88%", height: "88%", objectFit: "contain", imageRendering: "pixelated" }} />
+                </div>
+              ))}
+            </div>
+          )}
+          <span style={{ position: "absolute", left: 12, top: 12 }}>
+            <Badge tone={available ? "jade" : "gold"}>{available ? "WEBM" : "PNG"}</Badge>
+          </span>
+        </div>
+
+        <div style={{ padding: 18, display: "grid", gap: 14, alignContent: "center" }}>
+          <div style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.kicker}</span>
+            <strong style={{ fontFamily: "var(--font-serif)", color: "var(--text-primary)", fontSize: 20, lineHeight: 1.25 }}>{t.title}</strong>
+            <span style={{ color: "var(--text-secondary)", fontSize: 13, lineHeight: 1.55 }}>{demo ? t.sub : t.loading}</span>
+            {(error || (demo && !available)) && (
+              <span style={{ color: "var(--gold-200)", fontSize: 12 }}>{t.unavailable}</span>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(58px, 1fr))", gap: 8 }}>
+            {metricValues.map((value, index) => (
+              <div key={t.metrics[index]} style={{ minHeight: 54, padding: "8px 10px", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-sm)", background: "rgba(255,255,255,0.035)" }}>
+                <strong style={{ display: "block", color: "var(--text-primary)", fontFamily: "var(--font-mono)", fontSize: 16 }}>{value}</strong>
+                <span style={{ color: "var(--text-muted)", fontSize: 11 }}>{t.metrics[index]}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Badge tone="jade">alpha-bounds-bottom-anchor-v1</Badge>
+            <Badge tone="gold">{demo?.dimensions ? `${demo.dimensions.width}×${demo.dimensions.height}` : "512×512"}</Badge>
+            <Button variant="outline" size="sm" onClick={() => { window.location.href = "/generator/?demo=video-sprite"; }} icon={<i data-lucide="wand-sparkles" style={{ width: 15, height: 15 }} />}>
+              {t.cta}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -74,6 +198,8 @@ function StudioCanvas({ params, setParam, phase, progress, onGenerate, prompt, s
           </div>
         </div>
 
+        <VideoSpriteDemoCard />
+
         {/* result tabs + tools */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, margin: "22px 0 14px" }}>
           <div style={{ display: "flex", gap: 4 }}>
@@ -94,7 +220,7 @@ function StudioCanvas({ params, setParam, phase, progress, onGenerate, prompt, s
         {tab === t.tabs[0] && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
             {[0, 1, 2, 3].map((i) => (
-              <ResultTile key={i} art={art} label={`${t.candidatePrefix} ${i + 1} · ${params.size}`} selected={done && sel === i} loading={generating} onClick={() => setSel(i)} />
+              <ResultTile key={i} art={art} preview={GENERATED_PREVIEWS[i]} label={`${t.candidatePrefix} ${i + 1} · ${params.size}`} selected={done && sel === i} loading={generating} onClick={() => setSel(i)} />
             ))}
           </div>
         )}
@@ -104,7 +230,7 @@ function StudioCanvas({ params, setParam, phase, progress, onGenerate, prompt, s
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} style={{ width: 96, height: 96, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", position: "relative", overflow: "hidden", opacity: done ? 1 : 0.4 }}>
                   <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 90% at 50% 35%, ${art.from}, ${art.to})` }} />
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.9)" }}><i data-lucide={art.icon} style={{ width: 34, height: 34 }} /></div>
+                  <img src={generatedAssetSrc(GENERATED_PREVIEWS[i].image)} alt={GENERATED_PREVIEWS[i].action} loading="lazy" style={{ position: "absolute", inset: 7, width: "calc(100% - 14px)", height: "calc(100% - 14px)", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.38))" }} />
                   <span style={{ position: "absolute", bottom: 4, left: 6, fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(255,255,255,0.7)" }}>{directions[i]}</span>
                 </div>
               ))}
@@ -120,8 +246,8 @@ function StudioCanvas({ params, setParam, phase, progress, onGenerate, prompt, s
           <div style={{ borderRadius: "var(--radius-lg)", border: "1px solid var(--border-subtle)", background: "var(--surface-card)", padding: 18 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: 4 }}>
               {Array.from({ length: 32 }).map((_, i) => (
-                <div key={i} style={{ aspectRatio: "1", borderRadius: 3, background: `radial-gradient(120% 90% at 50% 35%, ${art.from}, ${art.to})`, display: "flex", alignItems: "center", justifyContent: "center", opacity: done ? 1 : 0.35 }}>
-                  <i data-lucide={art.icon} style={{ width: 16, height: 16, color: "rgba(255,255,255,0.85)" }} />
+                <div key={i} style={{ aspectRatio: "1", borderRadius: 3, background: `radial-gradient(120% 90% at 50% 35%, ${art.from}, ${art.to})`, display: "flex", alignItems: "center", justifyContent: "center", opacity: done ? 1 : 0.35, overflow: "hidden" }}>
+                  <img src={generatedAssetSrc(GENERATED_PREVIEWS[i % GENERATED_PREVIEWS.length].image)} alt={GENERATED_PREVIEWS[i % GENERATED_PREVIEWS.length].action} loading="lazy" style={{ width: "88%", height: "88%", objectFit: "contain", imageRendering: "pixelated" }} />
                 </div>
               ))}
             </div>

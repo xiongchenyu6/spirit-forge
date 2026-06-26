@@ -1,0 +1,380 @@
+# AI Game Asset Generator MVP
+
+## Direction
+
+灵机阁的第一版可用工具做成 Cloudflare Worker + ComfyUI 的游戏素材生成台。
+
+- 2D: Worker 调 Mistral 整理提示词，再提交 ComfyUI FLUX 工作流生成 PNG。
+- 3D: 走开源 ComfyUI 3D 工作流，优先 Hunyuan3D v2 image-to-GLB，不使用 Tripo3D 闭源 API。
+- Runtime: 浏览器只访问本仓库 Worker，`MISTRAL_API_KEY` 和 `COMFY_API_TOKEN` 不进前端。
+- Auth: production uses a shared `GENERATOR_ACCESS_TOKEN` gate. Per-user rate limits are still pending.
+- Usage control: production now uses a Worker Durable Object to meter the shared access token before Mistral or Comfy work is submitted.
+
+## Current Implementation
+
+- `src/worker.js`
+  - `GET /api/capabilities`
+  - `GET /api/usage`
+  - `GET /api/queue`
+  - `GET /api/jobs`
+  - `GET /api/packs`
+  - `GET /api/packs/:packId`
+  - `GET /api/packs/:packId/download.zip`
+  - `GET /api/packs/:packId/spine-sam3/preview.json`
+  - `GET /api/packs/:packId/spine-sam3/:variant/:part.png`
+  - `POST /api/packs/:packId/layers/generate`
+  - `POST /api/packs/:packId/frames/:frameId/rerun`
+  - `GET /api/library`
+  - `GET /api/library/view`
+  - `POST /api/prompt`
+  - `POST /api/generate/2d`
+  - `POST /api/generate/2d-pack`
+  - `POST /api/generate/3d`
+  - `GET /api/jobs/:promptId`
+  - `GET /api/comfy/view`
+  - `GENERATOR_ACCESS_TOKEN` gate for prompt/generate/job APIs.
+- `ui_kits/generator/`
+  - first-screen tool UI for prompt planning, optional access-token entry, visible usage credits, Comfy queue visibility, cloud task recovery, 2D generation, 2D asset pack generation, VFX pack preset selection, transparent export, action/tile validation previews, browser-side generation history, sheet/metadata/ZIP export, 3D readiness, and downloads.
+- `ui_kits/library/`
+  - cloud-backed asset library UI that reads generated 2D/3D outputs from `/api/library`, reads asset-pack manifests from `/api/packs`, serves archived files from R2, and provides cloud pack metadata downloads.
+
+## Current Comfy State
+
+Comfy account/context: `worldsmith`.
+
+Detected on sg-office:
+
+- ComfyUI `0.20.1`
+- GPU: RTX 4090
+- 2D checkpoint: `flux1-dev-fp8.safetensors`
+- Pose/control nodes: `ControlNetLoader`, `ControlNetApplyAdvanced`, `LoadImage`, `ImageScale`, `VAEEncode`
+- Pose/control model: `flux1-dev-controlnet-union-pro-2.0.safetensors`
+- 3D nodes: `ImageOnlyCheckpointLoader`, `EmptyLatentHunyuan3Dv2`, `Hunyuan3Dv2Conditioning`, `VAEDecodeHunyuan3D`, `VoxelToMesh`, `SaveGLB`
+- 3D checkpoint: `hunyuan3d-dit-v2.safetensors` from `tencent/Hunyuan3D-2/hunyuan3d-dit-v2-0/model.fp16.safetensors`
+
+The 3D API/UI path is available. If the Hunyuan3D checkpoint filename differs from auto-detection, set the Worker var:
+
+```toml
+HUNYUAN3D_CHECKPOINT = "hunyuan3d-dit-v2.safetensors"
+```
+
+## Cloudflare Setup
+
+Worker name: `lingji-forge`.
+
+Production URL: `https://lingji-forge.xiongchenyu6.workers.dev/generator/`.
+
+Required secrets:
+
+```bash
+sops -d --extract '["MISTRAL_API_KEY"]' secrets/local.env | wrangler secret put MISTRAL_API_KEY
+sops -d --extract '["COMFY_API_TOKEN"]' secrets/local.env | wrangler secret put COMFY_API_TOKEN
+```
+
+Optional access gate:
+
+```bash
+sops -d --extract '["GENERATOR_ACCESS_TOKEN"]' secrets/local.env | wrangler secret put GENERATOR_ACCESS_TOKEN
+```
+
+`GENERATOR_ACCESS_TOKEN` is set in production. The Worker requires `x-lingji-access-token` for `/api/prompt`, `/api/generate/*`, `/api/jobs`, and `/api/jobs/*`. `/api/capabilities` stays public so the browser can discover that auth is required. `/api/comfy/view` remains headerless so image/model preview tags can load generated files.
+
+Non-secret vars are committed in `wrangler.toml`.
+
+Storage:
+
+```toml
+[[r2_buckets]]
+binding = "ASSET_BUCKET"
+bucket_name = "lingji-forge-assets"
+```
+
+Usage limiter:
+
+```toml
+[[durable_objects.bindings]]
+name = "USAGE_LIMITER"
+class_name = "UsageLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UsageLimiter"]
+```
+
+Deploy:
+
+```bash
+node scripts/build-worker-assets.mjs
+wrangler deploy
+```
+
+SAM3 Spine regression:
+
+```bash
+node scripts/verify-spine-sam3-regression.mjs --pack 914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd --pack 06e7fd78-f60d-4a7b-983a-4a16678d2815 --min-score 75 --report /tmp/spine-sam3-regression-report.json --html-report /tmp/spine-sam3-visual-report.html --history-dir /tmp/spine-sam3-history
+```
+
+SAM3 Spine drift gate once a baseline exists:
+
+```bash
+node scripts/verify-spine-sam3-regression.mjs --pack 914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd --pack 06e7fd78-f60d-4a7b-983a-4a16678d2815 --min-score 75 --baseline-report /tmp/spine-sam3-history/sam3-spine-BASELINE.json --fail-on-drift --require-baseline --report /tmp/spine-sam3-drift-report.json
+```
+
+Verified on 2026-06-25:
+
+- `GET /api/capabilities`: Mistral configured, Comfy configured, RTX 4090 detected.
+- `POST /api/prompt`: returns Mistral-planned prompts with `mistral-small-latest`.
+- `POST /api/generate/2d`: submits to Comfy and returns a 512x512 PNG result.
+- `GET /api/capabilities`: reports `poseControl.available=true` with `flux1-dev-controlnet-union-pro-2.0.safetensors`.
+- `POST /api/generate/2d-pack`: accepts `referenceImage` plus per-frame `poseImages` and runs Flux img2img + OpenPose ControlNet.
+- `GET /api/capabilities`: reports `threeD.available=true` with `hunyuan3d-dit-v2.safetensors`.
+- `POST /api/generate/3d`: submits the native Hunyuan3D image-to-GLB workflow and returns a downloadable GLB.
+- Browser ZIP writer: generated a test archive with `metadata.json` and frame files; `unzip -t` validated the central directory and CRC data.
+- Browser QA layer: online `app.js` and `styles.css` include asset-pack import checks for alpha bounds, center drift, sprite scale consistency, tile edge mismatch, tile edge-band mismatch, tile corner mismatch, and tileability score.
+- `GET /api/capabilities`: reports `storage.configured=true` with Cloudflare R2.
+- `POST /api/generate/2d`: generated `lingji_2d_asset_00043_.png` at 256x256 and auto-archived it into R2 under `library/files/2d/ec601ceb-386d-41d6-91ad-cd5dd921587f/`.
+- `GET /api/library`: with `x-lingji-access-token`, returns the archived R2 item.
+- `GET /api/library`: returns signed `exp`/`sig` view URLs for archived files.
+- Unsigned `GET /api/library/view?key=...`: returns `401`.
+- Signed `GET /api/library/view?...&exp=...&sig=...`: returns `content-type: image/png` for the archived file.
+- Token-authenticated `GET /api/library/view?key=...`: also returns `content-type: image/png` for direct debugging.
+- `GET /api/capabilities`: reports `usage.configured=true` with hourly and daily credit limits.
+- `GET /api/usage`: with `x-lingji-access-token`, returned hourly `used=0`, daily `used=0` before the limiter smoke test.
+- `POST /api/prompt`: completed through Mistral and charged 1 usage credit.
+- `GET /api/usage`: returned hourly `used=1`, daily `used=1` after the prompt smoke test.
+- Generator page: online HTML/JS/CSS contain the usage panel and refresh logic; `/api/usage` currently reports hourly remaining `239/240` and daily remaining `1199/1200` after the smoke test.
+- `GET /api/queue`: without token returns `401`; with token returns Comfy queue state. Current smoke test returned `running=0`, `pending=0`.
+- Generator page: online HTML/JS contain the queue panel and `/api/queue` refresh logic.
+- `GET /api/jobs`: without token returns `401`; with token returns R2-backed job records.
+- `POST /api/generate/2d`: generated `lingji_2d_asset_00044_.png` at 256x256 and wrote prompt id `3f0120ef-4167-48d3-889a-02c1d036953f` into `library/jobs/` as `queued` before completion.
+- `GET /api/jobs/:promptId`: observed that job as `complete`, archived the output into R2, and updated the job record with result metadata.
+- `GET /api/jobs?limit=1`: returned the completed job with a signed result URL; `HEAD` on that URL returned `200` and `content-type: image/png`.
+- Generator page: online HTML/JS/CSS contain the cloud task panel, `/api/jobs` refresh logic, and restore/resume click handling.
+- `GET /api/packs`: without token returns `401`; with token returns R2-backed asset-pack manifests.
+- `POST /api/generate/2d-pack`: generated cloud pack `06e7fd78-f60d-4a7b-983a-4a16678d2815` for `monster-actions` and wrote a queued manifest with 4 frame prompt ids.
+- `GET /api/packs/:packId`: after polling the frame jobs, returned `status=complete`, counts `4/4`, cover metadata, and signed frame URLs for `lingji_2d_asset_00045_.png` to `lingji_2d_asset_00048_.png`.
+- `HEAD` on a signed pack frame URL returned `200` and `content-type: image/png`.
+- Library page: online HTML/JS/CSS contain the asset-pack filter, `/api/packs` loading, pack cards, frame strip previews, and browser-generated pack metadata JSON downloads.
+- Library API smoke test: `/api/library?limit=3` and `/api/packs?limit=3` both returned `200`; the first pack was `06e7fd78-f60d-4a7b-983a-4a16678d2815`, `status=complete`, `4` frames, with cover and signed frame URLs.
+- `GET /api/packs/06e7fd78-f60d-4a7b-983a-4a16678d2815/download.zip`: with token returned `200 application/zip`, `content-disposition: attachment; filename="monster-actions-06e7fd78.zip"`, and a 786KB ZIP.
+- `unzip -t` on the downloaded cloud pack ZIP passed. It contains `metadata.json` plus `frames/original/01-idle.png`, `02-move.png`, `03-attack.png`, and `04-death.png`.
+- Library page: online HTML/JS/CSS contain the pack detail drawer. Pack detail for `06e7fd78-f60d-4a7b-983a-4a16678d2815` returned 4 frames; the first frame has `id=idle`, `status=complete`, a signed URL, prompt id, and seed `2254527401`.
+- Cloud pack ZIP now also contains `manifest/engine-import.json`, `manifest/phaser-animations.json`, and `README.md`. The current smoke ZIP has 8 files total; `unzip -t` passed, `engine-import.json` reports 4 frames and 1 animation, and `phaser-animations.json` defines the `monster-actions` animation over `idle/move/attack/death`.
+- Cloud pack ZIP now also contains `manifest/unity-sprites.json` and `manifest/godot-sprites.json`. The latest smoke ZIP has 10 files total; `unzip -t` passed, Unity reports 4 sprites with `Point` filtering and a looping `monster-actions` clip, and Godot reports 4 sprites with `nearest` filtering and 0.125s frame durations.
+- Cloud pack ZIP now also contains `scripts/unity/LingjiSpriteImporter.cs` and `scripts/godot/import_lingji_pack.gd`. The latest smoke ZIP has 12 files total; `unzip -t` passed, the Unity script exposes `Tools > Lingji Forge > Import Selected Pack`, and the Godot script creates a `SpriteFrames` resource for `monster-actions`.
+- Cloud pack ZIP now also contains `scripts/phaser/loadLingjiPack.js`. The latest smoke ZIP has 13 files total; `unzip -t` passed, and the Phaser helper exposes `LingjiPhaserPack.load(...)` plus `LingjiPhaserPack.createAnimations(...)`.
+- Cloud pack ZIP now also contains `examples/browser-preview/index.html`. The latest smoke ZIP has 14 files total; `unzip -t` passed, the preview reads `manifest/engine-import.json`, all 4 manifest frame paths resolve under `frames/original`, and the page includes frame playback plus thumbnail scrubbing.
+- Cloud pack ZIP now also contains server-composed `sheet.png`. The deployed Worker composes the sheet from archived R2 frame PNGs using pack row/column metadata and records it in `metadata.json` plus `manifest/engine-import.json`. Online smoke on 2026-06-26 downloaded `skill-vfx-e453472b.zip`, verified 15 files with `unzip -t`, confirmed `sheet.png` is `2048x512` RGBA, and confirmed manifest sheet metadata `{ path: "sheet.png", cellWidth: 512, cellHeight: 512, columns: 4, rows: 1 }`.
+- Cloud pack ZIP now also contains service-side transparent frames under `frames/transparent/*_alpha.png`, and `sheet.png` is composed from those deterministic transparent frames when alpha processing succeeds. Online smoke on 2026-06-26 downloaded `skill-vfx-e453472b.zip`, verified 19 files with `unzip -t`, confirmed 4 transparent frame PNGs, confirmed `sheet.png` is `2048x512` RGBA, and confirmed `metadata.json` plus `manifest/engine-import.json` expose `transparentPath` for each frame and `sheet.alpha={ method: "edge-connected-corner-flood", threshold: 34, feather: 22 }`.
+- Cloud pack engine manifests now default to transparent frames for import. `manifest/engine-import.json` uses `frame.path=frames/transparent/*_alpha.png` and preserves untouched sources as `frame.sourcePath=frames/original/*.png`; Phaser, Unity, and Godot manifests all point to transparent frame paths by default. The Unity and Godot helper scripts scan `frames/transparent` first and fall back to `frames/original` for older packs. Online smoke on 2026-06-26 verified the `skill-vfx` ZIP manifests and helper scripts use this transparent-first behavior, and `unzip -t` still passes.
+- Cloud pack ZIP now treats `tile-pack` exports as opaque tilemaps instead of transparent sprites. `map-tiles` ZIPs skip `frames/transparent`, keep `frame.path` under `frames/original`, compose `sheet.png` from source tiles, expose `sheet.alpha=null`, and include `manifest/tiled-tileset.json` pointing to `../sheet.png` for Tiled imports. Online smoke on 2026-06-26 downloaded `map-tiles-aba9fd5b.zip`, verified 20 files with `unzip -t`, confirmed `sheet.png` is `2048x1024` RGBA, confirmed 8 Tiled tiles at `512x512` with 4 columns, and rechecked `skill-vfx-e453472b.zip` still defaults to transparent frame paths.
+- UI packs are now first-class cloud packs. `ui-kit` submits 8 separate UI component jobs as `ui-pack`, uses an internal `ui-component` prompt preset to avoid sheet/collage pollution, and `icon-pack`/`ui-pack` ZIPs include `manifest/ui-atlas.json` plus Phaser-compatible `manifest/phaser-atlas.json` for `sheet.png`. Online smoke on 2026-06-26 verified the existing `ui-icons-667ba7f2.zip` has 8 atlas sprites and transparent frame paths, then generated `ui-kit` pack `7d2b09f9-4441-434d-9346-262a555f9f64` with `8/8` completed frames, verified its ZIP with `unzip -t`, confirmed `sheet.png` is `2048x1024` RGBA, atlas rects are 8 cells of `512x512`, and Phaser atlas has 8 frames.
+- The Generator page now prefers the Worker-backed cloud ZIP for completed packs instead of its older browser-only ZIP. This makes the main `下载 ZIP` action include the same production import files as the Library: engine/Phaser/Unity/Godot manifests, import helper scripts, browser preview, Tiled tilesets for map packs, and UI atlas manifests for icon/UI packs. Online smoke on 2026-06-26 verified deployed `generator/app.js` calls `/api/packs/:packId/download.zip`, downloaded `ui-kit-7d2b09f9.zip` with `manifest/ui-atlas.json` and `manifest/phaser-atlas.json`, downloaded `map-tiles-aba9fd5b.zip` with `manifest/tiled-tileset.json` and no transparent frames, and `unzip -t` passed for both. Usage credits were unchanged by the ZIP downloads. The browser ZIP fallback now also respects `tile-pack` opacity by setting `alpha=null` and omitting `frames/transparent` for map tiles, and it parses standard `Content-Disposition` filenames from cloud ZIP responses.
+- Library page: online JS/CSS now include the pack animation preview drawer. The `monster-actions` cloud pack detail API returns 4 playable signed frame URLs in Idle/Move/Attack/Death order, and the drawer UI includes a stage image, previous/next controls, play/pause, scrubber, and thumbnail frame buttons.
+- Single-frame rerun API: `POST /api/packs/:packId/frames/:frameId/rerun` is deployed behind the access-token gate. No-token smoke returned `401 auth_required`; token + invalid frame smoke returned `404 frame_not_found` before any Comfy submit, and `/api/usage` was unchanged before/after the invalid-frame check. Online Library JS/CSS now includes per-frame `重跑` controls that call this endpoint after browser confirmation.
+- Official landing page: downloaded 6 generated test PNGs into `assets/generated/official/` and replaced the Hero candidate placeholders plus the first 6 Genre Showcase cards with real outputs. Online smoke: `/landing/` returned `200`, all 6 generated PNGs returned `200 image/png`, and online `Shared.jsx`, `Hero.jsx`, and `i18n.js` contain the generated-asset wiring.
+- Official templates/studio pages: reused the same generated PNG set in the Templates hero panel, the first 6 template cards, and the legacy Studio candidate/animation/Sprite Sheet previews. Online smoke: `/templates/` and `/studio/` returned `200`, online `templates/index.html`, `StudioCanvas.jsx`, and `i18n.js` contain the generated-asset wiring, and all 6 generated PNGs still return `200 image/png`.
+- Comfy upstream repair: `comfy.autolfie.ddns.net` resolves to `127.0.0.1` and only works on sg-office itself, which caused Cloudflare Worker fetches to fail with `403 error code: 1002`. Caddy now also serves `comfy.101.78.126.6.sslip.io`, `COMFY_UPSTREAM_BASE` in `wrangler.toml` and `secrets/local.env` points there, and online `/api/capabilities` again reports `twoD.available=true`, `videoToSprite.available=true`, one Comfy device, and queue `0/0`.
+- Usage refund guard: metered generation endpoints now refund the Durable Object usage counter if the post-metering operation throws or returns `ok:false`. Online smoke used the previous Comfy 403 failure mode and verified `/api/generate/2d` returned `500` while hourly/daily credits stayed unchanged at `220/1020`.
+- UI/map/gear sample generation: generated and archived a modern UI/gear sheet (`lingji_2d_asset_00049_.png`), a full `ui-icons` cloud pack `667ba7f2-4983-4683-8884-0f874f51f0c7` with `8/8` frames, and a full `map-tiles` cloud pack `aba9fd5b-f528-4da5-ae37-b774495c89b1` with `8/8` frames. Downloaded selected outputs into `assets/generated/official/` as `ui-modern-hud.png`, `item-jade-sword.png`, `item-shield.png`, `item-gem.png`, `map-grass.png`, `map-stone-road.png`, `map-water-edge.png`, and `map-forest-floor.png`.
+- Official site generated-output refresh: Landing Genre Showcase now uses real generated outputs for all ten cards, including the new UI/gear and map tile samples. Templates now use the generated map, UI, and gear images for the dungeon tileset, modern UI, and weapons templates. Online Chrome smoke verified `/landing/` and `/templates/` load the new images with nonzero natural dimensions, no broken images, and no runtime exceptions.
+- Official UI kit refresh: copied the generated `ui-kit` v2 sheet into `assets/generated/official/ui-kit-components-sheet.png` and replaced the Landing/Template UI showcase entries with this real `ui-kit` 4x2 atlas output. Online smoke verified the PNG returns `200 image/png`, online `ui_kits/i18n.js` references the new asset in both Chinese and English entries, and Chrome headless rendered `/landing/` plus `/templates/` with the new UI kit text and image path in the DOM.
+- Video-to-Sprite experiment: Comfy `object_info` currently exposes local video workflow nodes including `WanImageToVideo`, `WanAnimateToVideo`, `LTXVImgToVideo`, `SVD_img2vid_Conditioning`, `CreateVideo`, `SaveVideo`, `LoadVideo`, and `FrameInterpolate`, plus Wan2.2 I2V high/low-noise models, Lightning I2V high/low LoRAs, `wan_2.1_vae.safetensors`, and compatible Qwen/UMT5 text encoders. Worker capabilities now report `videoToSprite` with node and model checks. The generator UI has a real animation-route state: `分帧生成` keeps the current 2D asset-pack workflow, while `视频抽帧` now submits `POST /api/generate/video-sprite` with `submit:true` using the current 2D source frame. The endpoint validates source/capabilities before charging 80 credits, submits a 512x512, 33-frame, 12fps Wan2.2 Lightning WEBM job, archives the result as `video/webm`, and the generator UI previews restored `video-sprite` jobs in a `<video>` element.
+- Wan2.2 Video-to-Sprite smoke: `POST /api/generate/video-sprite` with `submit:true` and Comfy source frame `lingji_2d_asset_00045_.png` returned prompt id `6a1b0da9-fb9d-400e-80da-41de463fbd4b`, charged usage from `0/0` to `80/80`, completed as `lingji_video_sprite_00001_.webm`, archived to R2 under `library/files/video-sprite/6a1b0da9-fb9d-400e-80da-41de463fbd4b/`, and online `HEAD` returned `200 video/webm`.
+- Browser postprocess smoke: the deployed generator restored the WEBM smoke job from history, decoded the video in Chrome headless, sampled 4 keyframes, applied `edge-connected-corner-flood` alpha removal, normalized subject bounds with `alpha-bounds-bottom-anchor-v1`, and enabled blob downloads for first transparent frame PNG, 4-column sprite sheet PNG, metadata JSON, preview PNG, and ZIP. The exported metadata reported 4 frames at 512x512, normalization config, per-frame `sourceBounds`/`normalizedBounds`/`transform`, `quality.status=pass`, average alpha coverage `0.25`, average bounds `0.516`, max center offset `0.15`, and normalize scale range `1.024-1.088`.
+- Video sprite ZIP smoke: the browser-generated ZIP contained 21 files, including `metadata.json`, `quality-report.json`, `sheet.png`, `preview/video-sprite-preview.png`, the source WEBM, original frame PNGs, raw transparent frames under `frames/raw-transparent/`, normalized transparent frames under `frames/transparent/`, and engine import manifests under `manifest/`.
+- Charge guard smoke: online `submit:true` without a source frame now returns `source_image_required` and leaves hourly/daily usage deltas at `0`.
+- Pure chroma prompt sample: `POST /api/generate/video-sprite` with `submit:true`, Comfy source `lingji_2d_asset_00045_.png`, and the tightened solid-flat-chroma prompt returned prompt id `358d9e40-5149-4e63-a70a-cf8358e39073`, charged `80` credits, completed as `lingji_video_sprite_00002_.webm`, archived under `library/files/video-sprite/358d9e40-5149-4e63-a70a-cf8358e39073/`, and online `HEAD` returned `200 video/webm`. Browser export restored the job from history and produced all five downloads. Metadata reported 4 frames, `quality.status=pass`, score `100`, average coverage `0.255`, average bounds `0.545`, max center offset `0.13`, normalize scale range `1.079-1.091`, and no warnings. The ZIP contained 21 files including source WEBM, original frames, raw transparent frames, normalized transparent frames, sheet, preview, metadata, quality report, and engine manifests.
+- Video demo API and Studio card: public `GET /api/demo/video-sprite` now returns the stable `pure-chroma-slime-v1` demo metadata plus a fresh signed R2 URL for `lingji_video_sprite_00002_.webm`. The Studio page includes a visible Video-to-Sprite demo card that plays this WEBM and shows quality score `100`, `4` transparent frames, `13%` center offset, `21` ZIP files, normalization method, dimensions, and a generator CTA. Online Chrome smoke verified `/studio/` renders the card, the video reaches `readyState=4`, metrics are visible, and there are no runtime exceptions or React key warnings.
+- Landing hero video demo: the official `/landing/` hero now uses the same `GET /api/demo/video-sprite` API to show the real WEBM sample in the first screen, with static extracted PNG frames as fallback. Online Chrome smoke verified the hero loads the demo API, renders a `<video>` sourced from the signed R2 URL, and displays `100` quality score, `4` transparent frames, `13%` center offset, `21` ZIP files, and the `alpha-bounds-bottom-anchor-v1` method with no runtime exceptions.
+- Public demo generator route: `/generator/?demo=video-sprite` now loads the same public demo without an access token, switches the UI to the video-extraction route, previews the WEBM, runs browser-side frame extraction/alpha removal/baseline normalization, and enables downloads for transparent PNG, sheet PNG, metadata JSON, preview PNG, and ZIP without consuming credits. Landing and Studio CTAs now link to this route. Online Chrome smoke verified the route reaches `video.readyState=4`, all five blob downloads become available, `video-sprite-export` metadata is rendered, the ZIP contains 21 files, and the four manifests parse as `engineFrames=4`, `phaserFrames=4`, `unitySprites=4`, and `godotSprites=4`. No runtime exceptions were reported and no `model-viewer` script was loaded. The 3D `<model-viewer>` library is now lazy-loaded only when showing a GLB, removing WebGL noise from 2D/video sessions.
+- Generator route comparison: `/generator/` now has a route comparison panel for the user-facing decision between separate-frame generation and pure-chroma Video-to-Sprite keyframing. The production recommendation is to keep separate-frame packs as the baseline because they are cheaper (`12` credits per frame), individually rerunnable, cloud-library backed, and already export engine ZIPs. Pure-chroma video keyframing costs `80` credits per WEBM and is best treated as an A/B route for character/monster motion once a stable 2D source frame exists. UI, map, icon, prop, and weapon assets should stay on static/frame-pack generation rather than video. Online Chrome smoke on 2026-06-26 verified `/generator/` renders the new `路线对比` panel, reports `Video=实验`, enables `视频抽帧` as `可 A/B 测试`, and shows `视频精灵 80` in the usage costs.
+- Video-to-Sprite motion QA and pixel cleanup: browser export now adds deterministic motion/loop scoring and a pixel-edge cleanup pass. Motion uses `visible-pixel-delta-v1` over the normalized transparent frames, reporting average/min/max adjacent-frame deltas plus first-to-last `loopDelta`, `motionScore`, and `loopScore` in `quality-report.json`, `metadata.json`, and the export plan. Pixel cleanup uses `alpha-snap-transparent-rgb-v1` to zero nearly transparent pixels, snap nearly solid alpha, and clear RGB on transparent pixels before writing `frames/transparent/*.png`; raw alpha frames remain available under `frames/raw-transparent/`. Online CDP smoke on 2026-06-26 verified `/generator/?demo=video-sprite` reaches `video-sprite-export`, `readyState=4`, `quality.status=pass`, `score=100`, `averageFrameDelta=0.276`, `loopDelta=0.164`, `motionScore=100`, `loopScore=54`, `pixelCleanup.method=alpha-snap-transparent-rgb-v1`, and enables WEBM, transparent PNG, sheet, metadata, ZIP, and preview downloads.
+- Video-to-Sprite A/B sample: the public `/generator/?demo=video-sprite` route now renders a side-by-side A/B sample after browser extraction finishes. The video side shows the four normalized transparent frames from the WEBM plus `motionScore`, `loopScore`, and quality score. The separate-frame baseline uses official generated `monster-actions` frames from `assets/generated/official/monster-idle.png`, `monster-move.png`, `monster-attack.png`, and `monster-death.png`, with the production traits `重跑 / ZIP / 库`. Online CDP smoke on 2026-06-26 verified the route reaches `video-sprite-export`, shows `routeRecommendation=视频 A/B 示例`, exposes `A/B 样本` with status `已对比`, renders 8 comparison images with no broken images, keeps `motionScore=100` and `loopScore=54`, and leaves all export downloads enabled.
+- Video-to-Sprite calibration samples: public `GET /api/demo/video-sprite` now returns a backward-compatible default `demo` plus a `demos` array of signed sample WEBMs. Current samples are `pure-chroma-slime-v1` (`lingji_video_sprite_00002_.webm`), `wan-smoke-slime-v1` (`lingji_video_sprite_00001_.webm`), and `expressive-slime-hop-v1` (`lingji_video_sprite_00003_.webm`). `/generator/?demo=video-sprite&sample=<id>` can open a specific sample, and the A/B panel exposes sample buttons for switching without an access token. Online CDP smoke on 2026-06-26 verified the second sample exports with `motionScore=100`, `loopScore=52`, 8 A/B images and zero broken images, then switching back to `pure-chroma-slime-v1` re-exports with `motionScore=100`, `loopScore=54`, 8 A/B images, and all downloads enabled. A third stronger-motion calibration job `19b5ab8d-f1f8-4f04-84d2-2108c205d6ea` charged 80 credits, completed as `lingji_video_sprite_00003_.webm`, archived to R2, and exported in-browser with `motionScore=100`, `loopScore=23`, `averageFrameDelta=0.267`, `loopDelta=0.277`, 8 A/B images, zero broken images, and all WEBM/transparent PNG/sheet/metadata/preview/ZIP downloads enabled. The low loop score is intentional calibration evidence: stronger prompt motion improves frame delta but worsens first-to-last loop continuity.
+- Video-to-Sprite sample diagnostics: the public demo API now includes `quality.motion` for all calibration samples, and the generator A/B panel renders a compact sample matrix for motion score, loop score, loop delta, and a production label. Current labels are `只做 A/B` for `pure-chroma-slime-v1` and `wan-smoke-slime-v1`, and `强动作反例` for `expressive-slime-hop-v1`. Online CDP smoke on 2026-06-26 verified `/generator/?demo=video-sprite&sample=expressive-slime-hop-v1` renders three diagnostics, marks the active sample as `强动作反例`, reaches `video-sprite-export`, keeps `video.readyState=4`, renders 8 A/B images with zero broken images, and leaves all five export downloads enabled.
+- Tile QA enhancement: map tile packs now calculate and display a tileability score plus max outer-edge, edge-band, and corner color mismatch. The ZIP `quality-report.json` carries these metrics and the generator result card switches from subject/center metrics to tile-specific import checks for `tile-pack` outputs. Online Chrome smoke on 2026-06-26 verified `/generator/` loads as an ES module with no runtime exceptions or console errors, initializes `/api/capabilities`, `/api/usage`, `/api/queue`, `/api/packs`, and `/api/jobs` with `200` responses, and reports `2D / 3D 可用`.
+- Frontend verification note: because `ui_kits/generator/index.html` loads `app.js` with `type="module"`, use both `node --check ui_kits/generator/app.js` and `node --input-type=module --check < ui_kits/generator/app.js` before deploy. The module check catches duplicate top-level declarations that plain script parsing can miss.
+- VFX preset wiring: `skill-vfx` is now a first-class 4-frame sprite-actions pack for charge, burst, impact, and fade frames. The generator UI exposes `技能特效` as an asset line and `技能特效 4 帧` as a production preset. Online Chrome smoke verified selecting the preset autofills `assetType=vfx`, `style=pixel`, and the VFX brief with no runtime errors. Authenticated `/api/prompt` smoke accepted `assetType=vfx` and `preset=skill-vfx`, returning Mistral style tags `pixel/vfx/skill-vfx/front`.
+- Skill VFX production smoke: after the hourly usage window reset on 2026-06-26, `POST /api/generate/2d-pack` generated cloud pack `e453472b-2786-4120-9b8f-1432471d1a34` for `skill-vfx` and charged `48` credits. The pack completed `4/4` frames with Comfy source outputs `lingji_2d_asset_00066_.png` to `lingji_2d_asset_00069_.png`. Downloaded official samples are `skill-vfx-charge.png`, `skill-vfx-burst.png`, `skill-vfx-impact.png`, and `skill-vfx-fade.png`; `skill-vfx-sheet.png` is a 2048x512 horizontal preview built from the four 512x512 frames.
+- Official VFX site refresh: Landing Genre Showcase now includes the generated `skill-vfx-burst.png` card, and the Templates Boss FX card uses `skill-vfx-sheet.png`. Online smoke verified all five VFX PNGs return `200 image/png`. Online Chrome smoke verified `/landing/` renders `技能爆发特效` with a 512x512 image, `/templates/` renders the sheet with 2048x512 natural dimensions, both pages have zero broken images, and no runtime exceptions or console errors were reported.
+- Skill VFX cloud pack verification: `/api/packs/e453472b-2786-4120-9b8f-1432471d1a34` returns `status=complete`, `preset=skill-vfx`, `packKind=sprite-actions`, and `4/4` completed frames. `/api/packs/e453472b-2786-4120-9b8f-1432471d1a34/download.zip` returns `200 application/zip` as `skill-vfx-e453472b.zip`; `unzip -t` passed. The ZIP contains `metadata.json`, engine/Phaser/Unity/Godot manifests, import helper scripts, a browser preview page, README, and `frames/original/01-charge.png` through `04-fade.png`. Engine, Phaser, Unity, and Godot manifests preserve the `charge -> burst -> impact -> fade` order.
+- Library robustness: the Library page now loads `/api/library` and `/api/packs` with partial failure tolerance. If one API fails transiently, the other still renders and the status shows `部分刷新` instead of blanking the whole library. Online Chrome smoke reproduced a local `ERR_NETWORK_CHANGED` on one request while `/api/packs` succeeded; the page still showed the `skill-vfx` pack, pack id, `4` cloud pack cards, `5` VFX images, and zero broken images.
+- Library pack-detail flow: single-frame rerun now starts a browser poll for the returned job id and refreshes the pack detail/card when the frame completes, instead of leaving the user on a queued frame until manual refresh. Online Chrome smoke opened the `skill-vfx` detail drawer, loaded `/api/packs/e453472b-2786-4120-9b8f-1432471d1a34`, showed the animation preview at 512x512, switched to the Burst thumbnail (`2 / 4`), exposed 4 rerun buttons plus ZIP and Metadata actions, and reported zero broken images or runtime/console errors.
+- Library pack detail is now type-aware. `sprite-actions` packs keep the playable animation preview, while `ui-pack`, `icon-pack`, and `tile-pack` render a grid/atlas preview with import manifest badges instead of misleading play/fps controls. Online Chrome smoke on 2026-06-26 opened the real `ui-kit` pack `7d2b09f9-4441-434d-9346-262a555f9f64` and confirmed `UI Atlas 网格预览`, 8 grid items, `ui-atlas.json` plus `phaser-atlas.json`, zero animation controls, and zero broken images; opened `map-tiles` pack `aba9fd5b-f528-4da5-ae37-b774495c89b1` and confirmed `Tilemap 网格预览`, 8 grid items, `tiled-tileset.json`, zero animation controls, and zero broken images; then reopened `skill-vfx` and confirmed it still shows animation controls.
+- Single-frame rerun production smoke: created a dedicated `skill-vfx` rerun smoke pack `020d0c8e-325b-4b5f-b16b-f0ab9edd1c7b` with `4/4` frames, then used the deployed Library UI to rerun the `fade` frame. The browser confirmed the rerun dialog, submitted `/api/packs/020d0c8e-325b-4b5f-b16b-f0ab9edd1c7b/frames/fade/rerun`, polled job `c68bbf71-78ec-4fc7-837f-80c05ecf788e`, and reached `Fade 重跑完成`. The pack record now points `fade` to `lingji_2d_asset_00074_.png`, keeps the previous `lingji_2d_asset_00073_.png` under `previous`, and remains `complete 4/4`. Usage moved from hourly `48` to `108`, matching a new 4-frame pack (`48`) plus one rerun (`12`). The rerun ZIP `skill-vfx-020d0c8e.zip` passed `unzip -t`, includes the refreshed `frames/original/04-fade.png`, and preserves `charge -> burst -> impact -> fade` in engine, Phaser, Unity, and Godot manifests.
+- Generator preset guard: single-image presets such as `square`, `portrait`, `sprite`, and `icon` no longer leave the asset-pack button enabled. The UI now labels them as `整包不可用`, keeps route comparison at `20 点 / 单张`, and blocks accidental `/api/generate/2d-pack` submissions before they reach the Worker. Online CDP smoke on 2026-06-26 verified `/ui_kits/generator/index.html` loads `/api/capabilities` with `200`, reports `2D=可用` and `Comfy=worldsmith`, disables the pack button for `square`, enables it for `ui-kit`, and shows `96 点 / 8 帧` for the UI pack route with no runtime exceptions or console errors.
+- Alpha-ready prompt guard: non-map 2D prompts now get a Worker-enforced production constraint for an isolated flat solid background color that reaches every canvas edge and corner, plus negative terms for checkerboard, transparent preview, gradient, textured background, floor, and shadows. This makes the existing service-side `edge-connected-corner-flood` transparent ZIP postprocess more reliable without changing map tile packs, which must remain opaque. Online smoke on 2026-06-26 called `/api/prompt` for `sprite`, `ui-kit`, and `map-tiles`; `sprite` and `ui-kit` returned `source=mistral` with `alpha-ready`, `background reaches every canvas edge`, and `checkerboard background` negative terms, while `map-tiles` kept map/tile constraints and did not receive alpha-ready background terms.
+- Motion control visibility: the Generator inspector now exposes the action-control mode for sprite-action presets. `character-actions` shows four OpenPose key-pose thumbnails for Idle, Walk, Attack, and Hurt, and the status switches between `待定稿`, `参考图锁定`, and `OpenPose 4 帧` depending on reference image and Pose Control availability. `monster-actions` shows the four monster action targets and reference-lock state, while non-motion packs hide the section. Online CDP smoke on 2026-06-26 verified `/ui_kits/generator/index.html` loads `/api/capabilities` with `200`, reports `Pose=可用`, renders four data-URL pose thumbnails for `character-actions`, renders four action chips for `monster-actions`, hides the section for `ui-kit`, and reports no runtime exceptions or console errors.
+- Worker-side default OpenPose templates: `character-actions` no longer depends on the browser sending `poseImages`. When a reference image is provided and Pose Control is available, the Worker generates four 512x512 OpenPose PNGs internally for Idle, Walk, Attack, and Hurt, uploads them to Comfy input storage, and submits `img2img+pose` jobs. Production smoke pack `914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` was submitted without client `poseImages`; the response returned `referenceMode=img2img+pose`, `jobPoseCount=4`, model `flux1-dev-controlnet-union-pro-2.0.safetensors`, and uploaded pose files such as `lingji_pose_idle_e4fe933b.png`. A follow-up `/api/comfy/view?type=input` read for the idle pose returned `200 image/png`, and `/api/packs/914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` showed four queued frames with `poseControl=true`.
+- Worker-side OpenPose pack completion: the same smoke pack later reached `complete 4/4` with frame outputs `lingji_2d_asset_00092_.png`, `00093_`, `00091_`, and `00094_`. The ZIP `character-actions-914ef7b8.zip` returned `200 application/zip`, `unzip -t` passed, and the package contains 19 files: metadata, engine/Phaser/Unity/Godot manifests, importer scripts, browser preview, `sheet.png`, four original frames, and four transparent frames. `sheet.png` is `2048x512` RGBA, each transparent frame is `512x512` RGBA, `metadata.sheet.alpha` is `edge-connected-corner-flood`, and `manifest/engine-import.json` points frame paths at `frames/transparent/*_alpha.png`.
+- Queue diagnostics and reference validation: `/api/jobs/:promptId` now checks Comfy queue when history has no result. If a prompt is neither in history nor queue, it returns `status=not_in_queue` with a diagnostic message instead of pretending the task is still running forever, and unknown prompt ids do not create R2 job records. The generator pack poller surfaces this as `队列未发现，等待历史结果`. Sprite-action reference images are now validated as likely single-frame assets before submission; wide sheet references are rejected with `400 invalid_reference_image` before Comfy submission. Online smoke on 2026-06-26 verified an unknown prompt returns `not_in_queue` without appearing in `/api/jobs`, and verified the old `1024x512` sheet reference `lingji_2d_asset_00004_.png` is rejected with `invalid_reference_image` while latest pack id remains unchanged.
+- Generator reference guard: the browser now mirrors the Worker single-frame reference validation. When the current 2D result is a wide sheet, sprite-action pack generation is disabled before submission, the button changes to `参考图不适合`, and the Motion Control section reports `参考图无效` with the measured dimensions. Online CDP smoke on 2026-06-26 restored a synthetic history item pointing at the public `2048x512` `skill-vfx-sheet.png`, confirmed the restored `character-actions` state measured `2048x512`, disabled the pack button, set the title/detail to `当前 2D 参考图是 2048x512，像是 sheet 或宽幅图；请先生成单帧角色/怪物定稿。`, and reported no runtime exceptions or console errors.
+- Spine-compatible ZIP export: sprite-action cloud ZIPs now include `spine/skeleton.json`, `spine/skeleton.atlas`, and `spine/README.md`. This is an attachment-swap runtime bridge over `sheet.png`, not a layered editable bone rig. Online smoke on 2026-06-26 deployed Worker `e9bbd863-9c26-40e3-980c-f0ae9d6aa829`, downloaded `character-actions-914ef7b8.zip`, verified 22 files with `unzip -t`, parsed `spine/skeleton.json`, confirmed Spine version `4.1.00`, 1 root bone, 1 sprite slot, 4 region attachments, 5 attachment keyframes for the looping `character-actions` animation, and confirmed `spine/skeleton.atlas` points to `../sheet.png` with 4 regions.
+- Spine export visibility: the Generator result panel now renders a `云端导入包` card for completed packs and lists Spine files for sprite-action packs; the Library pack cards show `Spine ZIP`, search matches `spine`/`skeleton.json`, and pack details list `spine/skeleton.json` plus `spine/skeleton.atlas` in the import badges. Online CDP smoke on 2026-06-26 restored a real `character-actions` cloud pack in `/ui_kits/generator/index.html`, confirmed the import badge list includes both Spine files, and reported zero runtime exceptions. Library CDP smoke rendered 9 pack cards, opened a Spine pack detail, and confirmed both Spine import badges.
+- Spine rig-template export: sprite-action cloud ZIPs now also include `spine/rig-template/` with a first-frame editable rig scaffold: `skeleton.json`, `parts.atlas`, `parts.png`, `parts.json`, `quality.json`, `README.md`, and loose part PNGs for `head`, `torso`, `hips`, `arm_l`, `arm_r`, `leg_l`, and `leg_r`. Online smoke on 2026-06-26 deployed Worker `268d693b-bc46-49d6-8927-d483514d349b`, downloaded `character-actions-914ef7b8.zip`, verified 34 ZIP entries with `unzip -t`, confirmed `manifest/engine-import.json.spineRigTemplate`, parsed the rig skeleton, confirmed 8 bones, 7 slots/parts, 7 atlas regions, and 5 transform keyframes on the animated bones. Visual inspection of `spine/rig-template/parts.png` confirmed non-empty heuristic body-part crops.
+- Spine rig-template QA: `spine/rig-template/quality.json` reports per-part alpha coverage, empty-part checks, crop-edge contact, source rectangles, warning list, and a template score. This is a crop sanity report, not semantic proof that a head/arm/leg split is artistically correct. The Generator and Library import badge lists now include `spine/rig-template/quality.json`. Online smoke on Worker `530ad449-a317-4d6e-a429-d58673543997` downloaded `character-actions-914ef7b8.zip`, verified 35 ZIP entries with `unzip -t`, confirmed `engineImport.spineRigTemplate.quality`, parsed `quality.json`, and got `status=warn`, `score=92`, `parts=7`, `emptyParts=0`, `averageCoverage=0.47`, with 7 informational crop-edge notices and 1 true warning.
+- Layer separation capability: `/api/capabilities` now reports `layerSeparation` for the Spine true-rig path. It treats local SAM/mask nodes as the open segmentation route and flags Bria/Recraft API nodes as optional, not default. Online smoke on Worker `853bda6a-e8aa-47b3-8982-502fce601efe` returned `layerSeparation.available=true`, `mode=local-open-segmentation`, detected `SAM3_Detect`, `SAM3_TrackToMask`, `CropByBBoxes`, `ImageCompositeMasked`, `MaskToImage`, `GrowMask`, `FeatherMask`, `ThresholdMask`, plus Bria/Recraft API nodes. Generator Chrome smoke rendered the new `分层` status as `SAM 可用`, kept `2D` and `Pose` as `可用`, showed no capability warnings, and reported zero runtime exceptions.
+- SAM3 Spine layer-separation job: installed `sam3.1_multiplex_fp16.safetensors` from `Comfy-Org/sam3.1` into Comfy checkpoints on sg-office and restarted ComfyUI. Worker `7c69b88a-acc6-44ed-879c-cd4ca6b0a2f7` now requires both SAM3 nodes and a SAM3 checkpoint before `layerSeparation.available=true`, exposes `POST /api/packs/:packId/layers/generate`, charges 8 credits, uploads the selected completed pack frame to Comfy, runs `CheckpointLoaderSimple -> SAM3_Detect -> MaskToImage -> SaveImage` for `subject/head/torso/hips/arm_l/arm_r/leg_l/leg_r`, and archives all returned masks under one `layer-separation` job. Online smoke against pack `914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` submitted prompt `abdacef2-16d7-4fcd-907d-c57d084bdbab`, completed on first poll, and returned 8 signed R2 files with layer ids. Generator UI now shows `分层 SAM+模型`, includes a `生成 Spine 分层` action for completed sprite-action packs, and renders the returned mask grid.
+- SAM3 Spine ZIP integration: sprite-action cloud ZIPs now include `spine/sam3-layers/` when the pack has a completed `layer-separation` job. This folder contains `skeleton.json`, `parts.atlas`, `parts.png`, `parts.json`, `quality.json`, `README.md`, 7 transparent cutout parts, and 8 raw SAM3 masks. The cutouts apply SAM3 masks to the ZIP's transparent source frame when available, falling back to the original R2 frame only if needed. Online smoke on Worker `36e28b27-5d8f-4e71-b9be-32ef39a6bda8` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, confirmed `manifest/engine-import.json.spineSam3Layers`, confirmed `parts.json.source.cutoutSourcePath="frames/transparent/01-idle_alpha.png"`, confirmed 8 masks and 7 parts, and got `quality.status=pass`, `score=100`, `emptyParts=0`.
+- SAM3 Spine API/UI visibility: pack detail/list records now expose `spineSam3Layers` when a completed SAM3 layer job exists. The Generator import summary shows the SAM3 cutout ZIP note plus `spine/sam3-layers/*` import files, and the Library cards/search labels show `SAM3 Spine ZIP`. Online smoke on Worker `3aed43bb-8f26-4551-b50b-c619e5ff48e7` verified `/api/packs/914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` returns `spineSam3Layers.available=true`, `jobId=abdacef2-16d7-4fcd-907d-c57d084bdbab`, and `files=8`; downloaded the cloud ZIP, verified `unzip -t`, confirmed 21 `spine/sam3-layers` entries, and confirmed `quality.status=pass`, `score=100`, `emptyParts=0`.
+- SAM3 Spine semantic QA: `spine/sam3-layers/quality.json` and `parts.json` now include `sam3-source-geometry-v1` semantic checks: required body parts, visible area share, expected vertical bands, head/torso/hips/legs ordering, left/right limb pair balance, recommended draw order, source/global bounds, and `semantic-part-default-v1` pivot hints. The SAM3 skeleton uses those pivots as bone origins and offsets region attachments back to their visual centers, so rotations start from neck/shoulder/hip-style joints instead of part centers. Online smoke on Worker `aff0dab2-93c7-4d7f-9f12-19b2efbdf01e` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, parsed `quality.json` with `semanticWarnings=0`, `missingRequiredParts=[]`, `recommendedDrawOrder=["leg_l","leg_r","hips","torso","arm_l","arm_r","head"]`, parsed `parts.json` head `pivotHint.role="neck"`, and confirmed `spine/sam3-layers/skeleton.json` has nonzero attachment offsets from the pivoted bones.
+- Spine pivot-aware action timeline: `spine/rig-template/skeleton.json` and `spine/sam3-layers/skeleton.json` now use setup slot order `leg_l, leg_r, hips, torso, arm_l, arm_r, head`, root/hips/torso/head/arm/leg transform timelines, torso/hips scale keys, and action-specific draw-order keys such as bringing the attack arm forward. `parts.json.animation.skeletonTimeline` reports `pivot-aware-transform-v2`. Online smoke on Worker `1d348d08-9d21-400f-b11f-f4e626fbd4ff` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, parsed `spine/sam3-layers/skeleton.json` with `root.translate=5`, `torso.scale=5`, `arm_r.translate=5`, `drawOrder=5`, verified attack-time `arm_r` draw-order offset, and confirmed the same timeline mode plus slot order in `spine/rig-template/`.
+- Spine timeline QA: `spine/rig-template/quality.json`, `spine/sam3-layers/quality.json`, and both `parts.json` files now include `pivot-aware-transform-qa-v1`. It reports required keyed bones/timelines, missing keyed bones, action-state root/hips/torso/limb motion amplitude, scale-key deltas, draw-order key count, foreground slots, and loop-closing keys. Timeline warnings now affect the exported quality score. Online smoke on Worker `a398f45d-4167-4752-9509-45866986f9c9` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, parsed `spine/sam3-layers/quality.json` with `timeline.status=pass`, `timelineWarnings=0`, `rootMaxTranslate=5.39`, `limbMaxRotate=52`, `limbMaxTranslate=13.89`, `drawOrder.changes=1`, `foregroundSlots=["arm_r"]`, and confirmed the same QA method is present in `spine/rig-template/quality.json` plus both parts manifests.
+- SAM3 mask overlap QA: `spine/sam3-layers/quality.json` and `parts.json` now include `sam3-mask-overlap-v1`, which compares raw SAM3 mask coverage on visible source pixels. It classifies allowed joint overlaps, excessive joint overlap, critical non-adjacent overlap, and merged left/right limb pairs; overlap warnings now affect the exported quality score. Online smoke first exposed and then fixed pair-key normalization so normal `hips/torso`, `torso/head`, and torso/arm contact count as allowed joints. The final Worker `555a3e1f-4f6e-49cf-a0b8-e096daffa493` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, parsed `overlap.method="sam3-mask-overlap-v1"`, `allowedJointPairs=4`, `riskyPairs=2`, `warnings=2`, `status=warn`, `score=80`, and correctly flagged risky `hips/arm_r` plus `hips/head` intersections while leaving allowed joint pairs as `classification="joint"`.
+- SAM3 overlap cleanup export: SAM3 Spine ZIPs now keep the original `parts/` intact and also include `cleanup.json`, `cleaned-skeleton.json`, `cleaned-parts.atlas`, `cleaned-parts.png`, and `cleaned-parts/*.png`. Cleanup uses `sam3-overlap-cleanup-v1` with a `front-part-wins-risky-overlap` strategy: risky overlap pixels are trimmed from the lower draw-order part while allowed joint overlaps stay untouched. `metadata.json` and `manifest/engine-import.json` expose the cleaned paths under `spineSam3Layers.cleanup`. Online smoke on Worker `f36fd909-ffe7-4517-962f-ff5873ba1525` downloaded `character-actions-914ef7b8.zip`, verified `unzip -t`, confirmed 11 cleaned files, parsed `cleanup.summary={ actions: 2, partsTrimmed: 1, trimmedPixels: 754, emptyParts: 0, remainingRiskyPairs: 0, remainingWarnings: 0 }`, confirmed the two actions trim `hips` while preserving `arm_r` and `head`, confirmed `cleaned-skeleton.json.skeleton.images="./cleaned-parts/"`, and confirmed both metadata manifests point to the cleanup files.
+- SAM3 Library preview API/UI: Worker `d407e5bd-feb3-4b59-b8ae-080270801f5b` exposes a batch `GET /api/packs/:packId/spine-sam3/preview.json` endpoint that returns original and cleaned SAM3 part previews as data URLs, plus cleanup and quality summaries. It also exposes one-off PNG links under `/spine-sam3/parts/:part.png` and `/spine-sam3/cleaned-parts/:part.png`. The Library detail drawer now renders original-vs-cleaned thumbnails for `head`, `torso`, `hips`, `arm_l`, `arm_r`, `leg_l`, and `leg_r`; Generator and Library import badges include `cleanup.json`, `cleaned-skeleton.json`, and `cleaned-parts.atlas`. Online smoke against pack `914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` confirmed `preview.json` returns 7 parts, `cleanup.summary.actions=2`, `remainingRiskyPairs=0`, `quality.status=warn`, `quality.score=80`, and `hips` cleaned preview shrinks from roughly 30KB to roughly 9.6KB. A single cleaned hips PNG returned `200 image/png` with valid PNG bytes, and deployed `library/app.js`, `library/styles.css`, and `generator/app.js` include the new preview/import wiring.
+- SAM3 Spine regression script: `scripts/verify-spine-sam3-regression.mjs` now provides a no-dependency online quality gate for SAM3 Spine packs. It can auto-discover completed sprite-action packs with `spineSam3Layers`, or verify explicit `--pack` ids. The check reads pack metadata, `preview.json`, and the cloud ZIP; validates 7 required body parts, PNG preview data URLs, cleanup summaries, required ZIP entries, `parts.json`, `quality.json`, `cleanup.json`, original/cleaned skeleton image roots, and engine/metadata cleanup paths. It retries transient 5xx/timeout responses because SAM3 ZIP assembly is still computed at request time. Online run against `914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` passed 89 checks with 0 failures, ZIP entries `67`, preview and ZIP quality `warn 80/100`, cleanup `actions=2`, `trimmedPixels=754`, and `remainingRiskyPairs=0`.
+- SAM3 monster regression sample: ran `POST /api/packs/06e7fd78-f60d-4a7b-983a-4a16678d2815/layers/generate` on the completed `monster-actions` idle frame and archived layer job `9f0d281f-05a7-45eb-97cd-663247272341` with 8 SAM3 files. The initial monster export exposed the main failure mode: unbounded torso/limb masks produced `score=60`, `overlapWarnings=7`, and `riskyOverlapPairs=3`; cleanup could remove remaining risky overlap, but the part layers were still too broad. A stricter experiment with monster-specific prompts and `threshold=0.6` made overlap worse (`score=0`, 15 risky pairs), so those prompts were not adopted.
+- SAM3 preview cache: Worker `5f97c5ba-9b70-40d8-aa50-ff0c16e137f2` caches `preview.json` in R2 by `packId + layer jobId`, and individual part PNG endpoints now decode from the cached data URLs instead of rebuilding the full SAM3 template per image. Online preview warmup still took roughly 25-27s for first uncached builds and encountered transient 503s for the monster sample, but repeated cached preview reads returned in roughly 7.3-7.5s and cleaned part PNG endpoints returned valid PNGs for both character hips and monster left leg.
+- SAM3 monster semantic clamp: Worker `27b58051-7791-4bb6-9ba1-d63bda46357b` adds `monster-anatomy-window-v1` for `monster-actions` SAM3 cutouts. It constrains exported monster head/torso/hips/limbs to broad body-region windows, evaluates overlap on the actual exported cutouts instead of unbounded raw masks, and falls back to the counterpart limb mask when SAM3 assigns a usable limb to the opposite left/right prompt. This improved the monster sample from `warn 60/100` to `warn 90/100`: semantic warnings dropped from 4 to 0, overlap warnings from 7 to 1, risky pairs from 3 to 1, and cleanup leaves `remainingRiskyPairs=0`. Visual inspection still shows rough arm extraction, so this is a structural improvement, not final artist-quality monster rigging.
+- SAM3 two-pack regression: `node scripts/verify-spine-sam3-regression.mjs --pack 914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd --pack 06e7fd78-f60d-4a7b-983a-4a16678d2815 --min-score 75 --report /tmp/spine-sam3-two-pack-full-cached.json` now passes with 2 packs, 0 failures, and full ZIP verification. Character remains `warn 80/100`, monster is now `warn 90/100`; both ZIPs have 67 entries and cleanup leaves `remainingRiskyPairs=0`.
+- Pack ZIP cache: Worker `bc29c871-1ba9-46f8-8ec7-0c9469b798d0` caches `/api/packs/:packId/download.zip` in R2 using a stable fingerprint over pack id, preset/kind/status, frame prompt ids, archived frame file keys, metadata, and latest SAM3 layer job id. It deliberately excludes signed URLs and refresh timestamps so pack detail polling does not bust the cache. The response adds `x-lingji-pack-zip-cache`. Online smoke first observed a `miss` after a transient 503, then repeated monster ZIP downloads returned `hit` with the same 3.48MB ZIP; both character and monster cached ZIP reads returned valid ZIP bytes with `cache=hit`.
+- Generator SAM3 comparison UI: Worker/assets version `63357c02-38bb-4944-9b7d-4c3a2bb5a15a` adds the same original-vs-cleaned SAM3 part comparison card to the Generator result page after the cloud import summary. It loads one cached `preview.json` request for `head`, `torso`, `hips`, arms, and legs, renders original/cleaned thumbnails, and shows the SAM3 score plus remaining risky overlap count. Online static smoke confirmed `/ui_kits/generator/app.js`, `/ui_kits/generator/styles.css`, `/generator/app.js`, and `/generator/styles.css` contain `SAM3 Spine 分层对比`, `spine-sam3/preview.json`, and `sam3-part-compare`; the two-pack preview regression still passes at `--min-score 75`.
+- SAM3 visual QA report: `scripts/verify-spine-sam3-regression.mjs` now supports `--html-report`/`--report-html`, emitting a self-contained HTML report with original-vs-cleaned thumbnails for all seven required parts, preview score, cleanup counters, byte deltas, and warning/failure lists. Online run on 2026-06-26 against character pack `914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd` and monster pack `06e7fd78-f60d-4a7b-983a-4a16678d2815` passed at `--min-score 75` with `--skip-zip`, wrote `/tmp/spine-sam3-visual-report.html` and `/tmp/spine-sam3-visual-report.json`, and confirmed both reports contain the two pack ids plus PNG preview data.
+- SAM3 visual QA history: the same regression script now supports `--history-dir` for compact timestamped snapshots plus `index.json`, and `--baseline-report` for explicit comparisons. When a previous history snapshot exists, the script compares matching packs and reports score, cleanup, risky-overlap, and per-part original/cleaned byte deltas in the CLI summary, JSON report, and HTML visual report. Online verification on 2026-06-26 ran the two-pack preview check twice against `/tmp/spine-sam3-history-visual-delta-20260626`; the second run matched 2 packs against the first baseline with `score=0`, `trimmed=0`, and `risky=0` deltas for both packs. Compact history snapshots were roughly 24KB each and contained no PNG base64, while the HTML report retained inline thumbnails.
+- SAM3 drift gate: `scripts/verify-spine-sam3-regression.mjs` now supports `--fail-on-drift`, `--require-baseline`, `--max-score-drop`, `--max-risky-increase`, `--max-warnings-increase`, `--max-trimmed-increase`, and `--max-part-byte-change-ratio`. The default drift gate allows at most a 5-point score drop, no risky-pair or warning increase, no more than 2000 extra trimmed pixels, and no more than 50% per-part preview byte-size change. Online verification on 2026-06-26 passed the real two-pack baseline with 0 drift failures, then used a synthetic higher-score baseline to confirm the command exits nonzero and reports `drift score dropped -10 below max drop 5` for both packs. A full ZIP run with the real baseline also passed with 67 ZIP entries per pack.
+
+Latest deployed Worker version: `63357c02-38bb-4944-9b7d-4c3a2bb5a15a`.
+
+## 2D Production Test
+
+Ran on 2026-06-25 with 1024x512 outputs:
+
+| Test | Output | Result |
+| --- | --- | --- |
+| Character action sheet | `lingji_2d_asset_00004_.png` | Good 4-frame character consistency; needs fixed cell cutting and alpha background. |
+| Monster action sheet | `lingji_2d_asset_00005_.png` | Good creature quality; currently more like 2x2 state concepts than strict frames. |
+| UI icon sheet | `lingji_2d_asset_00006_.png` | Strong usable icon quality; needs alpha cleanup and stronger item-category constraints. |
+| Map tile sheet | `lingji_2d_asset_00007_.png` | Good isometric map-block concepts, not production top-down seamless tilemaps yet. |
+| UI panel kit | `lingji_2d_asset_00008_.png` | High concept quality; not yet a strict cuttable nine-slice/UI kit sheet. |
+
+Current conclusion: the 2D model is already useful for concept-quality game assets and icon sheets. It is not yet a production sprite/tile pipeline until the workflow adds frame-grid constraints, alpha cleanup, tileability checks, and slicing metadata.
+
+Follow-up test after adding stricter production presets:
+
+| Test | Output | Result |
+| --- | --- | --- |
+| Character actions v2 | `lingji_2d_asset_00009_.png` | Regressed to two similar idle frames; action sheets cannot rely on one text-to-image pass. |
+| Map tiles v2 | `lingji_2d_asset_00010_.png` | Improved to top-down grid, but still not guaranteed seamless tilemap output. |
+
+2D asset pack test:
+
+| Test | Outputs | Result |
+| --- | --- | --- |
+| Character actions pack | `lingji_2d_asset_00011_.png` to `lingji_2d_asset_00014_.png` | API and UI can now submit separate idle/walk/attack/hurt jobs with 512x512 metadata. Visual identity and action consistency still need reference-image control. |
+| Monster actions pack | `lingji_2d_asset_00015_.png` to `lingji_2d_asset_00018_.png` | API submits idle/move/attack/death jobs and returns usable metadata. |
+| Character reference pack | `lingji_2d_asset_00019_.png` to `lingji_2d_asset_00022_.png` | Reference img2img pack improves identity consistency across frames. Pose/action variation is still weak without a pose-control workflow. |
+| Deployed reference pack | `lingji_2d_asset_00023_.png` to `lingji_2d_asset_00026_.png` | Production Worker accepts `referenceImage`, uploads it to Comfy input, and completes 4 img2img action jobs. |
+| Expressive reference pack | `lingji_2d_asset_00027_.png` to `lingji_2d_asset_00030_.png` | Per-action denoise works and metadata is correct. Motion improves only slightly; higher denoise starts degrading identity and pixel consistency. |
+| Pose ControlNet pack v1 | `lingji_2d_asset_00031_.png` to `lingji_2d_asset_00034_.png` | Worker/Comfy accepts `img2img+pose` and completes all four jobs. High denoise improves pose variation but mutates identity too much. |
+| Pose ControlNet lower denoise | `lingji_2d_asset_00035_.png` to `lingji_2d_asset_00038_.png` | Identity improves after lowering pose-mode denoise, but action amplitude becomes too conservative. |
+| Pose ControlNet OpenPose template v2 | `lingji_2d_asset_00039_.png` to `lingji_2d_asset_00042_.png` | Best current balance: same-character multi-pose output is usable as a foundation. Attack/hurt still need stronger production animation control. |
+
+Asset pack export:
+
+- The browser can compose completed pack images into a sheet PNG using the returned row/column metadata.
+- The browser also exports a metadata JSON file with cell size, frame coordinates, source filenames, prompt ids, and seeds.
+- The browser exports a ZIP package containing `metadata.json`, `quality-report.json`, `sheet.png`, original frames, transparent frames, and the pack preview image when available. This keeps engine import testing to one download without adding a CDN dependency.
+- Cloud asset-pack manifests now persist the same frame order, cell metadata, prompt ids, seeds, status counts, and signed archived frame URLs under `library/packs/<packId>.json`. The browser can restore a completed cloud pack into local sheet/metadata/preview downloads, or resume polling a queued cloud pack after refresh.
+- Asset-pack metadata now includes a deterministic QA report. It checks transparent subject coverage, subject bounds, center offset, sprite-frame scale consistency, map-tile outer-edge mismatch, edge-band mismatch, corner mismatch, and tileability score. The same report is shown in the result grid before engine import.
+- The current single-image transparent PNG export, per-frame transparent PNG export, sheet export, and preview export all use the same deterministic edge-connected corner-color flood pass. This is safer than global color thresholding because interior highlights that match the background are preserved unless they connect to the canvas edge. It is useful for quick engine import tests, but it is not a replacement for a real open-source background removal workflow.
+- Sprite action packs now render a browser-side animation preview after all frames complete. The preview is also exported as a compact PNG strip for quick review.
+- Map tile packs now render and export a 2x2 tileability preview for each tile so seams, perspective drift, and scale issues are visible before import. Their import-check card uses tile-specific metrics instead of sprite subject metrics.
+- Skill VFX packs reuse the sprite-actions export path so they get animation preview, sheet PNG, metadata JSON, ZIP export, and Phaser/Unity/Godot animation manifests without adding a separate VFX-only format.
+- Completed 2D, 3D, and asset-pack jobs are saved into browser local history. Restoring a 2D history item makes it available as the current reference image for a new action pack; restoring a pack regenerates sheet, metadata, transparent-frame links, and validation previews from stored Comfy output URLs.
+- The cloud library page now merges single archived files and pack manifests. Pack cards show cover art, the first four frame thumbnails, completion count, a metadata JSON download built from the signed cloud manifest, and a ZIP download backed by the Worker. A pack detail drawer can play completed frames as an animation, scrub by frame, jump through thumbnails, submit a single-frame rerun, and still lists every frame with thumbnail, status, seed, dimensions, prompt id, filename, and single-frame open/download actions.
+- Cloud ZIP downloads include engine-neutral, Phaser, Unity, Godot, and Spine-compatible import manifests, Phaser/Unity/Godot script templates, and a dependency-free browser preview page, so game-side import scripts can consume frame paths and sprite-action order without parsing the full cloud metadata.
+- The browser has an access-token input that stores the token in local storage and sends it as `x-lingji-access-token`.
+- If a 2D result exists, the browser sends it as `referenceImage` for 2D asset packs. The Worker then uses a Flux img2img workflow (`LoadImage -> ImageScale -> VAEEncode -> KSampler`) to preserve identity.
+- Character and monster action packs support `actionStrength`: `stable`, `balanced`, or `expressive`. The Worker maps this to per-action denoise values, keeping idle lower and walk/attack/hurt higher.
+- Character action packs now auto-send browser-generated OpenPose-style PNG templates when a current 2D reference exists and pose ControlNet is available. The Worker uses lower pose-mode denoise values so img2img keeps more identity while ControlNet drives pose.
+
+Cloud asset library:
+
+- Completed 2D and 3D jobs are archived into Cloudflare R2 when `/api/jobs/:promptId` first observes a successful result.
+- The Worker stores the generated file under `library/files/<kind>/<promptId>/...` and a metadata record under `library/items/<kind>-<promptId>.json`.
+- `/api/library` requires the same `GENERATOR_ACCESS_TOKEN` as generation APIs.
+- `/api/library` returns short-lived signed `/api/library/view` URLs so browser previews and downloads can load archived PNG/GLB files without exposing the access token to `<img>` or `<model-viewer>`.
+- `/api/library/view` also accepts a valid `x-lingji-access-token` for direct debugging and API clients.
+
+Usage metering:
+
+- `UsageLimiter` is a Durable Object keyed by a SHA-256 hash of the access token, so the token itself is never stored.
+- Default limits are 240 credits per hour and 1200 credits per day.
+- Costs: prompt = 1, single 2D = 20, 2D asset pack = 12 per generated frame, 3D = 120.
+- Expensive endpoints call the limiter before Mistral/Comfy work starts. Over-limit calls return `429 rate_limited` with `retry-after` and rate-limit headers. If a metered generation operation fails before returning a queued job or returns `ok:false`, the Worker issues an internal refund to the same usage Durable Object scope.
+- The generator UI shows hourly and daily remaining credits, reset time, and per-action costs. It refreshes after prompt/generate calls and when the access token is saved.
+
+Queue visibility:
+
+- `/api/queue` proxies Comfy `/queue` behind the access token and returns normalized `running`, `pending`, `total`, and optional current prompt state.
+- The generator UI shows running and waiting task counts. During a single 2D/3D job it tracks the submitted prompt id; during a pack it tracks the first still-pending prompt id.
+- This is queue visibility, not a separate scheduling layer. Comfy still owns execution order.
+
+Cloud task recovery:
+
+- New submissions write a queued job record into R2 under `library/jobs/<promptId>.json` before returning to the browser.
+- 2D asset packs write one record per Comfy frame job, including `packId`, frame id/label, preset, seed, dimensions, prompt plan, and reference mode.
+- 2D asset packs also write a pack-level manifest under `library/packs/<packId>.json` with frame order, cell metadata, counts, and archived frame result references.
+- `/api/jobs` requires the access token and returns the most recent job records with freshly signed result URLs when a completed job has been archived into R2.
+- `/api/packs` and `/api/packs/:packId` require the access token and return pack manifests with freshly signed frame URLs plus `spineSam3Layers` when a completed layer-separation job exists.
+- `/api/packs/:packId/download.zip` requires the access token and streams a no-compression ZIP with `metadata.json`, engine import manifests, transparent `sheet.png`, README, a static browser preview page, archived original frames from R2, deterministic transparent frames under `frames/transparent/` when alpha processing succeeds, Spine-compatible `spine/skeleton.json` plus `spine/skeleton.atlas`, a heuristic `spine/rig-template/` scaffold, and SAM3-backed `spine/sam3-layers/` cutouts for sprite-action packs that have completed layer separation.
+- `/api/packs/:packId/frames/:frameId/rerun` requires the access token, validates the pack/frame before usage metering, submits only that frame to Comfy, replaces that frame's prompt/job metadata in the pack manifest, and preserves the previous frame result under `previous`.
+- `/api/jobs/:promptId` updates the matching job record to `complete`, `complete_no_result`, or an error-like Comfy status when polling observes a terminal result.
+- The generator UI now has a cloud task panel. It can restore a completed 2D/3D result into the stage, restore a completed asset pack into local sheet/metadata/preview downloads, or resume polling a queued/running prompt after a page refresh.
+- This is still not a separate queue database. Old jobs are not backfilled unless their prompt id is polled again, and a queued record can remain stale if no client ever checks the corresponding `/api/jobs/:promptId` after Comfy completes.
+
+Known bugs and risks:
+
+- `/api/jobs/:promptId` now distinguishes `not_in_queue` when Comfy has neither history nor queue state, so failed or dropped submissions no longer look exactly like running jobs forever. The remaining risk is root-cause visibility: Comfy can still drop a prompt without enough execution detail to explain whether it was canceled, rejected, or lost before execution.
+- Production uses a shared access token with a global Durable Object limiter. It protects Mistral and Comfy from runaway shared-token usage, but it still does not distinguish individual users behind that token.
+- Queue visibility depends on Comfy `/queue`; it does not persist historical queue state and cannot recover exact wait position after Comfy drops a completed prompt from the queue.
+- Cloud task recovery persists submitted prompt ids and final archived results, but terminal status is observed lazily through `/api/jobs/:promptId` polling.
+- `GET /api/comfy/view` proxies output files by filename. This is fine for MVP testing and required for browser image/model previews, but should be scoped once a stronger auth/download strategy is added.
+- `GET /api/library/view` now requires either a valid signature or the shared access token. This is better than public-by-key, but still not a per-user permission model.
+- Long user briefs need bounds before Mistral/Comfy submission.
+- Edge-connected corner-color transparency can still fail when the generated background is not clean and uniform, or when the subject touches the canvas edge. It is now available for single outputs, pack frames, sheets, and previews, so this risk applies to all transparent downloads.
+- Browser QA is heuristic. It catches obvious import risks but does not prove animation quality, semantic correctness, or true seamless tiling.
+- Higher `actionStrength` improves motion but can weaken identity consistency because it raises img2img denoise.
+- Pose ControlNet currently uses generated stick-figure OpenPose templates. It is good enough to prove the pipeline, but not yet a production animation rig. The next quality step is stronger pose maps from a real pose/preprocessor workflow or a curated key-pose library.
+- Spine export has three levels: the stable runtime path uses full-frame attachment swapping over `sheet.png`; `spine/rig-template/` adds an editable scaffold with named bones, slots, loose part PNGs, pivot-aware transforms, and draw-order keys; `spine/sam3-layers/` adds SAM3 mask cutouts, monster semantic clamps, cleanup exports, semantic QA, pivot hints, cached Library original-vs-cleaned previews, cached cloud ZIPs, and a regression script for packs with completed layer-separation jobs. Character and monster samples now both pass the structural ZIP gate at `--min-score 75`, but visual quality is still not artist-approved, especially for monster arms and ambiguous appendages. This is not yet fully automatic production Spine animation: it needs more sample coverage, stronger monster part extraction, and richer authored motion curves before artist-free import can be trusted.
+- Video-to-Sprite should be evaluated only for character/monster motion. The Wan2.2 high/low-noise graph now submits and returns WEBM, and the browser can extract 4 transparent normalized frames plus a sheet/metadata/ZIP. It has a multi-sample public calibration route, browser-side motion/loop scoring, deterministic pixel-edge cleanup, and a visual A/B comparison against the official `monster-actions` frame-pack baseline, but is still experimental until we tune scoring thresholds across more samples.
+- Browser screenshot verification is blocked in this local environment because the Playwright Chromium binary lacks `libglib-2.0.so.0`.
+
+Available but not production-ready:
+
+- `LoraLoader` is installed and pixel LoRA files exist, but they appear to target Flux2/Klein while the current workflow uses `flux1-dev-fp8.safetensors`; compatibility needs a dedicated test before enabling by default.
+- `BriaRemoveImageBackground` and `RecraftRemoveBackgroundNode` are installed, but Bria returned `Unauthorized: Please login first to use this node.` They are not acceptable as the default open-source background removal path.
+
+2D priority backlog:
+
+1. Generate more SAM3 Spine regression samples across character and monster packs, then run `scripts/verify-spine-sam3-regression.mjs` across all of them at `--min-score 75`.
+2. Improve visual quality for monster arms, claws, tails, wings, and other ambiguous appendages beyond the current structural semantic clamp.
+3. Move repeated SAM3 visual QA history into a durable CI/R2 location and wire the drift gate into a scheduled or deployment-adjacent check.
+4. Extend pose/action control beyond character OpenPose templates, especially monster silhouettes and stronger DWPose/OpenPose maps from curated key-pose presets.
+5. Generate more character/monster Video-to-Sprite samples and tune motion/loop scoring thresholds against the separate-frame pack baseline.
+6. Tighten map-specific prompts and tileability scoring so generated map tiles become reliably top-down and seamless instead of just visually plausible.
+7. Test pixel LoRA compatibility or switch the workflow to the matching Flux2/Klein model.
+
+## 3D Production Test
+
+Installed on 2026-06-25:
+
+- `/data/comfyui/models/checkpoints/hunyuan3d-dit-v2.safetensors`
+- Source: `https://huggingface.co/tencent/Hunyuan3D-2/resolve/main/hunyuan3d-dit-v2-0/model.fp16.safetensors`
+- Size on disk: `4.6G`
+
+Validated:
+
+| Test | Output | Result |
+| --- | --- | --- |
+| Hunyuan3D single-view GLB from existing 2D sprite | `lingji_3d_asset_00001_.glb` | Worker submitted the native `ImageOnlyCheckpointLoader -> Hunyuan3Dv2Conditioning -> VAEDecodeHunyuan3D -> VoxelToMesh -> SaveGLB` workflow and returned a valid `model/gltf-binary` file, 6.8MB. |
+
+Verification commands:
+
+```bash
+curl -H "Authorization: Bearer $COMFY_API_TOKEN" "$COMFY_UPSTREAM_BASE/object_info"
+curl -H "Authorization: Bearer $COMFY_API_TOKEN" "$COMFY_UPSTREAM_BASE/models/checkpoints"
+curl "https://lingji-forge.xiongchenyu6.workers.dev/api/capabilities"
+```

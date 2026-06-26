@@ -7,20 +7,25 @@ function StudioNav({ active, setActive }) {
     upgradeText: "",
   });
   const isEn = window.__lf.lang === "en";
+  const groups = (cfg.groups || []).map((group) => Array.isArray(group)
+    ? { title: group[0], items: group[1] || [] }
+    : { title: group.title, items: group.items || [] });
   return (
     <nav className="lf-scroll" style={{
       width: "var(--studio-nav-w)", flex: "none", borderRight: "1px solid var(--border-subtle)",
       background: "var(--bg-base)", padding: "14px 12px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 18,
     }}>
-      {cfg.groups.map(([label, items]) => (
-        <div key={label}>
-          <div style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "var(--tracking-wider)", color: "var(--text-faint)", textTransform: "uppercase", padding: "0 10px 8px" }}>{label}</div>
+      {groups.map((group) => (
+        <div key={group.title}>
+          <div style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "var(--tracking-wider)", color: "var(--text-faint)", textTransform: "uppercase", padding: "0 10px 8px" }}>{group.title}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {items.map(([key, ic, enLabel]) => {
+            {group.items.map(([key, ic, enLabel]) => {
               const label = isEn && enLabel ? enLabel : key;
+              const isMonster = key === "monster" || key.includes("怪物");
+              const isLibrary = key === "assetLibrary" || key.includes("素材库");
               return (
               <NavItem key={key} icon={<OrbIcon name={ic} size={26} active={key === active} />} active={key === active}
-                count={(key === "monster" || key === "assetLibrary") ? (key === "monster" ? 42 : 318) : null}
+                count={(isMonster || isLibrary) ? (isMonster ? 42 : 318) : null}
                 onClick={() => setActive(key)}>{label}</NavItem>
             );
             })}
