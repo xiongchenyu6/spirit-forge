@@ -3,6 +3,7 @@ function TopNav() {
   const { Button, SpiritStone } = window.LingjiForgeDesignSystem_e6d384;
   const t = window.__lf.t.bind(window.__lf);
   const links = t("landing.nav.links");
+  const navHrefs = ["/generator/", "/templates/", "/pricing/", "/library/"];
   const currentLang = window.__lf.lang || "zh";
 
   const switchLang = (nextLang) => {
@@ -28,7 +29,7 @@ function TopNav() {
       </div>
       <nav style={{ display: "flex", gap: 4, marginLeft: 12 }}>
           {links.map((l, i) => (
-            <a key={l} href="#" style={{ padding: "8px 14px", fontFamily: "var(--font-sans)", fontSize: 14, color: i === 0 ? "var(--gold-200)" : "var(--text-secondary)", textDecoration: "none", borderRadius: "var(--radius-md)", transition: "color var(--dur-base)" }}
+            <a key={l} href={navHrefs[i] || "/generator/"} style={{ padding: "8px 14px", fontFamily: "var(--font-sans)", fontSize: 14, color: i === 0 ? "var(--gold-200)" : "var(--text-secondary)", textDecoration: "none", borderRadius: "var(--radius-md)", transition: "color var(--dur-base)" }}
              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
              onMouseLeave={(e) => (e.currentTarget.style.color = i === 0 ? "var(--gold-200)" : "var(--text-secondary)")}>{l}</a>
         ))}
@@ -67,8 +68,8 @@ function TopNav() {
             EN
           </button>
         </div>
-        <a href="#" style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--text-secondary)", textDecoration: "none" }}>{t("landing.nav.login")}</a>
-        <Button variant="gold" size="sm" icon={<i data-lucide="sparkles" style={{ width: 15, height: 15 }} />}>{t("landing.nav.start")}</Button>
+        <a href="/onboarding/" style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: "var(--text-secondary)", textDecoration: "none" }}>{t("landing.nav.login")}</a>
+        <Button variant="gold" size="sm" onClick={() => { window.location.href = "/generator/"; }} icon={<i data-lucide="sparkles" style={{ width: 15, height: 15 }} />}>{t("landing.nav.start")}</Button>
       </div>
     </header>
   );

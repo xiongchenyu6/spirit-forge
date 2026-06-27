@@ -409,7 +409,11 @@ async function verifyPack({ workerUrl, token, packId, minScore, skipZip, preview
     check((quality?.summary?.cleanupRemainingRiskyPairs ?? 0) === 0, "zip quality has no cleanup remaining risky pairs", {
       cleanupRemainingRiskyPairs: quality?.summary?.cleanupRemainingRiskyPairs,
     });
-    check(cleanup?.method === "sam3-overlap-cleanup-v1", "cleanup method is sam3-overlap-cleanup-v1");
+    check(
+      ["sam3-overlap-cleanup-v1", "sam3-overlap-cleanup-v2"].includes(cleanup?.method),
+      "cleanup method is supported",
+      { method: cleanup?.method },
+    );
     check((cleanup?.summary?.emptyParts ?? 0) === 0, "zip cleanup has no empty parts", {
       emptyParts: cleanup?.summary?.emptyParts,
     });

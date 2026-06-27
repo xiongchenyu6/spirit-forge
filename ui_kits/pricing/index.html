@@ -19,6 +19,7 @@
 <script>window.__lf.setPageTitle("pricing.title");</script>
 <script type="text/babel">
 const { Button, Badge, SpiritStone, Card } = window.LingjiForgeDesignSystem_e6d384;
+const NAV_HREFS = ["/generator/", "/templates/", "/pricing/", "/library/"];
 
 function Bar() {
   const t = window.__lf.raw("pricing.nav");
@@ -29,11 +30,11 @@ function Bar() {
         <span style={{ fontFamily: "var(--font-serif)", fontWeight: 800, fontSize: 21, color: "var(--text-primary)", letterSpacing: "0.04em" }}>{window.__lf.t("app.brand")}</span>
       </div>
       <nav style={{ display: "flex", gap: 4, marginLeft: 12 }}>
-        {t.links.map((l, i) => <a key={l} href="#" style={{ padding: "8px 14px", fontSize: 14, color: i === 2 ? "var(--gold-200)" : "var(--text-secondary)", textDecoration: "none" }}>{l}</a>)}
+        {t.links.map((l, i) => <a key={l} href={NAV_HREFS[i] || "/generator/"} style={{ padding: "8px 14px", fontSize: 14, color: i === 2 ? "var(--gold-200)" : "var(--text-secondary)", textDecoration: "none" }}>{l}</a>)}
       </nav>
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
         <SpiritStone count={128} onAdd={() => {}} />
-        <Button variant="gold" size="sm">{t.start}</Button>
+        <Button variant="gold" size="sm" onClick={() => { window.location.href = "/generator/"; }}>{t.start}</Button>
       </div>
     </header>
   );

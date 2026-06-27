@@ -1,5 +1,6 @@
 .direnv
 .wrangler/
+.claude/
 result
 public/
 .dev.vars

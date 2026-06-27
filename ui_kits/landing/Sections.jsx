@@ -81,6 +81,36 @@ function PricingTeaser() {
   );
 }
 
+function footerHref(item) {
+  const routes = new Map([
+    ["万象生成", "/generator/"],
+    ["Generate", "/generator/"],
+    ["万象模板", "/templates/"],
+    ["Templates", "/templates/"],
+    ["我的素材库", "/library/"],
+    ["Library", "/library/"],
+    ["定价", "/pricing/"],
+    ["Pricing", "/pricing/"],
+    ["新手引导", "/onboarding/"],
+    ["Guide", "/onboarding/"],
+    ["导出格式", "/generator/"],
+    ["Export formats", "/generator/"],
+    ["引擎集成", "/library/"],
+    ["Engine integration", "/library/"],
+    ["API 文档", "/generator/"],
+    ["API docs", "/generator/"],
+    ["关于灵机阁", "/landing/"],
+    ["About", "/landing/"],
+    ["商用授权", "/pricing/"],
+    ["Commercial license", "/pricing/"],
+    ["联系我们", "/pricing/"],
+    ["Contact", "/pricing/"],
+    ["加入我们", "/landing/"],
+    ["Careers", "/landing/"],
+  ]);
+  return routes.get(item) || "/generator/";
+}
+
 function Footer() {
   const footer = window.__lf.raw("landing.footer", {
     cols: [],
@@ -102,7 +132,7 @@ function Footer() {
         {footer.cols.map(([h, items]) => (
           <div key={h}>
             <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 14 }}>{h}</div>
-            {items.map((it) => <a key={it} href="#" style={{ display: "block", fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 10 }}>{it}</a>)}
+            {items.map((it) => <a key={it} href={footerHref(it)} style={{ display: "block", fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 10 }}>{it}</a>)}
           </div>
         ))}
       </div>

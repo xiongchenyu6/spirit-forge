@@ -104,11 +104,11 @@ function Onboard() {
         {/* footer nav */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 32 }}>
           {step > 0 && <Button variant="ghost" onClick={() => setStep((s) => s - 1)}>{t.buttons.prev}</Button>}
-          {step === 0 && <a href="#" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none" }}>{t.buttons.skip}</a>}
+          {step === 0 && <a href="/generator/" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none" }}>{t.buttons.skip}</a>}
           <div style={{ marginLeft: "auto" }}>
             {step < TOTAL - 1
               ? <Button variant="gold" iconRight={<i data-lucide="arrow-right" style={{ width: 16, height: 16 }} />} onClick={() => setStep((s) => s + 1)}>{step === 0 ? t.buttons.start : t.buttons.next}</Button>
-              : <Button variant="gold" size="lg" icon={<i data-lucide="wand-sparkles" style={{ width: 17, height: 17 }} />}>{t.buttons.enter}</Button>}
+              : <Button variant="gold" size="lg" onClick={() => { window.location.href = "/generator/"; }} icon={<i data-lucide="wand-sparkles" style={{ width: 17, height: 17 }} />}>{t.buttons.enter}</Button>}
           </div>
         </div>
       </div>
