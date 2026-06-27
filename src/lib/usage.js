@@ -1,7 +1,11 @@
-// usage —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { base64UrlEncode } from "./binary.js";
+// usage —— 额度计量 + 按用户/按 key 限流 + 激励广告奖励额度闭环。
 import { PACK_PRESETS } from "./pack-presets.js";
 import { DEFAULT_USAGE_DAILY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS, USAGE_COSTS, apiAccessToken, jsonResponse, positiveNumber, safeString } from "../worker.js";
+
+// 激励广告奖励额度：每次播放完广告后端发放固定额度，每日封顶。
+// 默认每次 5 灵石、每日上限 15 灵石（即每天最多领 3 次）。
+export const REWARD_CREDITS = 5;
+export const REWARD_DAILY_MAX = 15;
 
 export async function enforceUsageLimit(request, env, action, cost) {
   const usage = await requestUsage(request, env, action, cost);
@@ -59,7 +63,7 @@ async function requestUsage(request, env, action, cost, options = {}) {
     };
   }
 
-  const scope = await usageScope(request);
+  const scope = await deriveUserKey(request);
   const id = env.USAGE_LIMITER.idFromName(scope);
   const stub = env.USAGE_LIMITER.get(id);
   const response = await stub.fetch("https://usage.lingji/check", {
@@ -76,11 +80,76 @@ async function requestUsage(request, env, action, cost, options = {}) {
   return await response.json();
 }
 
-async function usageScope(request) {
+// 按用户/按 key 派生限流维度（每个 user/key 独立的小时/日额度）。
+// 优先级：x-lingji-user-id 请求头 > access token 的 SHA-256 十六进制 > "anonymous"。
+// 命名空间前缀（uid:/tok:）避免 user-id 与 token 摘要互相碰撞；不传 user-id 的老客户端
+// 仍按 token 维度计量，向后兼容。
+export async function deriveUserKey(request) {
+  const userId = safeString(request.headers.get("x-lingji-user-id"));
+  if (userId) return `uid:${sanitizeUserKeySegment(userId)}`;
   const token = apiAccessToken(request);
-  const source = token || request.headers.get("cf-connecting-ip") || "anonymous";
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
-  return base64UrlEncode(new Uint8Array(digest)).slice(0, 32);
+  if (token) return `tok:${await sha256Hex(token)}`;
+  return "anonymous";
+}
+
+function sanitizeUserKeySegment(value) {
+  const text = safeString(value)
+    .replace(/[^a-zA-Z0-9._:-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 128);
+  return text || "anonymous";
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// 激励广告额度闭环：广告播放完成 → 后端可信发放固定额度（每日封顶）。
+export async function grantUsageReward(request, env) {
+  // TODO(ad-sdk): 接入真实激励视频平台的服务端回调校验（Google AdMob SSV / 微信小游戏 /
+  // 抖音小游戏激励视频）。当前阶段只实现"广告完成 → 后端发额度"这一侧：信任前端已播完广告，
+  // nonce 仅作占位/幂等线索；未来应改为先校验平台回调签名再发额度，避免被伪造刷量。
+  const body = await request.json().catch(() => ({}));
+  const nonce = safeString(body?.nonce).slice(0, 128);
+  if (!env.USAGE_LIMITER) {
+    const usage = await usageStatus(request, env);
+    return jsonResponse(
+      { ok: false, error: "usage_not_configured", granted: 0, remainingRewards: 0, usage },
+      503,
+    );
+  }
+  const result = await requestReward(request, env, nonce);
+  const payload = {
+    ok: result.allowed === true,
+    granted: Number(result.granted) || 0,
+    remainingRewards: Number(result.remainingRewards) || 0,
+    usage: result.usage,
+  };
+  if (!payload.ok) payload.error = "reward_daily_limit";
+  return jsonResponse(payload, payload.ok ? 200 : 429);
+}
+
+async function requestReward(request, env, nonce) {
+  const scope = await deriveUserKey(request);
+  const id = env.USAGE_LIMITER.idFromName(scope);
+  const stub = env.USAGE_LIMITER.get(id);
+  const response = await stub.fetch("https://usage.lingji/reward", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "reward",
+      grant: true,
+      grantCredits: REWARD_CREDITS,
+      rewardDailyMax: REWARD_DAILY_MAX,
+      nonce,
+      hourlyLimit: positiveNumber(env.USAGE_HOURLY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS),
+      dailyLimit: positiveNumber(env.USAGE_DAILY_CREDITS, DEFAULT_USAGE_DAILY_CREDITS),
+    }),
+  });
+  return await response.json();
 }
 
 export function usageCostForPackInput(input) {

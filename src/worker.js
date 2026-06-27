@@ -24,7 +24,7 @@ import { getJob } from "./lib/job-results.js";
 import { proxyLibraryView } from "./lib/library-view.js";
 import { DEFAULT_NEGATIVE, normalizeDimensions } from "./lib/generation-utils.js";
 export { DEFAULT_NEGATIVE };
-import { enforceUsageLimit, meteredJsonResponse, usageCostForPackInput, usageJson, usagePayload, usageStatus } from "./lib/usage.js";
+import { enforceUsageLimit, grantUsageReward, meteredJsonResponse, usageCostForPackInput, usageJson, usagePayload, usageStatus } from "./lib/usage.js";
 import { buildSam3LayerSeparationWorkflow } from "./lib/comfy-workflows.js";
 import { base64UrlEncode, bytesToBase64, constantTimeEqual, decodePngRgba, encodePngRgba, isPngSignature, positiveInteger } from "./lib/binary.js";
 
@@ -201,18 +201,71 @@ export class UsageLimiter {
     const now = Date.now();
     const action = safeString(input.action, "status");
     const refund = input.refund === true;
+    const grant = input.grant === true;
     const cost = Math.max(0, Math.min(500, Math.abs(Number(input.cost) || 0)));
     const hourlyLimit = positiveNumber(input.hourlyLimit, DEFAULT_USAGE_HOURLY_CREDITS);
     const dailyLimit = positiveNumber(input.dailyLimit, DEFAULT_USAGE_DAILY_CREDITS);
     const hourStart = Math.floor(now / 3_600_000) * 3_600_000;
     const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
-    const stored = await this.state.storage.get(["hour", "day"]);
+    const stored = await this.state.storage.get(["hour", "day", "reward"]);
     const hour = stored.get("hour")?.start === hourStart
       ? stored.get("hour")
       : { start: hourStart, used: 0 };
     const day = stored.get("day")?.start === dayStart
       ? stored.get("day")
       : { start: dayStart, used: 0 };
+    const reward = stored.get("reward")?.start === dayStart
+      ? stored.get("reward")
+      : { start: dayStart, granted: 0, claims: 0 };
+
+    // 激励广告奖励额度按"当日 bonus"提升小时/日有效上限：daily 是真正的总量约束，
+    // hourly 同幅提升只为避免小时节流挡住刚领取的奖励额度。used 计数保持非负，展示清晰。
+    const bonus = Math.max(0, Number(reward.granted) || 0);
+    const effectiveHourly = hourlyLimit + bonus;
+    const effectiveDaily = dailyLimit + bonus;
+
+    if (grant) {
+      const grantCredits = Math.max(0, Math.min(100, Math.round(Number(input.grantCredits) || 0)));
+      const rewardDailyMax = Math.max(0, Math.min(2000, Math.round(Number(input.rewardDailyMax) || 0)));
+      const remainingCredits = Math.max(0, rewardDailyMax - (Number(reward.granted) || 0));
+      if (grantCredits <= 0 || remainingCredits < grantCredits) {
+        return usageJson({
+          allowed: false,
+          granted: 0,
+          remainingRewards: grantCredits > 0 ? Math.floor(remainingCredits / grantCredits) : 0,
+          usage: usagePayload({
+            allowed: true,
+            action: "reward",
+            cost: 0,
+            hour,
+            day,
+            hourlyLimit: effectiveHourly,
+            dailyLimit: effectiveDaily,
+            retryAt: null,
+          }),
+        }, 429);
+      }
+      reward.granted = (Number(reward.granted) || 0) + grantCredits;
+      reward.claims = (Number(reward.claims) || 0) + 1;
+      await this.state.storage.put({ reward });
+      const nextEffectiveHourly = hourlyLimit + reward.granted;
+      const nextEffectiveDaily = dailyLimit + reward.granted;
+      return usageJson({
+        allowed: true,
+        granted: grantCredits,
+        remainingRewards: Math.floor(Math.max(0, rewardDailyMax - reward.granted) / grantCredits),
+        usage: usagePayload({
+          allowed: true,
+          action: "reward",
+          cost: 0,
+          hour,
+          day,
+          hourlyLimit: nextEffectiveHourly,
+          dailyLimit: nextEffectiveDaily,
+          retryAt: null,
+        }),
+      });
+    }
 
     if (refund) {
       if (cost > 0) {
@@ -226,14 +279,14 @@ export class UsageLimiter {
         cost,
         hour,
         day,
-        hourlyLimit,
-        dailyLimit,
+        hourlyLimit: effectiveHourly,
+        dailyLimit: effectiveDaily,
         retryAt: null,
       }));
     }
 
-    const hourRemaining = Math.max(0, hourlyLimit - hour.used);
-    const dayRemaining = Math.max(0, dailyLimit - day.used);
+    const hourRemaining = Math.max(0, effectiveHourly - hour.used);
+    const dayRemaining = Math.max(0, effectiveDaily - day.used);
     const allowed = cost === 0 || (hourRemaining >= cost && dayRemaining >= cost);
     const retryAt = hourRemaining < cost
       ? hour.start + 3_600_000
@@ -248,8 +301,8 @@ export class UsageLimiter {
         cost,
         hour,
         day,
-        hourlyLimit,
-        dailyLimit,
+        hourlyLimit: effectiveHourly,
+        dailyLimit: effectiveDaily,
         retryAt,
       }), 429);
     }
@@ -266,8 +319,8 @@ export class UsageLimiter {
       cost,
       hour,
       day,
-      hourlyLimit,
-      dailyLimit,
+      hourlyLimit: effectiveHourly,
+      dailyLimit: effectiveDaily,
       retryAt,
     }));
   }
@@ -331,6 +384,10 @@ async function handleApi(request, env, url, ctx = null) {
 
   if (url.pathname === "/api/usage" && request.method === "GET") {
     return jsonResponse(await usageStatus(request, env));
+  }
+
+  if (url.pathname === "/api/usage/reward" && request.method === "POST") {
+    return await grantUsageReward(request, env);
   }
 
   if (url.pathname === "/api/queue" && request.method === "GET") {
