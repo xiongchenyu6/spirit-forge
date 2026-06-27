@@ -989,6 +989,54 @@
   color: var(--gold-200);
 }
 
+.reward-row {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.reward-button {
+  width: 100%;
+}
+
+.reward-button.disabled,
+.reward-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.walk-direction-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.walk-dir-option {
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.walk-dir-option:hover {
+  border-color: rgba(224, 176, 74, 0.5);
+  color: var(--gold-200);
+}
+
+.walk-dir-option.active {
+  border-color: rgba(224, 176, 74, 0.72);
+  background: rgba(224, 176, 74, 0.13);
+  color: var(--gold-100);
+}
+
 .cloud-job-list,
 .history-list {
   display: grid;

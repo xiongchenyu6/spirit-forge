@@ -27,6 +27,11 @@ const state = {
   polling: null,
   packPolling: null,
   queuePolling: null,
+  animationFrames: null,
+  gifBusy: false,
+  walkMode: 4,
+  rewardBusy: false,
+  rewardAdTimer: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -98,11 +103,18 @@ const els = {
   download2d: $("#download2d"),
   downloadTransparent: $("#downloadTransparent"),
   downloadSheet: $("#downloadSheet"),
+  downloadGif: $("#downloadGif"),
   downloadMetadata: $("#downloadMetadata"),
   downloadZip: $("#downloadZip"),
   generateLayersBtn: $("#generateLayersBtn"),
   downloadPreview: $("#downloadPreview"),
   download3d: $("#download3d"),
+  walkDirectionField: $("#walkDirectionField"),
+  walkDirectionHint: $("#walkDirectionHint"),
+  walkDirOptions: document.querySelectorAll(".walk-dir-option"),
+  watchAdRewardBtn: $("#watchAdRewardBtn"),
+  watchAdRewardLabel: $("#watchAdRewardLabel"),
+  rewardStatus: $("#rewardStatus"),
 };
 
 const ALPHA_CONFIG = {
@@ -128,11 +140,38 @@ const VIDEO_SPRITE_PIXEL_CLEANUP_CONFIG = {
 
 const HISTORY_KEY = "lingji-forge.generator-history.v1";
 const ACCESS_TOKEN_KEY = "lingji-forge.generator-access-token.v1";
+const USER_ID_KEY = "lingji-forge.generator-user-id.v1";
+
+// Animated GIF export (pure front-end, via gif-encoder.js).
+const GIF_FRAME_DELAY_MS = 200;
+const GIF_MAX_DIMENSION = 384;
+
+// 4-direction (optionally 8-direction) walk scaffolding. quality-WIP: the sheet
+// layout (row = direction, column = frame) is wired here, but per-direction
+// animation fidelity depends entirely on the backend model behind the
+// "character-walk-4dir" preset and capabilities.canDirectionalWalk.
+const WALK_DIRECTIONS_4 = ["down", "left", "right", "up"];
+const WALK_DIRECTIONS_8 = [
+  "down", "down-left", "left", "up-left", "up", "up-right", "right", "down-right",
+];
+const WALK_FRAMES_PER_DIRECTION = 4;
+
+// Tiny i18n bridge over the shared ui_kits/i18n.js global (window.__lf). Only the
+// new generator strings are translated; legacy copy stays inline Chinese. Falls
+// back to the provided Chinese default when the dictionary is unavailable.
+function tr(key, vars, fallback) {
+  const lf = typeof window !== "undefined" ? window.__lf : null;
+  if (lf && typeof lf.t === "function") {
+    return lf.t(`generator.${key}`, vars || {}, fallback);
+  }
+  return fallback;
+}
 const HISTORY_LIMIT = 20;
 let modelViewerLoadPromise = null;
 
 const PRESET_FRAME_COUNTS = {
   "character-actions": 4,
+  "character-walk-4dir": WALK_DIRECTIONS_4.length * WALK_FRAMES_PER_DIRECTION,
   "monster-actions": 4,
   "skill-vfx": 4,
   "ui-icons": 8,
@@ -154,6 +193,12 @@ const PRESET_CONFIG = {
     style: "pixel",
     camera: "front",
     brief: "一名适合动作 RPG 的东方机关剑士，青铜机关臂，玄青披风，腰间有发光玉石核心；需要 idle、walk、attack、hurt 四帧动作",
+  },
+  "character-walk-4dir": {
+    assetType: "character",
+    style: "pixel",
+    camera: "top-down",
+    brief: "适合俯视角 RPG 的角色行走循环：下、左、右、上四个朝向，每个朝向 4 帧行走动画，像素风，轮廓清晰，纯色背景，居中",
   },
   "monster-actions": {
     assetType: "creature",
@@ -195,7 +240,19 @@ const PACK_BLUEPRINTS = {
     summary: "Idle / Walk / Attack / Hurt 四帧，优先用单帧定稿锁身份，完成后可导出透明帧、Sprite Sheet、JSON 和 ZIP。",
     format: "4 x 512",
     qa: ["身份一致", "姿态可控", "首帧可分层"],
-    exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP"],
+    exports: ["PNG", "Alpha", "Sheet", "GIF", "JSON", "ZIP"],
+    samples: [
+      { label: "单帧定稿", file: "ec601ceb.png" },
+      { label: "像素样本", file: "3f0120ef.png" },
+    ],
+  },
+  "character-walk-4dir": {
+    icon: "compass",
+    title: "方向行走包",
+    summary: "下 / 左 / 右 / 上（可扩展 8 向）行走循环，按朝向分行、按帧分列，可导出 Sprite Sheet、GIF 和 ZIP。属管线脚手架，单帧质量依赖模型（quality-WIP）。",
+    format: "4 行 x N 帧",
+    qa: ["朝向一致", "循环顺滑", "轮廓可读"],
+    exports: ["PNG", "Alpha", "Sheet", "GIF", "JSON", "ZIP"],
     samples: [
       { label: "单帧定稿", file: "ec601ceb.png" },
       { label: "像素样本", file: "3f0120ef.png" },
@@ -310,7 +367,7 @@ const SINGLE_BLUEPRINTS = {
 };
 
 function currentInput() {
-  return {
+  const input = {
     mode: state.mode,
     brief: els.brief.value.trim(),
     assetType: els.assetType.value,
@@ -320,6 +377,11 @@ function currentInput() {
     actionStrength: els.actionStrength.value,
     animationRoute: state.animationRoute,
   };
+  if (isDirectionalWalkPreset(input.preset)) {
+    input.directions = walkDirections();
+    input.framesPerDirection = WALK_FRAMES_PER_DIRECTION;
+  }
+  return input;
 }
 
 function presetFrameCount(value = els.preset.value) {
@@ -332,7 +394,19 @@ function isPackPreset(value = els.preset.value) {
 }
 
 function isSpriteActionPreset(value = els.preset.value) {
-  return ["character-actions", "monster-actions"].includes(value);
+  return ["character-actions", "character-walk-4dir", "monster-actions"].includes(value);
+}
+
+function isDirectionalWalkPreset(value = els.preset.value) {
+  return value === "character-walk-4dir";
+}
+
+function walkDirections() {
+  return state.walkMode === 8 ? WALK_DIRECTIONS_8 : WALK_DIRECTIONS_4;
+}
+
+function directionalWalkFrameCount() {
+  return walkDirections().length * WALK_FRAMES_PER_DIRECTION;
 }
 
 function spriteReferenceState(value = els.preset.value) {
@@ -365,6 +439,9 @@ function packGenerationAvailable() {
   if (state.animationRoute === "video") {
     return Boolean(state.capabilities?.videoToSprite?.available);
   }
+  if (isDirectionalWalkPreset() && !state.capabilities?.canDirectionalWalk) {
+    return false;
+  }
   return Boolean(state.capabilities?.twoD?.available && isPackPreset() && spriteReferenceState().ok);
 }
 
@@ -390,17 +467,17 @@ function applyPreset(value, forceBrief = false) {
     }
   }
   updateRouteControls();
+  updateWalkDirectionControls();
   renderMotionControlState();
   renderRouteComparison();
 }
 
 async function api(path, options = {}) {
-  const token = accessToken();
   const response = await fetch(path, {
     ...options,
     headers: {
       "content-type": "application/json",
-      ...(token ? { "x-lingji-access-token": token } : {}),
+      ...authHeaders(),
       ...(options.headers || {}),
     },
   });
@@ -429,6 +506,22 @@ async function api(path, options = {}) {
 
 function accessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
+}
+
+// Optional per-user identity. When set, the backend derives hourly/daily limits
+// per user-id instead of per access-token (backward compatible: empty => token
+// dimension). No UI sets it today; the plumbing is forward-compatible.
+function userId() {
+  return localStorage.getItem(USER_ID_KEY) || "";
+}
+
+function authHeaders(extra) {
+  const headers = { ...(extra || {}) };
+  const token = accessToken();
+  if (token) headers["x-lingji-access-token"] = token;
+  const uid = userId();
+  if (uid) headers["x-lingji-user-id"] = uid;
+  return headers;
 }
 
 function createClientRequestId(prefix) {
@@ -503,6 +596,8 @@ function renderCapabilities(data) {
   renderMotionControlState();
   renderRouteComparison();
   updateLayerButton();
+  updateWalkDirectionControls();
+  updateRewardButton();
 }
 
 function renderAnimationRoute(video = {}) {
@@ -649,6 +744,11 @@ function renderAssetBlueprint() {
 function blueprintCapabilityText(preset) {
   if (preset === "monster-actions") return "主攻：2D 怪物动作 + SAM3 Spine";
   if (preset === "character-actions") return "主攻：2D 角色动作 + 姿态控制";
+  if (preset === "character-walk-4dir") {
+    return state.capabilities?.canDirectionalWalk
+      ? "方向行走：4 向（可扩展 8 向）行走表"
+      : "方向行走：当前后端未开启（待 canDirectionalWalk）";
+  }
   if (preset === "map-tiles") return "地图：tileability QA";
   if (preset === "ui-kit" || preset === "ui-icons") return "UI：切图与导入清单";
   if (preset === "skill-vfx") return "VFX：帧表与透明导出";
@@ -996,7 +1096,7 @@ async function refreshCloudJobs() {
     return;
   }
   els.cloudJobStatus.textContent = "读取任务中...";
-  const headers = { "x-lingji-access-token": accessToken() };
+  const headers = authHeaders();
   const [jobsResponse, packsResponse] = await Promise.all([
     fetch("/api/jobs?limit=16", { headers }),
     fetch("/api/packs?limit=8", { headers }),
@@ -1206,7 +1306,7 @@ async function restoreCloudPack(packId) {
   let pack = state.cloudPacks.find((entry) => entry.packId === packId);
   if (!pack && accessToken()) {
     const response = await fetch(`/api/packs/${encodeURIComponent(packId)}`, {
-      headers: { "x-lingji-access-token": accessToken() },
+      headers: authHeaders(),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -1315,6 +1415,7 @@ function packFromCloudManifest(pack) {
 function renderUsageConfig(usage = {}) {
   const configured = Boolean(usage.configured);
   els.usageSection.hidden = !configured;
+  updateRewardButton();
   if (!configured) return;
   const costs = usage.costs || {};
   els.usageCosts.innerHTML = [
@@ -1358,7 +1459,7 @@ async function refreshUsageStatus() {
   }
   els.usageStatus.textContent = "读取额度中...";
   const response = await fetch("/api/usage", {
-    headers: { "x-lingji-access-token": accessToken() },
+    headers: authHeaders(),
   });
   const data = await response.json().catch(() => null);
   if (response.status === 401) {
@@ -1379,7 +1480,7 @@ async function refreshQueueStatus() {
   if (state.activeQueuePromptId) params.set("promptId", state.activeQueuePromptId);
   els.queueStatus.textContent = "读取队列中...";
   const response = await fetch(`/api/queue${params.toString() ? `?${params}` : ""}`, {
-    headers: { "x-lingji-access-token": accessToken() },
+    headers: authHeaders(),
   });
   const data = await response.json().catch(() => null);
   if (response.status === 401) {
@@ -1452,6 +1553,7 @@ function renderUsageState(usage = {}) {
   els.usageHourlyReset.textContent = `重置 ${formatUsageReset(usage.hourly?.resetAt)}`;
   els.usageDailyReset.textContent = `重置 ${formatUsageReset(usage.daily?.resetAt)}`;
   renderUsageGuidance(usage);
+  updateRewardButton();
   els.usageStatus.textContent = usage.allowed === false
     ? "当前额度已达到限制。"
     : "额度已同步。";
@@ -1506,6 +1608,9 @@ function estimateCurrentUsageCost() {
   }
   if (isPackPreset()) {
     const frameCost = Number(costs.generate2dPackFrame) || 12;
+    if (isDirectionalWalkPreset()) {
+      return { label: "方向行走包", cost: Math.max(1, directionalWalkFrameCount()) * frameCost };
+    }
     const frames = presetFrameCount();
     return { label: "资产包", cost: Math.max(1, frames) * frameCost };
   }
@@ -2490,6 +2595,11 @@ async function prepareVideoSpriteDownloads(sourceUrl, filename, generation) {
   setObjectDownload(els.downloadSheet, sheetBlob, `${videoSpriteBaseFilename(filename)}-sheet.png`);
   setObjectDownload(els.downloadMetadata, metadataBlob, `${videoSpriteBaseFilename(filename)}-metadata.json`);
   setObjectDownload(els.downloadPreview, previewBlob, `${videoSpriteBaseFilename(filename)}-preview.png`);
+  setAnimationFrames(frames.map((frame) => frame.url), {
+    width: metadata.cellWidth,
+    height: metadata.cellHeight,
+    label: `${videoSpriteBaseFilename(filename)}-animation`,
+  });
   renderRouteAbComparison({ status: "ready", quality, frames });
   renderPlan({
     kind: "video-sprite-export",
@@ -3377,7 +3487,7 @@ async function preparePackDownloads(pack) {
 async function fetchCloudPackZip(pack) {
   if (!pack?.packId || !accessToken()) return null;
   const response = await fetch(`/api/packs/${encodeURIComponent(pack.packId)}/download.zip`, {
-    headers: { "x-lingji-access-token": accessToken() },
+    headers: authHeaders(),
   });
   if (response.status === 401) {
     showAuthRequired("令牌缺失或无效。");
@@ -4375,7 +4485,7 @@ async function preparePackProductionPreview(pack) {
   const generation = state.packDownloadGeneration;
   const completeItems = orderedCompleteItems(pack);
   if (completeItems.length === 0) return;
-  if (pack.packKind === "sprite-actions") {
+  if (pack.packKind === "sprite-actions" || isDirectionalWalkPreset(pack.preset)) {
     await prepareSpriteAnimationPreview(pack, completeItems, generation);
   } else if (pack.packKind === "tile-pack") {
     await prepareTileabilityPreview(pack, completeItems, generation);
@@ -4394,6 +4504,12 @@ async function prepareSpriteAnimationPreview(pack, items, generation) {
     frameUrls.push({ ...item, url });
   }
   if (frameUrls.length === 0 || generation !== state.packDownloadGeneration) return;
+
+  setAnimationFrames(frameUrls.map((frame) => frame.url), {
+    width: pack.metadata?.cellWidth,
+    height: pack.metadata?.cellHeight,
+    label: `${pack.preset || "sprite"}-animation`,
+  });
 
   const previewBlob = await composePreviewStrip(frameUrls, 256);
   if (generation !== state.packDownloadGeneration) return;
@@ -4752,12 +4868,251 @@ function clearPackPreview() {
     URL.revokeObjectURL(url);
   }
   state.packPreviewObjectUrls = [];
+  // The GIF frame URLs are the same blob URLs tracked above, so drop them too.
+  clearAnimationFrames();
   els.resultGrid.querySelector(".pack-production-preview")?.remove();
   els.resultGrid.querySelector(".pack-quality-card")?.remove();
   els.resultGrid.querySelector(".pack-import-summary")?.remove();
   els.resultGrid.querySelector(".sam3-part-compare")?.remove();
   els.resultGrid.querySelector(".layer-separation-card")?.remove();
   setDownload(els.downloadPreview, null);
+}
+
+// ─────────────────────────── Animated GIF export ────────────────────────────
+// Frames are blob: object URLs (same-origin, untainted canvas) tracked in
+// state.packPreviewObjectUrls and revoked by clearPackPreview, so they stay
+// valid until the next generation. GIF encoding happens on demand (click) via
+// gif-encoder.js to avoid encoding work the user never asked for.
+
+function gifFramesAvailable() {
+  return Boolean(state.animationFrames && state.animationFrames.urls.length >= 2);
+}
+
+function setAnimationFrames(urls, meta = {}) {
+  const list = Array.isArray(urls) ? urls.filter(Boolean) : [];
+  if (list.length < 2) {
+    clearAnimationFrames();
+    return;
+  }
+  state.animationFrames = {
+    urls: list,
+    width: Math.max(1, Math.round(Number(meta.width) || 512)),
+    height: Math.max(1, Math.round(Number(meta.height) || 512)),
+    label: meta.label || "lingji-animation",
+    delay: Number(meta.delay) || GIF_FRAME_DELAY_MS,
+  };
+  updateGifButton();
+}
+
+function clearAnimationFrames() {
+  state.animationFrames = null;
+  updateGifButton();
+}
+
+function updateGifButton() {
+  if (!els.downloadGif) return;
+  const available = gifFramesAvailable();
+  const disabled = !available || state.gifBusy;
+  els.downloadGif.disabled = disabled;
+  els.downloadGif.classList.toggle("disabled", disabled);
+  els.downloadGif.title = available
+    ? tr("gifReadyHint", { count: state.animationFrames.urls.length }, `导出 ${state.animationFrames.urls.length} 帧动画 GIF`)
+    : tr("gifNeedFrames", {}, "多帧动画（≥2 帧）才能导出 GIF");
+}
+
+function gifTargetDimensions(width, height) {
+  const w = Math.max(1, Math.round(Number(width) || 256));
+  const h = Math.max(1, Math.round(Number(height) || 256));
+  const longest = Math.max(w, h);
+  if (longest <= GIF_MAX_DIMENSION) return { width: w, height: h };
+  const scale = GIF_MAX_DIMENSION / longest;
+  return {
+    width: Math.max(1, Math.round(w * scale)),
+    height: Math.max(1, Math.round(h * scale)),
+  };
+}
+
+async function downloadAnimatedGif() {
+  if (!gifFramesAvailable()) {
+    updateGifButton();
+    return;
+  }
+  const encoder = typeof window !== "undefined" ? window.LingjiGifEncoder : null;
+  if (!encoder || typeof encoder.encodeGifFromUrls !== "function") {
+    els.downloadGif.title = tr("gifEncoderMissing", {}, "GIF 编码器未加载，请刷新页面。");
+    return;
+  }
+  const frames = state.animationFrames;
+  const target = gifTargetDimensions(frames.width, frames.height);
+  const labelEl = els.downloadGif.querySelector("span");
+  const originalLabel = labelEl ? labelEl.textContent : "";
+  state.gifBusy = true;
+  updateGifButton();
+  if (labelEl) labelEl.textContent = tr("gifEncoding", {}, "GIF 生成中…");
+  try {
+    const blob = await encoder.encodeGifFromUrls(frames.urls, target.width, target.height, {
+      delay: frames.delay,
+      transparent: true,
+      loop: 0,
+    });
+    triggerBlobDownload(blob, gifFilename(frames.label));
+    els.downloadGif.title = tr("gifReadyHint", { count: frames.urls.length }, `已导出 ${frames.urls.length} 帧动画 GIF`);
+  } catch (error) {
+    console.warn("GIF export failed", error);
+    els.downloadGif.title = tr("gifFailed", {}, "GIF 导出失败，请重试。");
+  } finally {
+    state.gifBusy = false;
+    if (labelEl) labelEl.textContent = originalLabel || tr("gifDownload", {}, "下载 GIF");
+    updateGifButton();
+  }
+}
+
+function gifFilename(label) {
+  return `${safeZipSegment(label || "lingji-animation", "lingji-animation")}.gif`;
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+// ───────────────────── 4-direction walk selector controls ───────────────────
+
+function updateWalkDirectionControls() {
+  if (!els.walkDirectionField) return;
+  const supported = isDirectionalWalkPreset() && Boolean(state.capabilities?.canDirectionalWalk);
+  els.walkDirectionField.hidden = !supported;
+  els.walkDirOptions?.forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.walkMode) === state.walkMode);
+  });
+  if (els.walkDirectionHint) {
+    els.walkDirectionHint.textContent = state.walkMode === 8
+      ? tr("walkHint8", {}, "8 朝向（含斜向），每朝行走帧按行排列；质量依赖模型（quality-WIP）。")
+      : tr("walkHint4", {}, "下 / 左 / 右 / 上 四朝向，每朝行走帧按行排列。");
+  }
+}
+
+function setWalkMode(mode) {
+  state.walkMode = Number(mode) === 8 ? 8 : 4;
+  updateWalkDirectionControls();
+  renderAssetBlueprint();
+  renderUsageGuidance(state.lastUsage);
+}
+
+// ────────────────────── Rewarded-ad → spirit-stone credits ──────────────────
+
+function setRewardStatus(text) {
+  if (els.rewardStatus) els.rewardStatus.textContent = text;
+}
+
+// Translate the few static labels that are authored inline in index.html so the
+// English locale (?lang=en or /en/) does not show hard-coded Chinese.
+function applyStaticI18n() {
+  const gifLabel = els.downloadGif?.querySelector("span");
+  if (gifLabel) gifLabel.textContent = tr("gifDownload", {}, "下载 GIF");
+  const walkLabel = document.getElementById("walkDirectionLabel");
+  if (walkLabel) walkLabel.textContent = tr("walkDirectionLabel", {}, "行走朝向");
+  setRewardStatus(tr("rewardHint", {}, "看一条广告可领 5 灵石，每日最多 3 次。"));
+  if (els.watchAdRewardLabel) {
+    els.watchAdRewardLabel.textContent = tr("rewardButton", {}, "看广告领灵石");
+  }
+}
+
+function updateRewardButton() {
+  if (!els.watchAdRewardBtn) return;
+  const configured = Boolean(state.capabilities?.usage?.configured);
+  els.watchAdRewardBtn.hidden = !configured;
+  const disabled = state.rewardBusy || !accessToken();
+  els.watchAdRewardBtn.disabled = disabled;
+  els.watchAdRewardBtn.classList.toggle("disabled", disabled);
+  if (!state.rewardBusy && els.watchAdRewardLabel) {
+    els.watchAdRewardLabel.textContent = tr("rewardButton", {}, "看广告领灵石");
+  }
+}
+
+// Simulated rewarded-video playback. TODO(ad-sdk): swap this for a real rewarded
+// video SDK (AdMob / WeChat / Douyin). This期 only handles the "ad finished →
+// server grants credits" side; the server is the source of truth for the grant.
+function playRewardAd() {
+  const totalMs = 3000;
+  const stepMs = 500;
+  return new Promise((resolve) => {
+    let elapsed = 0;
+    const tick = () => {
+      elapsed += stepMs;
+      const remainingSeconds = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+      if (els.watchAdRewardLabel) {
+        els.watchAdRewardLabel.textContent = remainingSeconds > 0
+          ? tr("rewardWatching", { seconds: remainingSeconds }, `广告播放中…${remainingSeconds}s`)
+          : tr("rewardClaiming", {}, "正在发放灵石…");
+      }
+      if (elapsed >= totalMs) {
+        resolve();
+        return;
+      }
+      state.rewardAdTimer = setTimeout(tick, stepMs);
+    };
+    state.rewardAdTimer = setTimeout(tick, stepMs);
+  });
+}
+
+async function watchAdForReward() {
+  if (state.rewardBusy) return;
+  if (!accessToken()) {
+    const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石。");
+    showAuthRequired(message);
+    setRewardStatus(message);
+    return;
+  }
+  if (!state.capabilities?.usage?.configured) {
+    setRewardStatus(tr("rewardUnavailable", {}, "当前环境未启用灵石额度。"));
+    return;
+  }
+  state.rewardBusy = true;
+  updateRewardButton();
+  try {
+    await playRewardAd();
+    const response = await fetch("/api/usage/reward", {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ nonce: createClientRequestId("reward") }),
+    });
+    const data = await response.json().catch(() => null);
+    if (response.status === 401) {
+      const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石。");
+      showAuthRequired(message);
+      setRewardStatus(message);
+      return;
+    }
+    if (response.status === 429) {
+      if (data?.usage) renderUsageState(data.usage);
+      setRewardStatus(tr("rewardLimit", {}, "今日领取已达上限，明日再来。"));
+      return;
+    }
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.message || data?.error || `${response.status}`);
+    }
+    if (data.usage) renderUsageState(data.usage);
+    const granted = Number(data.granted ?? 0);
+    const remaining = Number(data.remainingRewards ?? 0);
+    setRewardStatus(tr(
+      "rewardSuccess",
+      { granted, remaining },
+      `灵石 +${granted}，今日还可领 ${remaining} 次。`,
+    ));
+  } catch (error) {
+    console.warn("Reward claim failed", error);
+    setRewardStatus(tr("rewardFailed", { message: error.message }, `领取失败：${error.message}`));
+  } finally {
+    state.rewardBusy = false;
+    updateRewardButton();
+  }
 }
 
 function escapeHtml(value) {
@@ -4805,6 +5160,16 @@ els.saveAccessTokenBtn.addEventListener("click", () => {
     els.cloudJobStatus.textContent = `任务读取失败：${error.message}`;
   });
   updateLayerButton();
+  updateRewardButton();
+});
+els.downloadGif?.addEventListener("click", () => {
+  downloadAnimatedGif().catch((error) => console.warn("GIF export failed", error));
+});
+els.walkDirOptions.forEach((button) => {
+  button.addEventListener("click", () => setWalkMode(button.dataset.walkMode));
+});
+els.watchAdRewardBtn?.addEventListener("click", () => {
+  watchAdForReward().catch((error) => console.warn("Reward claim failed", error));
 });
 els.refreshUsageBtn.addEventListener("click", () => {
   refreshUsageStatus().catch((error) => {
@@ -4863,7 +5228,11 @@ const initialInput = requestedGeneratorInput();
 if (initialInput.preset) els.preset.value = initialInput.preset;
 applyPreset(els.preset.value, Boolean(initialInput.preset));
 applyInitialQueryInput(initialInput);
+applyStaticI18n();
 renderRouteComparison();
+updateGifButton();
+updateWalkDirectionControls();
+updateRewardButton();
 loadHistory();
 loadCapabilities().then(() => {
   if (window.lucide) window.lucide.createIcons();

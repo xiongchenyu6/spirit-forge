@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="../../styles.css" />
     <link rel="stylesheet" href="./styles.css" />
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="/ui_kits/i18n.js"></script>
+    <script src="./gif-encoder.js"></script>
   </head>
   <body class="lf-bg-deep generator-shell">
     <div class="generator-app">
@@ -69,6 +71,7 @@
           <span>生产预设</span>
           <select id="preset">
             <option value="character-actions">角色动作表 4 帧</option>
+            <option value="character-walk-4dir">角色 4 方向行走</option>
             <option value="monster-actions">怪物动作表 4 帧</option>
             <option value="skill-vfx">技能特效 4 帧</option>
             <option value="ui-icons">UI 图标 4×2</option>
@@ -89,6 +92,15 @@
             <option value="expressive">更大动作</option>
           </select>
         </label>
+
+        <div class="field walk-direction-field" id="walkDirectionField" hidden>
+          <span id="walkDirectionLabel">行走朝向</span>
+          <div class="walk-direction-options" role="group" aria-labelledby="walkDirectionLabel">
+            <button class="walk-dir-option active" type="button" data-walk-mode="4">4 方向</button>
+            <button class="walk-dir-option" type="button" data-walk-mode="8">8 方向</button>
+          </div>
+          <small class="auth-status" id="walkDirectionHint">下 / 左 / 右 / 上 四朝向，每朝行走帧按行排列。</small>
+        </div>
       </aside>
 
       <main class="forge-main">
@@ -266,6 +278,13 @@
           </div>
           <div class="usage-costs" id="usageCosts"></div>
           <div class="usage-guidance" id="usageGuidance">选择生产方式后显示本次预计消耗。</div>
+          <div class="reward-row">
+            <button class="primary-button reward-button" id="watchAdRewardBtn" type="button">
+              <i data-lucide="gift"></i>
+              <span id="watchAdRewardLabel">看广告领灵石</span>
+            </button>
+            <span class="auth-status" id="rewardStatus">看一条广告可领 5 灵石，每日最多 3 次。</span>
+          </div>
           <span class="auth-status" id="usageStatus">保存访问令牌后查看额度。</span>
         </section>
 
@@ -316,6 +335,10 @@
               <i data-lucide="table-cells-split"></i>
               <span>下载 Sheet</span>
             </a>
+            <button class="download-link disabled" id="downloadGif" type="button" disabled title="多帧动画（≥2 帧）才能导出 GIF">
+              <i data-lucide="film"></i>
+              <span>下载 GIF</span>
+            </button>
             <a class="download-link disabled" id="downloadMetadata" href="#" download="lingji_asset_pack.json">
               <i data-lucide="braces"></i>
               <span>下载 JSON</span>
