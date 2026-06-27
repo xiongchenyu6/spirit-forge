@@ -1,4 +1,47 @@
+// 4 方向行走动画（管线脚手架，quality-WIP）：一个 pack 生成 4 朝向 × N 帧，
+// sprite sheet 行=朝向、列=帧；每帧 metadata 标注 direction。质量依赖底模与参考图。
+const WALK_4DIR_DIRECTIONS = [
+  { id: "down", label: "Down", facing: "facing toward the camera (front view)", extra: "front of the character clearly visible" },
+  { id: "left", label: "Left", facing: "in a left-facing side profile", extra: "left-facing silhouette" },
+  { id: "right", label: "Right", facing: "in a right-facing side profile", extra: "right-facing silhouette" },
+  { id: "up", label: "Up", facing: "facing away from the camera (back view)", extra: "back of the head and back of the costume visible" },
+];
+const WALK_4DIR_FRAME_COUNT = 4;
+const WALK_4DIR_PHASE_LABELS = ["contact", "passing", "contact", "passing"];
+
+function buildWalk4DirItems() {
+  const items = [];
+  for (const direction of WALK_4DIR_DIRECTIONS) {
+    for (let frame = 0; frame < WALK_4DIR_FRAME_COUNT; frame += 1) {
+      const phase = WALK_4DIR_PHASE_LABELS[frame] || "key";
+      items.push({
+        id: `${direction.id}_${frame}`,
+        label: `${direction.label} ${frame + 1}`,
+        direction: direction.id,
+        frame,
+        // 姿态键映射到 image.js 的 4 方向行走骨架生成器。
+        pose: `walk4:${direction.id}:${frame}`,
+        prompt: `walk cycle ${phase} pose, ${direction.facing}, mid-stride legs with one foot forward, arms swinging in opposition, ${direction.extra}, full body, not idle`,
+        referenceDenoise: { stable: 0.5, balanced: 0.58, expressive: 0.66 },
+      });
+    }
+  }
+  return items;
+}
+
 export const PACK_PRESETS = {
+  "character-walk-4dir": {
+    kind: "sprite-actions",
+    assetType: "character",
+    style: "pixel",
+    camera: "front",
+    cell: [512, 512],
+    columns: WALK_4DIR_FRAME_COUNT, // 列 = 帧
+    rows: WALK_4DIR_DIRECTIONS.length, // 行 = 朝向
+    directional: true,
+    shared: "same character identity, same costume and colors, one full-body walking sprite frame only, centered, plain solid background, no frame border, consistent scale across every direction and frame",
+    items: buildWalk4DirItems(),
+  },
   "character-actions": {
     kind: "sprite-actions",
     assetType: "character",

@@ -1152,6 +1152,7 @@ export function packZipFrames(pack) {
       index: Number.isFinite(Number(frame.index)) ? Number(frame.index) : index,
       row: frame.row ?? null,
       column: frame.column ?? null,
+      direction: frame.direction ?? null,
       sourcePath: result.fileKey ? `frames/original/${packFrameZipName(frame, index)}` : null,
       transparentPath: pack.zipTransparentFrames?.[frame.id] || null,
       path: pack.zipTransparentFrames?.[frame.id] || (result.fileKey ? `frames/original/${packFrameZipName(frame, index)}` : null),
@@ -1168,12 +1169,35 @@ export function packZipFrames(pack) {
 
 export function packAnimations(pack, frames) {
   if (pack.packKind !== "sprite-actions") return [];
-  return [
-    {
-      key: safeLibrarySegment(pack.preset || "sprite-actions"),
+  const usable = frames.filter((frame) => frame.path);
+  const baseKey = safeLibrarySegment(pack.preset || "sprite-actions");
+  // 4 方向行走（quality-WIP）：当每帧都带 direction 时，按朝向拆成多个行走 clip
+  // （列=帧，按 index 升序）；否则保持单一动画，向后兼容既有动作包。
+  const directional = usable.length > 0 && usable.every((frame) => frame.direction);
+  if (directional) {
+    const order = [];
+    const groups = new Map();
+    for (const frame of usable) {
+      if (!groups.has(frame.direction)) {
+        groups.set(frame.direction, []);
+        order.push(frame.direction);
+      }
+      groups.get(frame.direction).push(frame);
+    }
+    return order.map((direction) => ({
+      key: `${baseKey}-${safeLibrarySegment(direction)}`,
+      direction,
       frameRate: 8,
       repeat: -1,
-      frames: frames.filter((frame) => frame.path),
+      frames: groups.get(direction).slice().sort((a, b) => (Number(a.index) || 0) - (Number(b.index) || 0)),
+    }));
+  }
+  return [
+    {
+      key: baseKey,
+      frameRate: 8,
+      repeat: -1,
+      frames: usable,
     },
   ];
 }

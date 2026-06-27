@@ -227,8 +227,105 @@ export function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
+// 4 方向行走 OpenPose 模板（管线脚手架，quality-WIP）。
+// 朝向：down(面向镜头) / up(背向镜头) / left / right(left 镜像)。仅作 ControlNet 姿态引导，
+// 复用 drawPoseLineRgba / drawPoseCircleRgba 绘制原语；真实行走质量依赖底模与参考图，
+// 后续可替换为更精细的逐帧骨架。
+export const WALK_4DIR_DIRECTIONS = ["down", "left", "right", "up"];
+export const WALK_4DIR_FRAMES = 4;
+
+const DIRECTIONAL_WALK_OPENPOSE_BASE = {
+  // 面向镜头（正面），脸部关键点可见。
+  down: {
+    nose: [256, 110], lEye: [246, 104], rEye: [266, 104],
+    lEar: [238, 110], rEar: [274, 110],
+    neck: [256, 156], lShoulder: [216, 168], rShoulder: [296, 168],
+    lElbow: [206, 230], rElbow: [306, 230], lHand: [200, 288], rHand: [312, 288],
+    lHip: [232, 286], rHip: [280, 286],
+    lKnee: [226, 360], rKnee: [286, 360], lFoot: [218, 442], rFoot: [294, 442],
+  },
+  // 背向镜头（背面）：脸部朝里、左右内收，脸部细节弱化（quality-WIP）。
+  up: {
+    nose: [256, 118], lEye: [264, 112], rEye: [248, 112],
+    lEar: [276, 114], rEar: [236, 114],
+    neck: [256, 156], lShoulder: [296, 168], rShoulder: [216, 168],
+    lElbow: [306, 230], rElbow: [206, 230], lHand: [312, 288], rHand: [200, 288],
+    lHip: [280, 286], rHip: [232, 286],
+    lKnee: [286, 360], rKnee: [226, 360], lFoot: [294, 442], rFoot: [218, 442],
+  },
+  // 朝左侧面：身体侧转，四肢在 x 上靠拢，silhouette 更窄。
+  left: {
+    nose: [232, 110], lEye: [224, 104], rEye: [236, 106],
+    lEar: [246, 110], rEar: [250, 112],
+    neck: [252, 156], lShoulder: [248, 168], rShoulder: [264, 170],
+    lElbow: [236, 230], rElbow: [270, 232], lHand: [226, 288], rHand: [276, 290],
+    lHip: [252, 286], rHip: [268, 286],
+    lKnee: [240, 360], rKnee: [278, 360], lFoot: [222, 442], rFoot: [294, 442],
+  },
+};
+
+const OPENPOSE_LR_SWAP = {
+  lEye: "rEye", rEye: "lEye", lEar: "rEar", rEar: "lEar",
+  lShoulder: "rShoulder", rShoulder: "lShoulder",
+  lElbow: "rElbow", rElbow: "lElbow", lHand: "rHand", rHand: "lHand",
+  lHip: "rHip", rHip: "lHip", lKnee: "rKnee", rKnee: "lKnee",
+  lFoot: "rFoot", rFoot: "lFoot",
+};
+
+// 侧面镜像：x 翻转并交换左右肢体，得到 right 朝向。
+function mirrorOpenPoseTemplate(template, width = 512) {
+  const mirrored = {};
+  for (const [key, point] of Object.entries(template)) {
+    const target = OPENPOSE_LR_SWAP[key] || key;
+    mirrored[target] = [width - point[0], point[1]];
+  }
+  return mirrored;
+}
+
+// 根据朝向与帧相位生成行走骨架：4 帧相位 [contact, passing, contact, passing]，
+// 左右肢体反相摆动、躯干轻微上浮。属管线脚手架（quality-WIP）。
+function directionalWalkPoseKeypoints(direction, phase, frames = WALK_4DIR_FRAMES) {
+  const base = direction === "right"
+    ? mirrorOpenPoseTemplate(DIRECTIONAL_WALK_OPENPOSE_BASE.left)
+    : DIRECTIONAL_WALK_OPENPOSE_BASE[direction] || DIRECTIONAL_WALK_OPENPOSE_BASE.down;
+  const cycle = Math.max(1, frames);
+  const swing = Math.sin((phase / cycle) * Math.PI * 2); // -1..1，左右肢体反相
+  const sideways = direction === "left" || direction === "right";
+  const legAmp = sideways ? 30 : 20;
+  const footAmp = legAmp + 10;
+  const armAmp = 16;
+  const lift = Math.round(Math.abs(swing) * 6);
+  const bob = -Math.round(Math.abs(swing) * 4);
+
+  const pose = {};
+  for (const [key, point] of Object.entries(base)) pose[key] = [point[0], point[1]];
+
+  pose.lKnee = [pose.lKnee[0] + swing * legAmp, pose.lKnee[1] - lift];
+  pose.lFoot = [pose.lFoot[0] + swing * footAmp, pose.lFoot[1]];
+  pose.rKnee = [pose.rKnee[0] - swing * legAmp, pose.rKnee[1] - lift];
+  pose.rFoot = [pose.rFoot[0] - swing * footAmp, pose.rFoot[1]];
+  pose.lElbow = [pose.lElbow[0] - swing * armAmp, pose.lElbow[1]];
+  pose.lHand = [pose.lHand[0] - swing * (armAmp + 6), pose.lHand[1]];
+  pose.rElbow = [pose.rElbow[0] + swing * armAmp, pose.rElbow[1]];
+  pose.rHand = [pose.rHand[0] + swing * (armAmp + 6), pose.rHand[1]];
+  for (const key of ["nose", "lEye", "rEye", "lEar", "rEar", "neck", "lShoulder", "rShoulder", "lHip", "rHip"]) {
+    if (pose[key]) pose[key] = [pose[key][0], pose[key][1] + bob];
+  }
+  for (const key of Object.keys(pose)) pose[key] = [Math.round(pose[key][0]), Math.round(pose[key][1])];
+  return pose;
+}
+
+// 解析姿态键：支持 4 方向行走的 "walk4:<direction>:<phase>" 复合键，否则查既有动作模板。
+function resolveOpenPoseTemplate(kind) {
+  if (typeof kind === "string" && kind.startsWith("walk4:")) {
+    const [, direction = "down", phase = "0"] = kind.split(":");
+    return directionalWalkPoseKeypoints(direction, Number(phase) || 0);
+  }
+  return CHARACTER_OPENPOSE_TEMPLATES[kind] || CHARACTER_OPENPOSE_TEMPLATES.idle;
+}
+
 export async function characterOpenPoseDataUrl(kind) {
-  const pose = CHARACTER_OPENPOSE_TEMPLATES[kind] || CHARACTER_OPENPOSE_TEMPLATES.idle;
+  const pose = resolveOpenPoseTemplate(kind);
   const width = 512;
   const height = 512;
   const pixels = new Uint8Array(width * height * 4);

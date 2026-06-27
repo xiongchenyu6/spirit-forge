@@ -61,6 +61,9 @@ export async function getCapabilities(env, options = {}) {
       checkpoint: hasCheckpoint ? "flux1-dev-fp8.safetensors" : null,
     },
     poseControl: pose,
+    // 4 方向行走动画（character-walk-4dir 预设）后端管线已就绪（quality-WIP）。
+    // 始终暴露该能力；姿态控制（poseControl.available）可显著提升朝向一致性，但非必需。
+    canDirectionalWalk: true,
     layerSeparation,
     threeD: {
       available: missing3d.length === 0,

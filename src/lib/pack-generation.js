@@ -73,6 +73,7 @@ export async function packSubmitResponseFromRecord(env, pack, extra = {}) {
       index: frame.index,
       row: frame.row,
       column: frame.column,
+      direction: frame.direction ?? null,
     })),
     pack: await withSignedPackRecord(env, pack).catch(() => pack),
     ...extra,
@@ -215,15 +216,19 @@ export async function submit2DPack(input, env, options = {}) {
   const referenceImage = shouldUseReference
     ? await ensureSpriteReferenceImage({ comfyImage: input.referenceImage }, env, "lingji_pack_reference.png")
     : null;
-  const shouldUsePoseControl = Boolean(referenceImage && normalized.preset === "character-actions");
+  const poseControlPresets = new Set(["character-actions", "character-walk-4dir"]);
+  const shouldUsePoseControl = Boolean(referenceImage && poseControlPresets.has(normalized.preset));
   const poseControl = shouldUsePoseControl && typeof options.getCapabilities === "function"
     ? (await options.getCapabilities(env)).poseControl
     : null;
   const jobs = await Promise.all(
     preset.items.map(async (item, index) => {
       const seed = (seedBase + index) >>> 0;
+      // 4 方向行走预设的 item 携带 pose 复合键（walk4:<direction>:<phase>）；
+      // 其余动作预设回退到 item.id 查既有动作模板。
+      const poseKey = item.pose || item.id;
       const poseDataUrl = poseControl?.available
-        ? safeString(input.poseImages?.[item.id]) || await characterOpenPoseDataUrl(item.id)
+        ? safeString(input.poseImages?.[item.id]) || await characterOpenPoseDataUrl(poseKey)
         : "";
       const poseImage = poseDataUrl
         ? await ensureComfyInputImage({ imageDataUrl: poseDataUrl }, env, `lingji_pose_${item.id}.png`)
@@ -271,6 +276,8 @@ export async function submit2DPack(input, env, options = {}) {
       index,
       row: Math.floor(index / preset.columns),
       column: index % preset.columns,
+      // 4 方向行走：行=朝向、列=帧；非朝向预设 direction 为 null。
+      direction: item.direction || null,
     })),
     notes: [
       "Images are generated as separate jobs first to improve action/item control.",
@@ -310,6 +317,7 @@ export async function submit2DPack(input, env, options = {}) {
         index: itemMeta.index ?? job.index,
         row: itemMeta.row ?? job.row,
         column: itemMeta.column ?? job.column,
+        direction: itemMeta.direction ?? job.direction ?? null,
       };
     }),
   });
@@ -433,6 +441,7 @@ async function submitPackItemJob({
     index,
     row: Math.floor(index / preset.columns),
     column: index % preset.columns,
+    direction: item.direction || null,
   };
 }
 
