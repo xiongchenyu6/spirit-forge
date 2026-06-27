@@ -43,7 +43,7 @@ const OFFICIAL_SAMPLES = [
     style: "pixel",
     camera: "front",
     brief: "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作",
-    summary: "Idle / Move / Attack / Death 真实输出样本，用作当前 2D 怪物动作和 SAM3 Spine 回归基线。",
+    summary: "Idle / Move / Attack / Death 真实输出样本，用作当前 2D 怪物动作和 SAM3 Spine 回归基线",
     tags: ["monster", "sprite", "sam3"],
     files: [
       ["monster-idle.png", "Idle"],
@@ -62,7 +62,7 @@ const OFFICIAL_SAMPLES = [
     style: "pixel",
     camera: "front",
     brief: "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰",
-    summary: "Charge / Burst / Impact / Fade 真实输出样本，用于校准 VFX 帧表节奏和透明导出。",
+    summary: "Charge / Burst / Impact / Fade 真实输出样本，用于校准 VFX 帧表节奏和透明导出",
     tags: ["vfx", "sprite", "sheet"],
     files: [
       ["skill-vfx-charge.png", "Charge"],
@@ -81,7 +81,7 @@ const OFFICIAL_SAMPLES = [
     style: "pixel",
     camera: "top-down",
     brief: "俯视 RPG 地图 tile 表：草地、泥路、石路、水边、悬崖、沙地、森林地表、熔岩岩地；需要可平铺方块",
-    summary: "俯视地形 tile 真实输出样本，用于检查视角、边缘连续性和 tileability。",
+    summary: "俯视地形 tile 真实输出样本，用于检查视角、边缘连续性和 tileability",
     tags: ["map", "tile", "top-down"],
     files: [
       ["map-grass.png", "Grass"],
@@ -100,7 +100,7 @@ const OFFICIAL_SAMPLES = [
     style: "production",
     camera: "front",
     brief: "奇幻游戏 UI 套件：生命条、法力条、背包格、动作按钮、对话面板、任务面板、九宫格角件、装饰分隔线；每格一个可切图组件",
-    summary: "4x2 UI 组件 sheet 和 HUD 真实输出样本，用于检查组件可切性、边框完整度和材质一致性。",
+    summary: "4x2 UI 组件 sheet 和 HUD 真实输出样本，用于检查组件可切性、边框完整度和材质一致性",
     tags: ["ui", "atlas", "hud"],
     files: [
       ["ui-kit-components-sheet.png", "Components"],
@@ -117,7 +117,7 @@ const OFFICIAL_SAMPLES = [
     style: "pixel",
     camera: "front",
     brief: "RPG 背包图标表：玉剑、红药水、盾、钥匙、金币、卷轴、宝石、靴子；每格一个物品",
-    summary: "背包和奖励图标真实输出样本，用于检查单格清晰度和光照统一。",
+    summary: "背包和奖励图标真实输出样本，用于检查单格清晰度和光照统一",
     tags: ["icon", "item", "inventory"],
     files: [
       ["item-gem.png", "Gem"],
@@ -265,7 +265,7 @@ function setStatus(text, tone) {
 function render() {
   const entries = filteredEntries();
   if (entries.length === 0) {
-    els.grid.innerHTML = renderEmpty("暂无匹配素材", "官方样本和云端素材都没有匹配当前筛选。");
+    els.grid.innerHTML = renderEmpty("暂无匹配素材", "官方样本和云端素材都没有匹配当前筛选");
   } else {
     els.grid.innerHTML = entries.map(renderEntryCard).join("");
   }
@@ -895,7 +895,7 @@ function renderSam3PartComparison(pack) {
       <div class="sam3-quality-strip" data-sam3-quality-strip>
         <span class="sam3-quality-pill info">读取质量摘要</span>
       </div>
-      <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics。</p>
+      <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics</p>
       <div class="sam3-part-grid">
         ${parts.map((part) => `
           <article class="sam3-part-row">
@@ -1000,12 +1000,12 @@ function sam3DiagnosticsText(data) {
     return warnings.slice(0, 2).map((warning) => warning.message).join(" · ");
   }
   if (sideViewOcclusion.length) {
-    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分。`;
+    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分`;
   }
   const semanticDiagnostics = quality.summary?.semanticDiagnostics;
   return semanticDiagnostics
-    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警。`
-    : "无结构性分层告警。";
+    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警`
+    : "无结构性分层告警";
 }
 
 async function loadSam3PartComparisons(pack) {
@@ -1046,7 +1046,7 @@ async function loadSam3PartComparisons(pack) {
       slot.classList.add("failed");
     }
     if (status) status.textContent = "preview failed";
-    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试。";
+    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试";
     console.warn("SAM3 part comparison failed", error);
   }
 }
@@ -1073,7 +1073,7 @@ function renderPackAnimationPreview(pack, frames) {
         <div class="pack-animation-empty">
           <i data-lucide="image-off"></i>
           <strong>暂无可播放帧</strong>
-          <span>等待整包帧归档完成后，这里会显示动作预览。</span>
+          <span>等待整包帧归档完成后，这里会显示动作预览</span>
         </div>
       </section>
     `;
@@ -1124,7 +1124,7 @@ function renderPackGridPreview(pack, frames) {
         <div class="pack-animation-empty">
           <i data-lucide="image-off"></i>
           <strong>暂无可预览帧</strong>
-          <span>等待整包帧归档完成后，这里会显示网格预览。</span>
+          <span>等待整包帧归档完成后，这里会显示网格预览</span>
         </div>
       </section>
     `;
@@ -1171,10 +1171,10 @@ function packGridMetaText(pack) {
 }
 
 function packGridNote(pack) {
-  if (pack.packKind === "tile-pack") return "地图包保持不透明原图，ZIP 内含 Tiled tileset 清单。";
-  if (pack.packKind === "ui-pack") return "UI 包可通过 ZIP 内的 UI atlas 或 Phaser atlas 导入。";
-  if (pack.packKind === "icon-pack") return "图标包可通过 ZIP 内的 UI atlas 或单帧透明 PNG 导入。";
-  return "使用云端归档帧展示。";
+  if (pack.packKind === "tile-pack") return "地图包保持不透明原图，ZIP 内含 Tiled tileset 清单";
+  if (pack.packKind === "ui-pack") return "UI 包可通过 ZIP 内的 UI atlas 或 Phaser atlas 导入";
+  if (pack.packKind === "icon-pack") return "图标包可通过 ZIP 内的 UI atlas 或单帧透明 PNG 导入";
+  return "使用云端归档帧展示";
 }
 
 function packKindLabel(packKind) {
@@ -1330,7 +1330,7 @@ function renderLoading() {
     <div class="library-empty">
       <span class="spinner"></span>
       <strong>读取素材库</strong>
-      <span>正在从 Cloudflare R2 加载归档结果。</span>
+      <span>正在从 Cloudflare R2 加载归档结果</span>
     </div>
   `;
 }

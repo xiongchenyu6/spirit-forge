@@ -17,7 +17,7 @@ function Hero() {
       badge: "真实视频样本",
       title: "WEBM 视频自动抽帧成 Sprite Sheet",
       loading: "正在加载视频样本",
-      unavailable: "视频样本暂不可用，显示静态抽帧结果。",
+      unavailable: "视频样本暂不可用，显示静态抽帧结果",
       frameLabel: "抽帧结果",
       metrics: ["质量分", "透明帧", "中心偏移", "ZIP 文件"],
     },

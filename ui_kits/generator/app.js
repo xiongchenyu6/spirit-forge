@@ -237,7 +237,7 @@ const PACK_BLUEPRINTS = {
   "character-actions": {
     icon: "user-round",
     title: "角色动作包",
-    summary: "Idle / Walk / Attack / Hurt 四帧，优先用单帧定稿锁身份，完成后可导出透明帧、Sprite Sheet、JSON 和 ZIP。",
+    summary: "Idle / Walk / Attack / Hurt 四帧，优先用单帧定稿锁身份，完成后可导出透明帧、Sprite Sheet、JSON 和 ZIP",
     format: "4 x 512",
     qa: ["身份一致", "姿态可控", "首帧可分层"],
     exports: ["PNG", "Alpha", "Sheet", "GIF", "JSON", "ZIP"],
@@ -249,7 +249,7 @@ const PACK_BLUEPRINTS = {
   "character-walk-4dir": {
     icon: "compass",
     title: "方向行走包",
-    summary: "下 / 左 / 右 / 上（可扩展 8 向）行走循环，按朝向分行、按帧分列，可导出 Sprite Sheet、GIF 和 ZIP。属管线脚手架，单帧质量依赖模型（quality-WIP）。",
+    summary: "下 / 左 / 右 / 上（可扩展 8 向）行走循环，按朝向分行、按帧分列，可导出 Sprite Sheet、GIF 和 ZIP。属管线脚手架，单帧质量依赖模型（quality-WIP）",
     format: "4 行 x N 帧",
     qa: ["朝向一致", "循环顺滑", "轮廓可读"],
     exports: ["PNG", "Alpha", "Sheet", "GIF", "JSON", "ZIP"],
@@ -261,7 +261,7 @@ const PACK_BLUEPRINTS = {
   "monster-actions": {
     icon: "ghost",
     title: "怪物动作包",
-    summary: "Idle / Move / Attack / Death 四帧，是当前 2D 主线和 SAM3 Spine 分层的重点样本。",
+    summary: "Idle / Move / Attack / Death 四帧，是当前 2D 主线和 SAM3 Spine 分层的重点样本",
     format: "4 x 512",
     qa: ["轮廓清楚", "动作差异", "SAM3 部件"],
     exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP", "Spine"],
@@ -275,7 +275,7 @@ const PACK_BLUEPRINTS = {
   "skill-vfx": {
     icon: "sparkles",
     title: "技能特效包",
-    summary: "Charge / Burst / Impact / Fade 四段式特效，适合做技能帧表、命中特效和循环预览。",
+    summary: "Charge / Burst / Impact / Fade 四段式特效，适合做技能帧表、命中特效和循环预览",
     format: "4 x 512",
     qa: ["中心稳定", "节奏清楚", "无角色遮挡"],
     exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP"],
@@ -289,7 +289,7 @@ const PACK_BLUEPRINTS = {
   "ui-icons": {
     icon: "gem",
     title: "UI 图标表",
-    summary: "4x2 物品图标表，每格一个图标，用于背包、掉落、装备和奖励图标批量产出。",
+    summary: "4x2 物品图标表，每格一个图标，用于背包、掉落、装备和奖励图标批量产出",
     format: "4 x 2",
     qa: ["单格清晰", "光照一致", "无文字"],
     exports: ["PNG", "Sheet", "JSON", "ZIP"],
@@ -302,7 +302,7 @@ const PACK_BLUEPRINTS = {
   "map-tiles": {
     icon: "map",
     title: "地图 Tile 表",
-    summary: "4x2 俯视地形 tile，重点检查视角、边缘连续性和可平铺感。",
+    summary: "4x2 俯视地形 tile，重点检查视角、边缘连续性和可平铺感",
     format: "4 x 2",
     qa: ["严格俯视", "边缘可接", "无透视块"],
     exports: ["PNG", "Sheet", "JSON", "ZIP"],
@@ -316,7 +316,7 @@ const PACK_BLUEPRINTS = {
   "ui-kit": {
     icon: "layout-panel-top",
     title: "UI 套件表",
-    summary: "4x2 UI 组件表，覆盖血条、按钮、面板、槽位和角件，适合做游戏 HUD 与系统界面素材。",
+    summary: "4x2 UI 组件表，覆盖血条、按钮、面板、槽位和角件，适合做游戏 HUD 与系统界面素材",
     format: "4 x 2",
     qa: ["组件可切", "边框完整", "材质统一"],
     exports: ["PNG", "Sheet", "JSON", "ZIP"],
@@ -331,7 +331,7 @@ const SINGLE_BLUEPRINTS = {
   square: {
     icon: "image",
     title: "单张方图",
-    summary: "用于先定方向、构图和题材风格，不生成资产包清单。",
+    summary: "用于先定方向、构图和题材风格，不生成资产包清单",
     format: "768",
     qa: ["构图可读", "主体居中", "可再生产"],
     exports: ["PNG", "Alpha"],
@@ -340,7 +340,7 @@ const SINGLE_BLUEPRINTS = {
   portrait: {
     icon: "image",
     title: "角色立绘",
-    summary: "用于头像、角色立绘和宣传图方向验证，后续可切到动作包继续生产。",
+    summary: "用于头像、角色立绘和宣传图方向验证，后续可切到动作包继续生产",
     format: "768 x 1024",
     qa: ["服装清楚", "脸部稳定", "轮廓完整"],
     exports: ["PNG"],
@@ -349,7 +349,7 @@ const SINGLE_BLUEPRINTS = {
   sprite: {
     icon: "image",
     title: "单帧 Sprite",
-    summary: "用于角色或怪物定稿，适合作为动作包、视频 K 帧或 3D 生成的源图。",
+    summary: "用于角色或怪物定稿，适合作为动作包、视频 K 帧或 3D 生成的源图",
     format: "512",
     qa: ["完整身体", "纯色背景", "可抠图"],
     exports: ["PNG", "Alpha"],
@@ -358,7 +358,7 @@ const SINGLE_BLUEPRINTS = {
   icon: {
     icon: "shapes",
     title: "单枚图标",
-    summary: "用于装备、材料、技能图标的单张定稿。",
+    summary: "用于装备、材料、技能图标的单张定稿",
     format: "512",
     qa: ["轮廓清楚", "材质明确", "无文字"],
     exports: ["PNG", "Alpha"],
@@ -419,7 +419,7 @@ function spriteReferenceState(value = els.preset.value) {
       state: "pending",
       ok: false,
       result,
-      message: "正在检测参考图尺寸。",
+      message: "正在检测参考图尺寸",
     };
   }
   const ratio = dimensions.width / dimensions.height;
@@ -431,7 +431,7 @@ function spriteReferenceState(value = els.preset.value) {
     dimensions,
     message: ok
       ? `参考图 ${dimensions.width}x${dimensions.height}`
-      : `当前 2D 参考图是 ${dimensions.width}x${dimensions.height}，像是 sheet 或宽幅图；请先生成单帧角色/怪物定稿。`,
+      : `当前 2D 参考图是 ${dimensions.width}x${dimensions.height}，像是 sheet 或宽幅图；请先生成单帧角色/怪物定稿`,
   };
 }
 
@@ -483,7 +483,7 @@ async function api(path, options = {}) {
   });
   const data = await response.json().catch(() => null);
   if (response.status === 401 && data?.error === "auth_required") {
-    showAuthRequired("令牌缺失或无效。");
+    showAuthRequired("令牌缺失或无效");
   }
   if (response.status === 429 && data?.usage) {
     renderUsageState(data.usage);
@@ -634,7 +634,7 @@ function updateRouteControls() {
   if (state.animationRoute === "video") {
     label.textContent = "生成视频精灵图";
     els.generatePackBtn.disabled = !packGenerationAvailable();
-    els.generatePackBtn.title = "用当前 2D 源帧提交 Wan 视频任务，完成后自动抽帧导出 sprite sheet。";
+    els.generatePackBtn.title = "用当前 2D 源帧提交 Wan 视频任务，完成后自动抽帧导出 sprite sheet";
     return;
   }
   const frameCount = presetFrameCount();
@@ -646,8 +646,8 @@ function updateRouteControls() {
   els.generatePackBtn.title = referenceState.state === "invalid" || referenceState.state === "pending"
     ? referenceState.message
     : frameCount
-    ? `${frameCount} 帧云端资产包。`
-    : "当前预设只支持单张 2D 生成；请使用“生成 2D”或选择动作、地图、UI、VFX 整包预设。";
+    ? `${frameCount} 帧云端资产包`
+    : "当前预设只支持单张 2D 生成；请使用“生成 2D”或选择动作、地图、UI、VFX 整包预设";
 }
 
 function renderVideoRoutePlan() {
@@ -668,8 +668,8 @@ function renderVideoRoutePlan() {
       "循环可用性",
     ],
     note: state.last2d?.result
-      ? "当前入口会用这张 2D 源帧提交 Wan 视频任务，完成后在浏览器抽 4 个关键帧并导出透明 Sprite Sheet。"
-      : "先生成或恢复一张 2D 源帧，再提交纯色背景视频生成和关键帧导出。",
+      ? "当前入口会用这张 2D 源帧提交 Wan 视频任务，完成后在浏览器抽 4 个关键帧并导出透明 Sprite Sheet"
+      : "先生成或恢复一张 2D 源帧，再提交纯色背景视频生成和关键帧导出",
   });
 }
 
@@ -758,14 +758,14 @@ function blueprintCapabilityText(preset) {
 function singleBlueprintFromInput() {
   const assetType = els.assetType.value;
   const map = {
-    character: ["user-round", "角色单张", "用于角色定稿，后续可切到角色动作包。"],
-    creature: ["ghost", "怪物单张", "用于怪物定稿，后续可切到怪物动作包或 SAM3 分层。"],
-    ui: ["layout-panel-top", "UI 单件", "用于按钮、面板、HUD 元件的单张定稿。"],
-    map: ["map", "地图单张", "用于地形风格和俯视构图验证。"],
-    vfx: ["sparkles", "特效单张", "用于技能视觉方向验证，后续可切到四帧 VFX。"],
-    icon: ["gem", "图标单张", "用于装备、材料和技能图标定稿。"],
+    character: ["user-round", "角色单张", "用于角色定稿，后续可切到角色动作包"],
+    creature: ["ghost", "怪物单张", "用于怪物定稿，后续可切到怪物动作包或 SAM3 分层"],
+    ui: ["layout-panel-top", "UI 单件", "用于按钮、面板、HUD 元件的单张定稿"],
+    map: ["map", "地图单张", "用于地形风格和俯视构图验证"],
+    vfx: ["sparkles", "特效单张", "用于技能视觉方向验证，后续可切到四帧 VFX"],
+    icon: ["gem", "图标单张", "用于装备、材料和技能图标定稿"],
   };
-  const [icon, title, summary] = map[assetType] || ["image", "单张素材", "用于快速验证素材方向。"];
+  const [icon, title, summary] = map[assetType] || ["image", "单张素材", "用于快速验证素材方向"];
   return {
     icon,
     title,
@@ -1004,11 +1004,11 @@ function buildRouteDecision() {
     && !isVfx;
 
   let recommendation = "分帧主线";
-  let summary = "分帧生成更适合当前生产：每帧可单独重跑、可进素材库、成本可预期，适合角色、怪物、UI、地图和 VFX 的可控交付。";
+  let summary = "分帧生成更适合当前生产：每帧可单独重跑、可进素材库、成本可预期，适合角色、怪物、UI、地图和 VFX 的可控交付";
 
   if (!isPack) {
     recommendation = "单张 2D 预览";
-    summary = "当前预设用于先生成单张 2D 图，适合快速定角色、头像、图标或构图方向；正式生产 sprite sheet、地图、UI 或 VFX 时再切到整包预设。";
+    summary = "当前预设用于先生成单张 2D 图，适合快速定角色、头像、图标或构图方向；正式生产 sprite sheet、地图、UI 或 VFX 时再切到整包预设";
   } else if (isMotionAsset) {
     recommendation = videoResultReady
       ? "视频 A/B 示例"
@@ -1016,16 +1016,16 @@ function buildRouteDecision() {
         ? "分帧主线 + 视频 A/B"
         : "先分帧定稿";
     summary = videoResultReady
-      ? "当前已有纯色背景 WEBM，可以直接抽关键帧、抠背景、脚底对齐并导出 Sprite Sheet；正式生产仍建议用分帧生成保底，再用视频路线比较动作连贯性。"
+      ? "当前已有纯色背景 WEBM，可以直接抽关键帧、抠背景、脚底对齐并导出 Sprite Sheet；正式生产仍建议用分帧生成保底，再用视频路线比较动作连贯性"
       : sourceReady && videoReady
-        ? "角色和怪物动作可以做视频 K 帧 A/B：视频路线动作更连贯，但一致性和抠背景仍要看质检；分帧路线仍是可重跑、可控、便宜的生产基线。"
-        : "先用分帧生成做出可用角色/怪物源帧和动作包；有稳定源帧后，再用纯色背景视频 K 帧测试动作连贯性。";
+        ? "角色和怪物动作可以做视频 K 帧 A/B：视频路线动作更连贯，但一致性和抠背景仍要看质检；分帧路线仍是可重跑、可控、便宜的生产基线"
+        : "先用分帧生成做出可用角色/怪物源帧和动作包；有稳定源帧后，再用纯色背景视频 K 帧测试动作连贯性";
   } else if (isVfx) {
     recommendation = "分帧 VFX 优先";
-    summary = "技能特效四段式 charge/burst/impact/fade 更适合先走分帧生成，方便单帧重跑和控制节奏；视频 K 帧适合后续测试流体爆发感。";
+    summary = "技能特效四段式 charge/burst/impact/fade 更适合先走分帧生成，方便单帧重跑和控制节奏；视频 K 帧适合后续测试流体爆发感";
   } else if (isStaticProduction) {
     recommendation = "不要用视频";
-    summary = "UI、地图、道具、图标不适合视频 K 帧。它们需要切图、平铺或静态构图约束，应该继续走分帧/表格生成和对应 QA。";
+    summary = "UI、地图、道具、图标不适合视频 K 帧。它们需要切图、平铺或静态构图约束，应该继续走分帧/表格生成和对应 QA";
   }
 
   return {
@@ -1037,13 +1037,13 @@ function buildRouteDecision() {
         title: "分帧生成",
         cost: isPack ? `${packCost} 点 / ${frameCount} 帧` : `${packCost} 点 / 单张`,
         bestFor: !isPack
-          ? "单张概念图、头像、图标和角色方向验证；不提交云端资产包。"
+          ? "单张概念图、头像、图标和角色方向验证；不提交云端资产包"
           : isStaticProduction
-          ? "静态素材、地图 tile、UI、图标，以及需要逐帧重跑的动作包。"
-          : "当前主线：可控四帧动作、素材库归档、单帧重跑和引擎 ZIP。",
+          ? "静态素材、地图 tile、UI、图标，以及需要逐帧重跑的动作包"
+          : "当前主线：可控四帧动作、素材库归档、单帧重跑和引擎 ZIP",
         risk: isPack
-          ? "动作连续性取决于提示词、参考图和姿态控制；大幅动作可能牺牲角色一致性。"
-          : "不会生成 sprite sheet、透明帧、ZIP 或引擎导入清单；定稿后需要切换到整包预设继续生产。",
+          ? "动作连续性取决于提示词、参考图和姿态控制；大幅动作可能牺牲角色一致性"
+          : "不会生成 sprite sheet、透明帧、ZIP 或引擎导入清单；定稿后需要切换到整包预设继续生产",
       },
       {
         route: "video",
@@ -1051,14 +1051,14 @@ function buildRouteDecision() {
         cost: `${videoCost} 点 / WEBM`,
         bestFor: isMotionAsset
           ? videoResultReady
-            ? "当前视频结果可直接抽 4 帧、抠背景、脚底对齐并导出引擎 ZIP。"
+            ? "当前视频结果可直接抽 4 帧、抠背景、脚底对齐并导出引擎 ZIP"
             : sourceReady
-              ? "已有源帧时可测试角色/怪物动作连贯性，浏览器会抽 4 帧、抠背景、脚底对齐。"
-              : "需要先有一张 2D 源帧，才能提交视频精灵图。"
-          : "主要用于角色/怪物动作实验；静态资产不建议走这条线。",
+              ? "已有源帧时可测试角色/怪物动作连贯性，浏览器会抽 4 帧、抠背景、脚底对齐"
+              : "需要先有一张 2D 源帧，才能提交视频精灵图"
+          : "主要用于角色/怪物动作实验；静态资产不建议走这条线",
         risk: videoReady
-          ? "成本更高，结果依赖纯色背景和后处理；动作/循环评分低时应回到分帧基线或重调 prompt。"
-          : "当前 Comfy 视频节点未齐，不能提交。",
+          ? "成本更高，结果依赖纯色背景和后处理；动作/循环评分低时应回到分帧基线或重调 prompt"
+          : "当前 Comfy 视频节点未齐，不能提交",
       },
     ],
   };
@@ -1073,7 +1073,7 @@ function renderQueueConfig(comfy = {}) {
       els.queueStatus.textContent = `队列读取失败：${error.message}`;
     });
   } else {
-    renderQueueEmpty("保存访问令牌后查看队列。");
+    renderQueueEmpty("保存访问令牌后查看队列");
   }
 }
 
@@ -1086,13 +1086,13 @@ function renderCloudJobsConfig(storage = {}) {
       els.cloudJobStatus.textContent = `任务读取失败：${error.message}`;
     });
   } else {
-    renderCloudJobsEmpty("保存访问令牌后查看云端任务。");
+    renderCloudJobsEmpty("保存访问令牌后查看云端任务");
   }
 }
 
 async function refreshCloudJobs() {
   if (!state.capabilities?.storage?.configured || !accessToken()) {
-    renderCloudJobsEmpty(accessToken() ? "当前环境未启用素材存储。" : "保存访问令牌后查看云端任务。");
+    renderCloudJobsEmpty(accessToken() ? "当前环境未启用素材存储" : "保存访问令牌后查看云端任务");
     return;
   }
   els.cloudJobStatus.textContent = "读取任务中...";
@@ -1104,7 +1104,7 @@ async function refreshCloudJobs() {
   const jobsData = await jobsResponse.json().catch(() => null);
   const packsData = await packsResponse.json().catch(() => null);
   if (jobsResponse.status === 401 || packsResponse.status === 401) {
-    showAuthRequired("令牌缺失或无效。");
+    showAuthRequired("令牌缺失或无效");
   }
   if (!jobsResponse.ok) {
     throw new Error(jobsData?.message || jobsData?.error || `${jobsResponse.status}`);
@@ -1137,7 +1137,7 @@ function renderCloudJobsState(data = {}) {
   state.cloudPacks = Array.isArray(data.packs) ? data.packs : [];
   state.cloudJobs = Array.isArray(data.jobs) ? data.jobs : [];
   if (state.cloudPacks.length === 0 && state.cloudJobs.length === 0) {
-    renderCloudJobsEmpty("暂无云端任务。");
+    renderCloudJobsEmpty("暂无云端任务");
     return;
   }
 
@@ -1177,7 +1177,7 @@ function renderCloudJobsState(data = {}) {
     `;
   });
   els.cloudJobList.innerHTML = [...packCards, ...jobCards].join("");
-  els.cloudJobStatus.textContent = `云端任务已同步：${state.cloudPacks.length} 个资产包，${visibleJobs.length} 条单任务。`;
+  els.cloudJobStatus.textContent = `云端任务已同步：${state.cloudPacks.length} 个资产包，${visibleJobs.length} 条单任务`;
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -1293,7 +1293,7 @@ function restoreCloudJob(promptId) {
   }
 
   if (["error", "complete_no_result"].includes(job.status)) {
-    showError(`云端任务${cloudJobStatusText(job.status)}。`);
+    showError(`云端任务${cloudJobStatusText(job.status)}`);
     return;
   }
 
@@ -1371,7 +1371,7 @@ async function restoreCloudPack(packId) {
       await preparePackProductionPreview(restoredPack);
       updateLayerButton();
     } else {
-      showError("云端资产包还没有可恢复的完成帧。");
+      showError("云端资产包还没有可恢复的完成帧");
     }
   } finally {
     if (!keepBusy) setBusy(false);
@@ -1432,7 +1432,7 @@ function renderUsageConfig(usage = {}) {
       els.usageStatus.textContent = `额度读取失败：${error.message}`;
     });
   } else {
-    renderUsageEmpty("保存访问令牌后查看额度。");
+    renderUsageEmpty("保存访问令牌后查看额度");
   }
 }
 
@@ -1442,9 +1442,9 @@ function renderAuthState(auth = {}) {
   els.accessToken.value = accessToken();
   els.authStatus.textContent = required
     ? accessToken()
-      ? "令牌已保存在当前浏览器。"
-      : "需要访问令牌才能提交生成任务。"
-    : "当前环境未启用访问令牌。";
+      ? "令牌已保存在当前浏览器"
+      : "需要访问令牌才能提交生成任务"
+    : "当前环境未启用访问令牌";
 }
 
 function showAuthRequired(message) {
@@ -1454,7 +1454,7 @@ function showAuthRequired(message) {
 
 async function refreshUsageStatus() {
   if (!state.capabilities?.usage?.configured || !accessToken()) {
-    renderUsageEmpty(accessToken() ? "当前环境未启用额度统计。" : "保存访问令牌后查看额度。");
+    renderUsageEmpty(accessToken() ? "当前环境未启用额度统计" : "保存访问令牌后查看额度");
     return;
   }
   els.usageStatus.textContent = "读取额度中...";
@@ -1463,7 +1463,7 @@ async function refreshUsageStatus() {
   });
   const data = await response.json().catch(() => null);
   if (response.status === 401) {
-    showAuthRequired("令牌缺失或无效。");
+    showAuthRequired("令牌缺失或无效");
   }
   if (!response.ok) {
     throw new Error(data?.message || data?.error || `${response.status}`);
@@ -1473,7 +1473,7 @@ async function refreshUsageStatus() {
 
 async function refreshQueueStatus() {
   if (!state.capabilities?.comfy?.configured || !accessToken()) {
-    renderQueueEmpty(accessToken() ? "当前环境未配置 Comfy。" : "保存访问令牌后查看队列。");
+    renderQueueEmpty(accessToken() ? "当前环境未配置 Comfy" : "保存访问令牌后查看队列");
     return;
   }
   const params = new URLSearchParams();
@@ -1484,7 +1484,7 @@ async function refreshQueueStatus() {
   });
   const data = await response.json().catch(() => null);
   if (response.status === 401) {
-    showAuthRequired("令牌缺失或无效。");
+    showAuthRequired("令牌缺失或无效");
   }
   if (!response.ok) {
     throw new Error(data?.message || data?.error || `${response.status}`);
@@ -1507,10 +1507,10 @@ function renderQueueState(data = {}) {
 
 function queueStatusText(data) {
   const current = data.current;
-  if (!current) return `队列已同步：共 ${data.total ?? 0} 个任务。`;
-  if (current.state === "running") return "当前任务运行中。";
-  if (current.state === "pending") return `当前任务等待中，第 ${Number(current.index || 0) + 1} 位。`;
-  return "当前任务不在队列中，可能已完成或正在写出结果。";
+  if (!current) return `队列已同步：共 ${data.total ?? 0} 个任务`;
+  if (current.state === "running") return "当前任务运行中";
+  if (current.state === "pending") return `当前任务等待中，第 ${Number(current.index || 0) + 1} 位`;
+  return "当前任务不在队列中，可能已完成或正在写出结果";
 }
 
 function startQueuePolling(promptId) {
@@ -1555,8 +1555,8 @@ function renderUsageState(usage = {}) {
   renderUsageGuidance(usage);
   updateRewardButton();
   els.usageStatus.textContent = usage.allowed === false
-    ? "当前额度已达到限制。"
-    : "额度已同步。";
+    ? "当前额度已达到限制"
+    : "额度已同步";
 }
 
 function formatUsageReset(value) {
@@ -1574,7 +1574,7 @@ function renderUsageGuidance(usage) {
   if (!els.usageGuidance) return;
   if (!usage?.configured || !accessToken()) {
     els.usageGuidance.className = "usage-guidance";
-    els.usageGuidance.textContent = "保存访问令牌后显示本次生成预计消耗。";
+    els.usageGuidance.textContent = "保存访问令牌后显示本次生成预计消耗";
     return;
   }
   const estimate = estimateCurrentUsageCost();
@@ -1585,7 +1585,7 @@ function renderUsageGuidance(usage) {
   const ready = hourlyEnough && dailyEnough;
   els.usageGuidance.className = `usage-guidance ${ready ? "ready" : "warn"}`;
   if (ready) {
-    els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；当前小时和今日额度都足够。`;
+    els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；当前小时和今日额度都足够`;
     return;
   }
   const missing = [
@@ -1595,7 +1595,7 @@ function renderUsageGuidance(usage) {
   const reset = !dailyEnough
     ? `今日重置 ${formatUsageReset(usage.daily?.resetAt)}`
     : `小时重置 ${formatUsageReset(usage.hourly?.resetAt)}`;
-  els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；${missing}，${reset}。`;
+  els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；${missing}，${reset}`;
 }
 
 function estimateCurrentUsageCost() {
@@ -1680,7 +1680,7 @@ async function generatePack() {
   if (!isPackPreset()) {
     updateRouteControls();
     renderRouteComparison();
-    showError("当前预设只支持单张 2D 生成，请点击“生成 2D”或选择可整包生成的生产预设。");
+    showError("当前预设只支持单张 2D 生成，请点击“生成 2D”或选择可整包生成的生产预设");
     return;
   }
   const referenceState = spriteReferenceState();
@@ -1753,7 +1753,7 @@ async function generateVideoSprite() {
   state.activeInput = input;
   if (!source?.filename) {
     renderVideoRoutePlan();
-    showError("先生成或从历史恢复一张 2D 角色/怪物源帧，再生成视频精灵图。");
+    showError("先生成或从历史恢复一张 2D 角色/怪物源帧，再生成视频精灵图");
     return;
   }
   setBusy(true, "视频精灵提交中");
@@ -1781,7 +1781,7 @@ async function generateVideoSprite() {
       plan: job.plan,
     });
     if (!job.ok) {
-      showError(job.message || job.error || "视频精灵图任务提交失败。");
+      showError(job.message || job.error || "视频精灵图任务提交失败");
       setBusy(false);
       return;
     }
@@ -2042,7 +2042,7 @@ function pollJob(promptId, kind) {
         els.stageStatus.textContent = "队列未发现，等待历史结果";
       }
       if (attempts >= maxAttempts) {
-        showError("生成超时。Comfy 可能仍在运行，请稍后从任务历史或输出目录确认结果。");
+        showError("生成超时。Comfy 可能仍在运行，请稍后从任务历史或输出目录确认结果");
         refreshCloudJobsInBackground();
         setBusy(false);
         clearPoll();
@@ -2211,7 +2211,7 @@ async function loadVideoSpriteDemo() {
   clearPoll();
   const input = {
     mode: "2d",
-    brief: "纯色背景视频生成怪物动作，再自动抽帧、抠背景、脚底对齐并导出 Sprite Sheet。",
+    brief: "纯色背景视频生成怪物动作，再自动抽帧、抠背景、脚底对齐并导出 Sprite Sheet",
     assetType: "creature",
     style: "pixel",
     camera: "front",
@@ -2231,7 +2231,7 @@ async function loadVideoSpriteDemo() {
   els.resultGrid.hidden = true;
   els.modelViewer.hidden = true;
   els.emptyState.querySelector("strong").textContent = "加载视频精灵 Demo";
-  els.emptyState.querySelector("span").textContent = "正在读取公开样本并准备浏览器抽帧导出。";
+  els.emptyState.querySelector("span").textContent = "正在读取公开样本并准备浏览器抽帧导出";
   renderPlan({
     kind: "video-sprite-demo",
     status: "loading",
@@ -2248,7 +2248,7 @@ async function loadVideoSpriteDemo() {
       || state.videoDemos[0]
       || null;
     if (!response.available || !demo?.url) {
-      throw new Error("视频精灵 Demo 暂不可用。");
+      throw new Error("视频精灵 Demo 暂不可用");
     }
     restoreVideoSpriteDemo(demo);
   } catch (error) {
@@ -2386,7 +2386,7 @@ function restoreHistory(id) {
 
 async function restorePackHistory(item) {
   if (!item.pack) {
-    showError("历史资产包缺少 metadata。");
+    showError("历史资产包缺少 metadata");
     return;
   }
   state.pack = item.pack;
@@ -2795,7 +2795,7 @@ function loadVideoElement(sourceUrl) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error("视频加载失败，无法抽帧。"));
+      reject(new Error("视频加载失败，无法抽帧"));
     };
     video.crossOrigin = "anonymous";
     video.muted = true;
@@ -2842,7 +2842,7 @@ function seekVideo(video, time) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error("视频定位失败，无法抽帧。"));
+      reject(new Error("视频定位失败，无法抽帧"));
     };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.addEventListener("error", onError, { once: true });
@@ -2897,7 +2897,7 @@ function canvasToBlob(canvas, type = "image/png") {
       if (blob) {
         resolve(blob);
       } else {
-        reject(new Error("Canvas 导出失败。"));
+        reject(new Error("Canvas 导出失败"));
       }
     }, type);
   });
@@ -3490,7 +3490,7 @@ async function fetchCloudPackZip(pack) {
     headers: authHeaders(),
   });
   if (response.status === 401) {
-    showAuthRequired("令牌缺失或无效。");
+    showAuthRequired("令牌缺失或无效");
     return null;
   }
   if (!response.ok) {
@@ -3507,20 +3507,20 @@ async function fetchCloudPackZip(pack) {
 
 async function generatePackLayers() {
   if (!accessToken()) {
-    showAuthRequired("生成 Spine 分层需要访问令牌。");
+    showAuthRequired("生成 Spine 分层需要访问令牌");
     return;
   }
   if (!layerGenerationAvailable()) {
     renderLayerSeparationCard("error", {
       message: state.capabilities?.layerSeparation?.available
-        ? "请先完成一个角色/怪物动作包。"
-        : "Comfy 还没有可用的 SAM3 模型。",
+        ? "请先完成一个角色/怪物动作包"
+        : "Comfy 还没有可用的 SAM3 模型",
     });
     return;
   }
 
   setBusy(true, "Spine 分层提交中");
-  renderLayerSeparationCard("queued", { message: "SAM3 分层任务已准备提交。" });
+  renderLayerSeparationCard("queued", { message: "SAM3 分层任务已准备提交" });
   const requestId = createClientRequestId("layer-separation");
   try {
     const job = await api(`/api/packs/${encodeURIComponent(state.pack.packId)}/layers/generate`, {
@@ -3528,7 +3528,7 @@ async function generatePackLayers() {
       body: JSON.stringify({ frameId: "idle", requestId }),
     });
     if (!job.ok) {
-      renderLayerSeparationCard("error", { message: job.message || job.error || "分层不可用。" });
+      renderLayerSeparationCard("error", { message: job.message || job.error || "分层不可用" });
       setBusy(false);
       return;
     }
@@ -3587,13 +3587,13 @@ function pollLayerSeparation(job) {
         if (state.layerPolling) clearInterval(state.layerPolling);
         state.layerPolling = null;
       } else if (attempts >= 80) {
-        renderLayerSeparationCard("error", { message: "SAM3 分层超时，请稍后从云端任务列表恢复。" });
+        renderLayerSeparationCard("error", { message: "SAM3 分层超时，请稍后从云端任务列表恢复" });
         setBusy(false);
         if (state.layerPolling) clearInterval(state.layerPolling);
         state.layerPolling = null;
       } else {
         renderLayerSeparationCard("queued", {
-          message: "SAM3 分层运行中。",
+          message: "SAM3 分层运行中",
           job,
         });
       }
@@ -3646,7 +3646,7 @@ function renderLayerSeparationCard(status, payload = {}) {
       <strong>Spine 分层预览</strong>
       <span>${status === "error" ? "失败" : "处理中"}</span>
     </div>
-    <p>${escapeHtml(payload.message || "等待 SAM3 返回分层 mask。")}</p>
+    <p>${escapeHtml(payload.message || "等待 SAM3 返回分层 mask")}</p>
   `;
 }
 
@@ -4228,13 +4228,13 @@ function renderPackImportSummary(pack) {
   card.className = "pack-import-summary";
   const detail = packHasSpineExport(pack)
     ? packHasSam3Layers(pack)
-      ? "云端 ZIP 已包含 Spine runtime、rig-template 和 SAM3 分层 cutout。"
-      : "云端 ZIP 已包含 Spine attachment-swap runtime 导出和 rig-template 编辑模板。"
+      ? "云端 ZIP 已包含 Spine runtime、rig-template 和 SAM3 分层 cutout"
+      : "云端 ZIP 已包含 Spine attachment-swap runtime 导出和 rig-template 编辑模板"
     : pack.packKind === "tile-pack"
-      ? "云端 ZIP 已包含 Tiled tileset 清单，地图 tile 保持不透明导入。"
+      ? "云端 ZIP 已包含 Tiled tileset 清单，地图 tile 保持不透明导入"
       : pack.packKind === "ui-pack" || pack.packKind === "icon-pack"
-        ? "云端 ZIP 已包含 UI atlas 和 Phaser atlas，可从 sheet.png 按命名区域导入。"
-        : "云端 ZIP 已包含常用引擎导入清单。";
+        ? "云端 ZIP 已包含 UI atlas 和 Phaser atlas，可从 sheet.png 按命名区域导入"
+        : "云端 ZIP 已包含常用引擎导入清单";
   card.innerHTML = `
     <div class="quality-heading">
       <strong>云端导入包</strong>
@@ -4271,7 +4271,7 @@ function renderSam3PartComparison(pack) {
     <div class="sam3-quality-strip" data-sam3-quality-strip>
       <span class="sam3-quality-pill info">读取质量摘要</span>
     </div>
-    <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics。</p>
+    <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics</p>
     <div class="sam3-part-grid">
       ${parts.map((part) => `
         <article class="sam3-part-row">
@@ -4386,12 +4386,12 @@ function sam3DiagnosticsText(data) {
     return warnings.slice(0, 2).map((warning) => warning.message).join(" · ");
   }
   if (sideViewOcclusion.length) {
-    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分。`;
+    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分`;
   }
   const semanticDiagnostics = quality.summary?.semanticDiagnostics;
   return semanticDiagnostics
-    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警。`
-    : "无结构性分层告警。";
+    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警`
+    : "无结构性分层告警";
 }
 
 async function loadSam3PartComparisons(pack, card) {
@@ -4431,7 +4431,7 @@ async function loadSam3PartComparisons(pack, card) {
       slot.classList.add("failed");
     }
     if (status) status.textContent = "preview failed";
-    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试。";
+    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试";
     throw error;
   }
 }
@@ -4515,8 +4515,8 @@ async function prepareSpriteAnimationPreview(pack, items, generation) {
   if (generation !== state.packDownloadGeneration) return;
   setObjectDownload(els.downloadPreview, previewBlob, `${pack.preset || "sprite"}-animation-preview.png`);
   const previewDetail = pack.preset === "skill-vfx"
-    ? "按生成顺序轮播，检查蓄力、爆发、命中、消散的节奏、峰值亮度和透明边缘。"
-    : "按生成顺序轮播，检查角色一致性、动作幅度和轮廓可读性；云端 ZIP 同步提供 Spine JSON/Atlas。";
+    ? "按生成顺序轮播，检查蓄力、爆发、命中、消散的节奏、峰值亮度和透明边缘"
+    : "按生成顺序轮播，检查角色一致性、动作幅度和轮廓可读性；云端 ZIP 同步提供 Spine JSON/Atlas";
 
   const card = insertPackPreviewCard({
     title: "动作预览",
@@ -4546,7 +4546,7 @@ async function prepareTileabilityPreview(pack, items, generation) {
   setObjectDownload(els.downloadPreview, previewBlob, `${pack.preset || "tiles"}-tileability-preview.png`);
   insertPackPreviewCard({
     title: "平铺检查",
-    detail: "每个 tile 以 2×2 重复显示，质量报告同步检查最外边缘、边缘纹理带和四角色彩差异。",
+    detail: "每个 tile 以 2×2 重复显示，质量报告同步检查最外边缘、边缘纹理带和四角色彩差异",
     body: `
       <div class="tileability-preview">
         <img src="${escapeHtml(els.downloadPreview.href)}" alt="地图 tile 平铺检查" />
@@ -4808,7 +4808,7 @@ function showError(message) {
 
 function resetEmptyState() {
   els.emptyState.querySelector("strong").textContent = "等待生成";
-  els.emptyState.querySelector("span").textContent = "2D 资产会显示在这里，3D GLB 可直接预览或下载。";
+  els.emptyState.querySelector("span").textContent = "2D 资产会显示在这里，3D GLB 可直接预览或下载";
 }
 
 function setBusy(busy, label = "生成中") {
@@ -4939,7 +4939,7 @@ async function downloadAnimatedGif() {
   }
   const encoder = typeof window !== "undefined" ? window.LingjiGifEncoder : null;
   if (!encoder || typeof encoder.encodeGifFromUrls !== "function") {
-    els.downloadGif.title = tr("gifEncoderMissing", {}, "GIF 编码器未加载，请刷新页面。");
+    els.downloadGif.title = tr("gifEncoderMissing", {}, "GIF 编码器未加载，请刷新页面");
     return;
   }
   const frames = state.animationFrames;
@@ -4959,7 +4959,7 @@ async function downloadAnimatedGif() {
     els.downloadGif.title = tr("gifReadyHint", { count: frames.urls.length }, `已导出 ${frames.urls.length} 帧动画 GIF`);
   } catch (error) {
     console.warn("GIF export failed", error);
-    els.downloadGif.title = tr("gifFailed", {}, "GIF 导出失败，请重试。");
+    els.downloadGif.title = tr("gifFailed", {}, "GIF 导出失败，请重试");
   } finally {
     state.gifBusy = false;
     if (labelEl) labelEl.textContent = originalLabel || tr("gifDownload", {}, "下载 GIF");
@@ -4993,8 +4993,8 @@ function updateWalkDirectionControls() {
   });
   if (els.walkDirectionHint) {
     els.walkDirectionHint.textContent = state.walkMode === 8
-      ? tr("walkHint8", {}, "8 朝向（含斜向），每朝行走帧按行排列；质量依赖模型（quality-WIP）。")
-      : tr("walkHint4", {}, "下 / 左 / 右 / 上 四朝向，每朝行走帧按行排列。");
+      ? tr("walkHint8", {}, "8 朝向（含斜向），每朝行走帧按行排列；质量依赖模型（quality-WIP）")
+      : tr("walkHint4", {}, "下 / 左 / 右 / 上 四朝向，每朝行走帧按行排列");
   }
 }
 
@@ -5018,7 +5018,7 @@ function applyStaticI18n() {
   if (gifLabel) gifLabel.textContent = tr("gifDownload", {}, "下载 GIF");
   const walkLabel = document.getElementById("walkDirectionLabel");
   if (walkLabel) walkLabel.textContent = tr("walkDirectionLabel", {}, "行走朝向");
-  setRewardStatus(tr("rewardHint", {}, "看一条广告可领 5 灵石，每日最多 3 次。"));
+  setRewardStatus(tr("rewardHint", {}, "看一条广告可领 5 灵石，每日最多 3 次"));
   if (els.watchAdRewardLabel) {
     els.watchAdRewardLabel.textContent = tr("rewardButton", {}, "看广告领灵石");
   }
@@ -5065,13 +5065,13 @@ function playRewardAd() {
 async function watchAdForReward() {
   if (state.rewardBusy) return;
   if (!accessToken()) {
-    const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石。");
+    const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石");
     showAuthRequired(message);
     setRewardStatus(message);
     return;
   }
   if (!state.capabilities?.usage?.configured) {
-    setRewardStatus(tr("rewardUnavailable", {}, "当前环境未启用灵石额度。"));
+    setRewardStatus(tr("rewardUnavailable", {}, "当前环境未启用灵石额度"));
     return;
   }
   state.rewardBusy = true;
@@ -5085,14 +5085,14 @@ async function watchAdForReward() {
     });
     const data = await response.json().catch(() => null);
     if (response.status === 401) {
-      const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石。");
+      const message = tr("rewardNeedToken", {}, "先保存访问令牌再领取灵石");
       showAuthRequired(message);
       setRewardStatus(message);
       return;
     }
     if (response.status === 429) {
       if (data?.usage) renderUsageState(data.usage);
-      setRewardStatus(tr("rewardLimit", {}, "今日领取已达上限，明日再来。"));
+      setRewardStatus(tr("rewardLimit", {}, "今日领取已达上限，明日再来"));
       return;
     }
     if (!response.ok || !data?.ok) {
@@ -5104,7 +5104,7 @@ async function watchAdForReward() {
     setRewardStatus(tr(
       "rewardSuccess",
       { granted, remaining },
-      `灵石 +${granted}，今日还可领 ${remaining} 次。`,
+      `灵石 +${granted}，今日还可领 ${remaining} 次`,
     ));
   } catch (error) {
     console.warn("Reward claim failed", error);
@@ -5145,10 +5145,10 @@ els.saveAccessTokenBtn.addEventListener("click", () => {
   const token = els.accessToken.value.trim();
   if (token) {
     localStorage.setItem(ACCESS_TOKEN_KEY, token);
-    els.authStatus.textContent = "令牌已保存。";
+    els.authStatus.textContent = "令牌已保存";
   } else {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    els.authStatus.textContent = "令牌已清除。";
+    els.authStatus.textContent = "令牌已清除";
   }
   refreshUsageStatus().catch((error) => {
     els.usageStatus.textContent = `额度读取失败：${error.message}`;
