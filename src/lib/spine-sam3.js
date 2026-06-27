@@ -1,5 +1,14 @@
 // spine-sam3 —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { alphaBounds, alphaBoundsInRect, averageNumbers, composePackTransparentFrames, jsonResponse, latestPackLayerSeparationJob, packAnimations, packFrameRect, packGridMetrics, packZipFrames, pngBytesFromDataUrl, positiveNumber, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, safeLibrarySegment, safeString, shouldPackUseTransparentFrames, sourceImageForLayerJob, withSignedPackRecord } from "../worker.js";
+import { alphaBounds, alphaBoundsInRect, averageNumbers, composePackTransparentFrames, jsonResponse, latestPackLayerSeparationJob, packAnimations, packFrameRect, packGridMetrics, packZipFrames, pngBytesFromDataUrl, positiveNumber, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, safeString, shouldPackUseTransparentFrames, sourceImageForLayerJob, withSignedPackRecord } from "../worker.js";
+import { bytesToBase64, decodePngRgba, encodePngRgba } from "./binary.js";
+
+function safeLibrarySegment(value) {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return (text || "asset")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "asset";
+}
 
 export const SPINE_LAYER_PROMPTS = [
   { id: "subject", label: "Subject", prompt: "", mode: "bbox" },
@@ -22,6 +31,14 @@ const SPINE_SAM3_PART_RULES = {
   arm_r: { share: [0.015, 0.22], verticalBand: [0.18, 0.88], role: "limb" },
   leg_l: { share: [0.02, 0.26], verticalBand: [0.42, 1], role: "limb" },
   leg_r: { share: [0.02, 0.26], verticalBand: [0.42, 1], role: "limb" },
+};
+
+const SPINE_SAM3_MONSTER_SIDEVIEW_PART_RULES = {
+  hips: { share: [0.03, 0.36], verticalBand: [0.32, 0.86], role: "hips" },
+  arm_l: { share: [0.008, 0.24], verticalBand: [0.18, 0.9], role: "limb" },
+  arm_r: { share: [0.008, 0.24], verticalBand: [0.18, 0.9], role: "limb" },
+  leg_l: { share: [0.008, 0.28], verticalBand: [0.42, 1], role: "limb" },
+  leg_r: { share: [0.008, 0.28], verticalBand: [0.42, 1], role: "limb" },
 };
 
 const SPINE_SAM3_DRAW_ORDER = ["leg_l", "leg_r", "hips", "torso", "arm_l", "arm_r", "head"];
@@ -126,6 +143,8 @@ export async function getPackSpineSam3Preview(packId, env) {
       status: template.quality.status,
       score: template.quality.score,
       summary: template.quality.summary,
+      semantics: spineSam3PreviewQualitySemantics(template.quality.semantics),
+      warnings: spineSam3PreviewWarnings(template.quality.warnings),
     },
     parts,
   };
@@ -172,7 +191,35 @@ async function writePackSpineSam3PreviewCache(packId, preview, env) {
 }
 
 function packSpineSam3PreviewCacheKey(packId, jobId) {
-  return `library/packs/${safeLibrarySegment(packId)}/spine-sam3/preview-v3-${safeLibrarySegment(jobId)}.json`;
+  return `library/packs/${safeLibrarySegment(packId)}/spine-sam3/preview-v8-${safeLibrarySegment(jobId)}.json`;
+}
+
+function spineSam3PreviewQualitySemantics(semantics) {
+  if (!semantics) {
+    return {
+      profile: "default",
+      summary: null,
+      pairBalance: null,
+      missingRequiredParts: [],
+    };
+  }
+  return {
+    profile: semantics.profile || "default",
+    summary: semantics.summary || null,
+    pairBalance: semantics.pairBalance || null,
+    missingRequiredParts: Array.isArray(semantics.missingRequiredParts)
+      ? semantics.missingRequiredParts
+      : [],
+  };
+}
+
+function spineSam3PreviewWarnings(warnings) {
+  if (!Array.isArray(warnings)) return [];
+  return warnings.slice(0, 12).map((warning) => ({
+    severity: warning?.severity || "info",
+    part: warning?.part || null,
+    message: warning?.message || "",
+  }));
 }
 
 function spineSam3PreviewPartPayload(part, variant) {
@@ -382,7 +429,7 @@ export async function buildSpineSam3LayersTemplate(env, pack, frameFiles) {
   const cutoutOptions = spineSam3CutoutOptionsForPack(pack, image);
   const cutouts = await spineSam3CutoutParts(image, masks, cutoutOptions);
   if (cutouts.length === 0) return null;
-  const semantic = spineSam3SemanticReport(cutouts, image);
+  const semantic = spineSam3SemanticReport(cutouts, image, cutoutOptions);
   applySpineSam3SemanticHints(cutouts, semantic);
   const overlap = spineSam3PartOverlapReport(cutouts, image.width, image.height, "sam3-cutout-overlap-v1");
   const cleanup = await buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOptions);
@@ -438,6 +485,7 @@ function spineSam3CutoutOptionsForPack(pack, image) {
   if (!subjectBounds) return {};
   return {
     semanticClamp: "monster-anatomy-window-v1",
+    semanticProfile: "monster-sideview-v1",
     subjectBounds,
   };
 }
@@ -1265,14 +1313,15 @@ function applySpineSam3SemanticHints(parts, semantic) {
   }
 }
 
-function spineSam3SemanticReport(parts, image) {
+function spineSam3SemanticReport(parts, image, options = {}) {
+  const semanticProfile = options.semanticProfile || "default";
   const partByName = new Map(parts.map((part) => [part.name, part]));
   const totalAlphaPixels = Math.max(1, parts.reduce((total, part) => total + (part.quality?.alphaPixels || 0), 0));
   const semanticParts = {};
   const warnings = [];
 
   for (const part of parts) {
-    const rule = SPINE_SAM3_PART_RULES[part.name] || null;
+    const rule = spineSam3SemanticRule(part.name, semanticProfile);
     const globalBounds = spineSam3GlobalVisibleBounds(part);
     const center = spineSam3PartCenter(part);
     const normalizedCenter = {
@@ -1312,8 +1361,8 @@ function spineSam3SemanticReport(parts, image) {
   spineSam3WarnVerticalOrder(warnings, semanticParts, "head", "torso", image, "head should sit above torso.");
   spineSam3WarnVerticalOrder(warnings, semanticParts, "torso", "hips", image, "torso should sit above hips.");
   const pairBalance = {
-    arms: spineSam3PairBalance(warnings, semanticParts, "arm_l", "arm_r", image),
-    legs: spineSam3PairBalance(warnings, semanticParts, "leg_l", "leg_r", image),
+    arms: spineSam3PairBalance(warnings, semanticParts, "arm_l", "arm_r", image, options),
+    legs: spineSam3PairBalance(warnings, semanticParts, "leg_l", "leg_r", image, options),
   };
   spineSam3WarnLowerBodyOrder(warnings, semanticParts, image);
 
@@ -1321,14 +1370,18 @@ function spineSam3SemanticReport(parts, image) {
     const part = partByName.get(name);
     return !part || part.quality?.empty;
   });
+  const semanticWarnings = warnings.filter((warning) => warning.severity === "warn" || warning.severity === "fail").length;
   return {
     method: "sam3-source-geometry-v1",
+    profile: semanticProfile,
     requiredParts: SPINE_RIG_REQUIRED_PARTS,
     recommendedDrawOrder: SPINE_SAM3_DRAW_ORDER,
     missingRequiredParts,
     pairBalance,
     summary: {
-      semanticWarnings: warnings.length,
+      semanticWarnings,
+      semanticDiagnostics: warnings.length,
+      semanticProfile,
       missingRequiredParts: missingRequiredParts.length,
       totalPartAlphaPixels: totalAlphaPixels,
       averageVisiblePixelShare: roundSpineNumber(averageNumbers(Object.values(semanticParts).map((part) => part.visiblePixelShare))),
@@ -1336,6 +1389,13 @@ function spineSam3SemanticReport(parts, image) {
     warnings,
     parts: semanticParts,
   };
+}
+
+function spineSam3SemanticRule(partName, semanticProfile = "default") {
+  if (semanticProfile === "monster-sideview-v1" && SPINE_SAM3_MONSTER_SIDEVIEW_PART_RULES[partName]) {
+    return SPINE_SAM3_MONSTER_SIDEVIEW_PART_RULES[partName];
+  }
+  return SPINE_SAM3_PART_RULES[partName] || null;
 }
 
 function spineSam3GlobalVisibleBounds(part) {
@@ -1433,7 +1493,7 @@ function spineSam3WarnLowerBodyOrder(warnings, semanticParts, image) {
   }
 }
 
-function spineSam3PairBalance(warnings, semanticParts, leftName, rightName, image) {
+function spineSam3PairBalance(warnings, semanticParts, leftName, rightName, image, options = {}) {
   const left = semanticParts[leftName];
   const right = semanticParts[rightName];
   if (!left || !right) return { available: false };
@@ -1441,16 +1501,27 @@ function spineSam3PairBalance(warnings, semanticParts, leftName, rightName, imag
   const maxShare = Math.max(left.visiblePixelShare, right.visiblePixelShare);
   const shareRatio = roundSpineNumber(maxShare / minShare);
   const centerDistance = roundSpineNumber(Math.abs(left.center.x - right.center.x));
+  const closeCenterThreshold = image.width * 0.04;
+  const sideViewOcclusion = options.semanticProfile === "monster-sideview-v1"
+    && centerDistance < closeCenterThreshold;
   if (shareRatio > 3.5) {
     warnings.push(spineRigWarning("warn", `${leftName}/${rightName}`, `${leftName} and ${rightName} have a large visible-area imbalance.`));
   }
-  if (centerDistance < image.width * 0.04) {
-    warnings.push(spineRigWarning("warn", `${leftName}/${rightName}`, `${leftName} and ${rightName} centers are very close; the masks may be merged or ambiguous.`));
+  if (centerDistance < closeCenterThreshold) {
+    warnings.push(spineRigWarning(
+      sideViewOcclusion ? "info" : "warn",
+      `${leftName}/${rightName}`,
+      sideViewOcclusion
+        ? `${leftName} and ${rightName} centers are close, treated as side-view occlusion for a monster sprite.`
+        : `${leftName} and ${rightName} centers are very close; the masks may be merged or ambiguous.`,
+    ));
   }
   return {
     available: true,
     shareRatio,
     centerDistance,
+    centerDistanceThreshold: roundSpineNumber(closeCenterThreshold),
+    sideViewOcclusion,
     leftScreenSide: left.screenSide,
     rightScreenSide: right.screenSide,
   };
@@ -1560,7 +1631,7 @@ function spineSam3OverlapClassification(a, b, minOverlapRatio) {
 async function buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOptions = {}) {
   const plan = spineSam3CleanupPlan(overlap);
   const maskByName = new Map(masks.map((mask) => [mask.layerId, mask]));
-  const parts = [];
+  let parts = [];
   for (const mask of masks) {
     if (!SPINE_RIG_REQUIRED_PARTS.includes(mask.layerId)) continue;
     const cleanupStats = { trimmedPixels: 0 };
@@ -1573,18 +1644,23 @@ async function buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOp
     parts.push(part);
   }
   if (parts.length === 0) return null;
-  const semantic = spineSam3SemanticReport(parts, image);
+  const semantic = spineSam3SemanticReport(parts, image, cutoutOptions);
   applySpineSam3SemanticHints(parts, semantic);
+  let remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height);
+  const secondPassActions = await applySpineSam3FinalOverlapCleanup(parts, remainingOverlap);
+  if (secondPassActions.length > 0) {
+    remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height);
+  }
   const sheet = await composeSpineRigPartsSheet(parts);
-  const remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height);
   const timelineQa = packSpineTimelineQuality(pack, parts);
+  const actions = [...plan.actions, ...secondPassActions];
   const report = {
-    method: "sam3-overlap-cleanup-v1",
-    strategy: "front-part-wins-risky-overlap",
+    method: "sam3-overlap-cleanup-v2",
+    strategy: "front-part-wins-risky-overlap-with-cleaned-part-second-pass",
     sourceOverlapMethod: overlap.method,
-    actions: plan.actions,
+    actions,
     summary: {
-      actions: plan.actions.length,
+      actions: actions.length,
       partsTrimmed: parts.filter((part) => (part.cleanup?.trimmedPixels || 0) > 0).length,
       trimmedPixels: parts.reduce((total, part) => total + (part.cleanup?.trimmedPixels || 0), 0),
       emptyParts: parts.filter((part) => part.quality.empty).length,
@@ -1605,6 +1681,7 @@ async function buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOp
     })),
     notes: [
       "Cleanup trims risky overlap pixels from the lower draw-order part and preserves the higher draw-order part.",
+      "A second pass trims any remaining risky overlap using the actual cleaned cutout pixels instead of raw SAM3 masks.",
       "Allowed joint overlaps are left untouched so shoulders, hips, torso, and neck still connect visually.",
       "This is an export helper, not a replacement for artist-approved mask editing.",
     ],
@@ -1644,6 +1721,73 @@ function spineSam3CleanupPlan(overlap) {
     });
   }
   return { trimRules, actions };
+}
+
+async function applySpineSam3FinalOverlapCleanup(parts, overlap) {
+  const order = new Map(SPINE_SAM3_DRAW_ORDER.map((name, index) => [name, index]));
+  const partByName = new Map(parts.map((part) => [part.name, part]));
+  const actions = [];
+  const changedParts = new Set();
+  for (const pair of overlap.riskyPairs || []) {
+    const [a, b] = pair.parts || pair.pair.split("/");
+    const aPart = partByName.get(a);
+    const bPart = partByName.get(b);
+    if (!aPart || !bPart) continue;
+    const aOrder = order.get(a) ?? 0;
+    const bOrder = order.get(b) ?? 0;
+    const trimmedPart = aOrder <= bOrder ? aPart : bPart;
+    const preservedPart = trimmedPart === aPart ? bPart : aPart;
+    const trimmedPixels = trimSpineSam3PartAgainstCleanedPart(trimmedPart, preservedPart);
+    if (trimmedPixels <= 0) continue;
+    changedParts.add(trimmedPart);
+    if (!trimmedPart.cleanup) {
+      trimmedPart.cleanup = { trimmedPixels: 0, trimAgainst: [] };
+    }
+    trimmedPart.cleanup.trimmedPixels = (trimmedPart.cleanup.trimmedPixels || 0) + trimmedPixels;
+    if (!Array.isArray(trimmedPart.cleanup.trimAgainst)) trimmedPart.cleanup.trimAgainst = [];
+    if (!trimmedPart.cleanup.trimAgainst.includes(preservedPart.name)) {
+      trimmedPart.cleanup.trimAgainst.push(preservedPart.name);
+    }
+    actions.push({
+      pair: pair.pair || spineSam3PairKey(a, b),
+      classification: pair.classification,
+      minOverlapRatio: pair.minOverlapRatio,
+      trimmedPart: trimmedPart.name,
+      preservedPart: preservedPart.name,
+      trimmedPixels,
+      reason: "cleaned-part-overlap-second-pass",
+    });
+  }
+  for (const part of changedParts) {
+    part.quality = spineRigPartQuality(part.data, part.width, part.height, 8);
+    part.bytes = await encodePngRgba(part.width, part.height, part.data);
+  }
+  return actions;
+}
+
+function trimSpineSam3PartAgainstCleanedPart(part, frontPart) {
+  if (!part?.data || !frontPart?.data) return 0;
+  let trimmedPixels = 0;
+  for (let y = 0; y < part.height; y += 1) {
+    const globalY = part.sourceRect.y + y;
+    const frontY = globalY - frontPart.sourceRect.y;
+    if (frontY < 0 || frontY >= frontPart.height) continue;
+    for (let x = 0; x < part.width; x += 1) {
+      const globalX = part.sourceRect.x + x;
+      const frontX = globalX - frontPart.sourceRect.x;
+      if (frontX < 0 || frontX >= frontPart.width) continue;
+      const index = ((y * part.width) + x) * 4;
+      if (part.data[index + 3] <= 8) continue;
+      const frontIndex = ((frontY * frontPart.width) + frontX) * 4;
+      if (frontPart.data[frontIndex + 3] <= 8) continue;
+      part.data[index] = 0;
+      part.data[index + 1] = 0;
+      part.data[index + 2] = 0;
+      part.data[index + 3] = 0;
+      trimmedPixels += 1;
+    }
+  }
+  return trimmedPixels;
 }
 
 function spineSam3PartOverlapReport(parts, sourceWidth, sourceHeight, method = "sam3-cleaned-part-overlap-v1") {
@@ -1748,6 +1892,7 @@ function packSpineSam3LayersManifest(pack, job, parts, masks, image, sheet, sour
     },
     semantics: {
       method: semantic.method,
+      profile: semantic.profile || "default",
       recommendedDrawOrder: semantic.recommendedDrawOrder,
       summary: semantic.summary,
       pairBalance: semantic.pairBalance,
@@ -1821,6 +1966,7 @@ function packSpineSam3LayersManifest(pack, job, parts, masks, image, sheet, sour
 
 function packSpineSam3LayerQuality(pack, job, parts, masks, image, sourceFile, semantic, timelineQa, overlap, cleanup) {
   const warnings = [];
+  const finalOverlap = cleanup?.report?.remainingOverlap || overlap;
   const partByName = new Map(parts.map((part) => [part.name, part]));
   for (const name of SPINE_RIG_REQUIRED_PARTS) {
     const part = partByName.get(name);
@@ -1839,7 +1985,7 @@ function packSpineSam3LayerQuality(pack, job, parts, masks, image, sourceFile, s
   }
   warnings.push(...semantic.warnings);
   warnings.push(...timelineQa.warnings);
-  warnings.push(...overlap.warnings);
+  warnings.push(...finalOverlap.warnings);
   const score = Math.max(0, 100 - warnings.reduce((total, warning) => (
     total + (warning.severity === "fail" ? 30 : warning.severity === "warn" ? 10 : 0)
   ), 0));
@@ -1870,10 +2016,13 @@ function packSpineSam3LayerQuality(pack, job, parts, masks, image, sourceFile, s
       edgeTouchingParts: parts.filter((part) => !part.quality.empty && part.quality.edgeMargin <= 1).length,
       averageCoverage: roundSpineNumber(averageNumbers(parts.map((part) => part.quality.coverage))),
       minCoverage: roundSpineNumber(Math.min(...parts.map((part) => part.quality.coverage))),
-      semanticWarnings: semantic.warnings.length,
+      semanticWarnings: semantic.warnings.filter((warning) => warning.severity === "warn" || warning.severity === "fail").length,
+      semanticDiagnostics: semantic.warnings.length,
       timelineWarnings: timelineQa.warnings.length,
-      overlapWarnings: overlap.warnings.length,
-      riskyOverlapPairs: overlap.summary.riskyPairs,
+      overlapWarnings: finalOverlap.warnings.length,
+      riskyOverlapPairs: finalOverlap.summary.riskyPairs,
+      rawOverlapWarnings: overlap.warnings.length,
+      rawRiskyOverlapPairs: overlap.summary.riskyPairs,
       cleanupActions: cleanup?.report?.summary?.actions || 0,
       cleanupRemainingRiskyPairs: cleanup?.report?.summary?.remainingRiskyPairs || 0,
       missingRequiredParts: semantic.missingRequiredParts.length,
@@ -1881,6 +2030,7 @@ function packSpineSam3LayerQuality(pack, job, parts, masks, image, sourceFile, s
     },
     semantics: {
       method: semantic.method,
+      profile: semantic.profile || "default",
       requiredParts: semantic.requiredParts,
       recommendedDrawOrder: semantic.recommendedDrawOrder,
       missingRequiredParts: semantic.missingRequiredParts,
@@ -1888,6 +2038,7 @@ function packSpineSam3LayerQuality(pack, job, parts, masks, image, sourceFile, s
       summary: semantic.summary,
     },
     overlap,
+    finalOverlap,
     cleanup: cleanup?.report || null,
     timeline: timelineQa,
     warnings,

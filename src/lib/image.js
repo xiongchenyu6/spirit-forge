@@ -1,5 +1,26 @@
 // image —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
 import { CHARACTER_OPENPOSE_TEMPLATES, OPENPOSE_LIMBS, PACK_ALPHA_CONFIG, validateImageDataUrl } from "../worker.js";
+import { bytesToBase64, decodePngRgba, encodePngRgba, positiveInteger } from "./binary.js";
+
+function imageSafeLibrarySegment(value) {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return (text || "asset")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "asset";
+}
+
+function imagePackFrameZipName(frame, index) {
+  const order = Number.isFinite(Number(frame.index)) ? Number(frame.index) + 1 : index + 1;
+  const label = frame.id || frame.label || `frame-${index + 1}`;
+  const source = frame.result?.filename || `${imageSafeLibrarySegment(label)}.png`;
+  const extension = source.includes(".") ? source.slice(source.lastIndexOf(".")).toLowerCase() : ".png";
+  return `${String(order).padStart(2, "0")}-${imageSafeLibrarySegment(label)}${extension}`;
+}
+
+function imagePackFrameAlphaZipName(frame, index) {
+  return imagePackFrameZipName(frame, index).replace(/(\.[^.]+)?$/, "_alpha.png");
+}
 
 export function alphaBounds(data, width, height, threshold = 24) {
   return alphaBoundsInRect(data, width, height, 0, 0, width, height, threshold);
@@ -38,7 +59,7 @@ export async function composePackTransparentFrames(frameFiles) {
     const bytes = await encodePngRgba(image.width, image.height, image.data);
     outputs.push({
       ...frameFile,
-      path: `frames/transparent/${packFrameAlphaZipName(frameFile.frame, frameFile.index)}`,
+      path: `frames/transparent/${imagePackFrameAlphaZipName(frameFile.frame, frameFile.index)}`,
       bytes,
       image,
     });

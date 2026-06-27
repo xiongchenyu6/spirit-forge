@@ -1,5 +1,24 @@
 // pack-export —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
 import { PACK_ALPHA_CONFIG, composePackSheetPng, composePackTransparentFrames, jsonResponse, positiveNumber, safeString } from "../worker.js";
+import { createZipBlob } from "./binary.js";
+import { readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, withSignedPackRecord } from "./storage.js";
+import { buildSpineRigTemplate, buildSpineSam3LayersTemplate, packSpineAtlas, packSpineReadme, packSpineSkeletonJson, shouldIncludeSpineExport } from "./spine-sam3.js";
+
+const PACK_ZIP_CACHE_VERSION = "pack-zip-v8-sam3-final-cleanup-pass";
+const PACK_ZIP_CACHE_FALLBACK_VERSIONS = [
+  "pack-zip-v7-sam3-semantic-diagnostics",
+  "pack-zip-v6-sam3-monster-sideview-profile",
+  "pack-zip-v5-sam3-final-overlap-quality",
+  "pack-zip-v4-sam3-monster-clamp",
+];
+
+function safeLibrarySegment(value) {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return (text || "asset")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "asset";
+}
 
 export async function downloadPackZip(packId, env) {
   if (!env.ASSET_BUCKET) return jsonResponse({ error: "storage_not_configured" }, 503);
@@ -24,6 +43,13 @@ export async function downloadPackZip(packId, env) {
   });
   if (cachedZip) {
     return packZipResponse(cachedZip.body, filename, true);
+  }
+  const fallbackZip = await findPackZipVersionFallback(env, signed, completedFrameFiles).catch((error) => {
+    console.warn("Pack ZIP cache fallback lookup failed", error);
+    return null;
+  });
+  if (fallbackZip) {
+    return packZipResponse(fallbackZip.body, filename, "version-fallback");
   }
 
   const shouldUseTransparentFrames = shouldPackUseTransparentFrames(signed);
@@ -299,13 +325,14 @@ export async function downloadPackZip(packId, env) {
 }
 
 function packZipResponse(body, filename, cacheHit) {
+  const cacheStatus = typeof cacheHit === "string" ? cacheHit : cacheHit ? "hit" : "miss";
   return new Response(body, {
     headers: {
       "content-type": "application/zip",
       "content-disposition": `attachment; filename="${filename}"`,
       "cache-control": "private, max-age=300",
       "access-control-allow-origin": "*",
-      "x-lingji-pack-zip-cache": cacheHit ? "hit" : "miss",
+      "x-lingji-pack-zip-cache": cacheStatus,
     },
   });
 }
@@ -314,10 +341,19 @@ function packZipDownloadFilename(pack, packId) {
   return `${safeLibrarySegment(pack.preset || "asset-pack")}-${safeLibrarySegment(packId).slice(0, 8)}.zip`;
 }
 
-async function packZipCacheKey(pack, completedFrameFiles) {
+async function findPackZipVersionFallback(env, pack, completedFrameFiles) {
+  for (const version of PACK_ZIP_CACHE_FALLBACK_VERSIONS) {
+    const key = await packZipCacheKey(pack, completedFrameFiles, version);
+    const object = await env.ASSET_BUCKET.get(key);
+    if (object) return object;
+  }
+  return null;
+}
+
+async function packZipCacheKey(pack, completedFrameFiles, version = PACK_ZIP_CACHE_VERSION) {
   const layer = pack.spineSam3Layers || null;
   const fingerprint = await shortDigest(JSON.stringify({
-    version: "pack-zip-v4-sam3-monster-clamp",
+    version,
     packId: pack.packId,
     preset: pack.preset,
     packKind: pack.packKind,
@@ -352,7 +388,13 @@ async function packZipCacheKey(pack, completedFrameFiles) {
 
 async function shortDigest(source) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
-  return base64UrlEncode(new Uint8Array(digest)).slice(0, 32);
+  return packZipBase64UrlEncode(new Uint8Array(digest)).slice(0, 32);
+}
+
+function packZipBase64UrlEncode(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 export function shouldPackUseTransparentFrames(pack) {

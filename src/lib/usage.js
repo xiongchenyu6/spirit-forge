@@ -1,5 +1,7 @@
 // usage —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { DEFAULT_USAGE_DAILY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS, PACK_PRESETS, USAGE_COSTS, apiAccessToken, jsonResponse, positiveNumber, safeString } from "../worker.js";
+import { base64UrlEncode } from "./binary.js";
+import { PACK_PRESETS } from "./pack-presets.js";
+import { DEFAULT_USAGE_DAILY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS, USAGE_COSTS, apiAccessToken, jsonResponse, positiveNumber, safeString } from "../worker.js";
 
 export async function enforceUsageLimit(request, env, action, cost) {
   const usage = await requestUsage(request, env, action, cost);

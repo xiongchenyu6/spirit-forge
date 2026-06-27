@@ -1,5 +1,22 @@
 // storage —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { USAGE_COSTS, buildComfyViewUrl, contentTypeForResult, fetchComfyResponse, frameStatusCounts, layerIdFromFilename, packFrameZipName, packStatusFromCounts, safeString } from "../worker.js";
+import { USAGE_COSTS, buildComfyViewUrl, fetchComfyResponse, frameStatusCounts, layerIdFromFilename, packFrameZipName, packStatusFromCounts, safeString } from "../worker.js";
+import { base64UrlEncode, decodePngRgba } from "./binary.js";
+import { contentTypeForResult } from "./result-utils.js";
+
+const STORAGE_SPINE_LAYER_PROMPTS = [
+  { id: "subject", label: "Subject" },
+  { id: "head", label: "Head" },
+  { id: "torso", label: "Torso" },
+  { id: "hips", label: "Hips" },
+  { id: "arm_l", label: "Left arm" },
+  { id: "arm_r", label: "Right arm" },
+  { id: "leg_l", label: "Left leg" },
+  { id: "leg_r", label: "Right leg" },
+];
+
+function storageSpineLayerLabel(layerId) {
+  return STORAGE_SPINE_LAYER_PROMPTS.find((item) => item.id === layerId)?.label || layerId;
+}
 
 export async function rememberJobRecord(env, record) {
   if (!env.ASSET_BUCKET) return null;
@@ -69,6 +86,11 @@ async function putJobRecord(env, record) {
       status: stored.status,
     },
   });
+  if (isCompleteLayerSeparationJob(stored)) {
+    await rememberLatestPackLayerSeparationJob(env, stored).catch((error) => {
+      console.warn("R2 layer-separation index write failed", error);
+    });
+  }
   return stored;
 }
 
@@ -160,6 +182,71 @@ export async function readPackRecord(env, packId) {
   return JSON.parse(await object.text());
 }
 
+export async function rememberPackRequestIndex(env, requestId, packId, metadata = {}) {
+  if (!env.ASSET_BUCKET || !requestId || !packId) return null;
+  const now = new Date().toISOString();
+  const record = {
+    kind: "2d-pack-request",
+    requestId,
+    packId,
+    createdAt: now,
+    updatedAt: now,
+    ...metadata,
+  };
+  await env.ASSET_BUCKET.put(packRequestIndexKey(requestId), JSON.stringify(record, null, 2), {
+    httpMetadata: {
+      contentType: "application/json; charset=utf-8",
+      cacheControl: "private, max-age=300",
+    },
+    customMetadata: {
+      kind: record.kind,
+      requestId: safeLibrarySegment(requestId),
+      packId,
+    },
+  });
+  return record;
+}
+
+export async function readPackRequestIndex(env, requestId) {
+  if (!env.ASSET_BUCKET || !requestId) return null;
+  const object = await env.ASSET_BUCKET.get(packRequestIndexKey(requestId));
+  if (!object) return null;
+  return JSON.parse(await object.text());
+}
+
+export async function rememberLayerRequestIndex(env, requestId, promptId, metadata = {}) {
+  if (!env.ASSET_BUCKET || !requestId || !promptId) return null;
+  const now = new Date().toISOString();
+  const record = {
+    kind: "layer-separation-request",
+    requestId,
+    promptId,
+    createdAt: now,
+    updatedAt: now,
+    ...metadata,
+  };
+  await env.ASSET_BUCKET.put(layerRequestIndexKey(requestId), JSON.stringify(record, null, 2), {
+    httpMetadata: {
+      contentType: "application/json; charset=utf-8",
+      cacheControl: "private, max-age=300",
+    },
+    customMetadata: {
+      kind: record.kind,
+      requestId: safeLibrarySegment(requestId),
+      promptId,
+      packId: safeString(record.packId),
+    },
+  });
+  return record;
+}
+
+export async function readLayerRequestIndex(env, requestId) {
+  if (!env.ASSET_BUCKET || !requestId) return null;
+  const object = await env.ASSET_BUCKET.get(layerRequestIndexKey(requestId));
+  if (!object) return null;
+  return JSON.parse(await object.text());
+}
+
 export async function refreshPackRecord(env, packId) {
   const existing = await readPackRecord(env, packId);
   if (!existing) return null;
@@ -199,25 +286,32 @@ export async function listPacks(env, url) {
   const limit = Math.max(1, Math.min(40, Number(url.searchParams.get("limit")) || 12));
   const listed = await env.ASSET_BUCKET.list({ prefix: "library/packs/", limit: 1000 });
   const objects = listed.objects
-    .filter((object) => object.key.endsWith(".json"))
+    .filter((object) => isPackRecordObjectKey(object.key))
     .sort((a, b) => Number(b.uploaded || 0) - Number(a.uploaded || 0));
   const packs = [];
-  const layerJobsByPack = await latestLayerSeparationJobsByPack(env);
+  const seenPackIds = new Set();
 
   for (const object of objects) {
     if (packs.length >= limit) break;
     const stored = await env.ASSET_BUCKET.get(object.key);
     if (!stored) continue;
     const pack = JSON.parse(await stored.text());
+    if (!pack?.packId || seenPackIds.has(pack.packId)) continue;
     if (preset !== "all" && pack.preset !== preset) continue;
     if (status !== "all" && pack.status !== status) continue;
-    packs.push(await withSignedPackRecord(env, pack, { layerJobsByPack }));
+    seenPackIds.add(pack.packId);
+    packs.push(pack);
   }
+  const layerJobsByPack = await latestIndexedLayerSeparationJobsByPack(env, packs.map((pack) => pack.packId));
+  const signedPacks = await Promise.all(packs.map((pack) => withSignedPackRecord(env, pack, {
+    layerJobsByPack,
+    skipLayerJobLookup: true,
+  })));
 
   return {
     ok: true,
     configured: true,
-    packs,
+    packs: signedPacks,
     nextCursor: listed.truncated ? listed.cursor : null,
   };
 }
@@ -268,10 +362,7 @@ async function latestLayerSeparationJobsByPack(env) {
     const stored = await env.ASSET_BUCKET.get(object.key);
     if (!stored) continue;
     const job = JSON.parse(await stored.text());
-    if (job.kind !== "layer-separation") continue;
-    if (!job.packId) continue;
-    if (job.status !== "complete") continue;
-    if (!Array.isArray(job.result?.files) || job.result.files.length === 0) continue;
+    if (!isCompleteLayerSeparationJob(job)) continue;
     const current = byPack.get(job.packId);
     const currentTime = Date.parse(current?.completedAt || current?.updatedAt || current?.createdAt || 0);
     const jobTime = Date.parse(job.completedAt || job.updatedAt || job.createdAt || 0);
@@ -280,10 +371,80 @@ async function latestLayerSeparationJobsByPack(env) {
   return byPack;
 }
 
+async function latestIndexedLayerSeparationJobsByPack(env, packIds) {
+  const byPack = new Map();
+  if (!env.ASSET_BUCKET) return byPack;
+  await Promise.all([...new Set(packIds.filter(Boolean))].map(async (packId) => {
+    const job = await readLatestPackLayerSeparationJobIndex(env, packId).catch((error) => {
+      console.warn("R2 layer-separation index read failed", error);
+      return null;
+    });
+    if (job) byPack.set(packId, job);
+  }));
+  return byPack;
+}
+
 export async function latestPackLayerSeparationJob(env, packId) {
   if (!packId) return null;
+  const indexed = await readLatestPackLayerSeparationJobIndex(env, packId).catch((error) => {
+    console.warn("R2 layer-separation index read failed", error);
+    return null;
+  });
+  if (indexed) return indexed;
   const byPack = await latestLayerSeparationJobsByPack(env);
-  return byPack.get(packId) || null;
+  const job = byPack.get(packId) || null;
+  if (job) {
+    await rememberLatestPackLayerSeparationJob(env, job).catch((error) => {
+      console.warn("R2 layer-separation index backfill failed", error);
+    });
+  }
+  return job;
+}
+
+function isCompleteLayerSeparationJob(job, packId = null) {
+  return job?.kind === "layer-separation"
+    && (!packId || job.packId === packId)
+    && Boolean(job.packId)
+    && Boolean(job.promptId)
+    && job.status === "complete"
+    && Array.isArray(job.result?.files)
+    && job.result.files.length > 0;
+}
+
+async function readLatestPackLayerSeparationJobIndex(env, packId) {
+  if (!env.ASSET_BUCKET || !packId) return null;
+  const object = await env.ASSET_BUCKET.get(packLayerSeparationLatestKey(packId));
+  if (!object) return null;
+  const index = JSON.parse(await object.text());
+  const promptId = safeString(index.promptId);
+  if (!promptId) return null;
+  const job = await readJobRecord(env, promptId);
+  return isCompleteLayerSeparationJob(job, packId) ? job : null;
+}
+
+async function rememberLatestPackLayerSeparationJob(env, job) {
+  if (!env.ASSET_BUCKET || !isCompleteLayerSeparationJob(job)) return null;
+  const index = {
+    kind: "layer-separation-latest",
+    packId: job.packId,
+    promptId: job.promptId,
+    frameId: job.frameId || null,
+    completedAt: job.completedAt || null,
+    updatedAt: new Date().toISOString(),
+    files: job.result.files.length,
+  };
+  await env.ASSET_BUCKET.put(packLayerSeparationLatestKey(job.packId), JSON.stringify(index, null, 2), {
+    httpMetadata: {
+      contentType: "application/json; charset=utf-8",
+      cacheControl: "private, max-age=300",
+    },
+    customMetadata: {
+      kind: index.kind,
+      packId: index.packId,
+      promptId: index.promptId,
+    },
+  });
+  return index;
 }
 
 export async function sourceImageForLayerJob(env, job, frameFiles) {
@@ -312,14 +473,14 @@ export async function readLayerSeparationMasks(env, job) {
     const bytes = new Uint8Array(await object.arrayBuffer());
     masks.push({
       layerId: safeLibrarySegment(file.layerId || layerIdFromFilename(file.filename)),
-      label: safeString(file.label, spineLayerLabel(file.layerId)),
+      label: safeString(file.label, storageSpineLayerLabel(file.layerId)),
       filename: file.filename,
       fileKey,
       bytes,
       image: await decodePngRgba(bytes),
     });
   }
-  const order = new Map(SPINE_LAYER_PROMPTS.map((item, index) => [item.id, index]));
+  const order = new Map(STORAGE_SPINE_LAYER_PROMPTS.map((item, index) => [item.id, index]));
   masks.sort((a, b) => (order.get(a.layerId) ?? 999) - (order.get(b.layerId) ?? 999));
   return masks;
 }
@@ -569,15 +730,47 @@ export async function withSignedPackRecord(env, pack, options = {}) {
   }));
   const cover = frames.find((frame) => frame.result?.url)?.result || null;
   const layerJob = options.layerJobsByPack?.get?.(pack.packId)
-    || await latestPackLayerSeparationJob(env, pack.packId).catch((error) => {
-      console.warn("Layer-separation pack metadata lookup failed", error);
-      return null;
-    });
+    || (options.skipLayerJobLookup
+      ? null
+      : await latestPackLayerSeparationJob(env, pack.packId).catch((error) => {
+          console.warn("Layer-separation pack metadata lookup failed", error);
+          return null;
+        }));
   return {
     ...pack,
     frames,
     cover,
-    spineSam3Layers: packSpineSam3LayerSummary(layerJob),
+    spineSam3Layers: storagePackSpineSam3LayerSummary(layerJob),
+  };
+}
+
+function storagePackSpineSam3LayerSummary(job) {
+  if (!job) return null;
+  return {
+    available: true,
+    mode: "sam3-text-mask-cutouts",
+    jobId: job.promptId,
+    frameId: job.frameId || null,
+    completedAt: job.completedAt || null,
+    files: Array.isArray(job.result?.files) ? job.result.files.length : 0,
+    skeleton: "spine/sam3-layers/skeleton.json",
+    atlas: "spine/sam3-layers/parts.atlas",
+    sheet: "spine/sam3-layers/parts.png",
+    parts: "spine/sam3-layers/parts.json",
+    quality: "spine/sam3-layers/quality.json",
+    imageFolder: "spine/sam3-layers/parts/",
+    maskFolder: "spine/sam3-layers/masks/",
+    preview: {
+      parts: "api:/api/packs/{packId}/spine-sam3/parts/{part}.png",
+      cleanedParts: "api:/api/packs/{packId}/spine-sam3/cleaned-parts/{part}.png",
+    },
+    cleanup: {
+      manifest: "spine/sam3-layers/cleanup.json",
+      skeleton: "spine/sam3-layers/cleaned-skeleton.json",
+      atlas: "spine/sam3-layers/cleaned-parts.atlas",
+      sheet: "spine/sam3-layers/cleaned-parts.png",
+      imageFolder: "spine/sam3-layers/cleaned-parts/",
+    },
   };
 }
 
@@ -620,6 +813,22 @@ function jobRecordKey(promptId) {
 
 function packRecordKey(packId) {
   return `library/packs/${safeLibrarySegment(packId)}.json`;
+}
+
+function isPackRecordObjectKey(key) {
+  return /^library\/packs\/[^/]+\.json$/.test(String(key || ""));
+}
+
+function packLayerSeparationLatestKey(packId) {
+  return `library/packs/${safeLibrarySegment(packId)}/layer-separation-latest.json`;
+}
+
+function packRequestIndexKey(requestId) {
+  return `library/requests/2d-pack/${safeLibrarySegment(requestId)}.json`;
+}
+
+function layerRequestIndexKey(requestId) {
+  return `library/requests/layer-separation/${safeLibrarySegment(requestId)}.json`;
 }
 
 function libraryFileKey(kind, promptId, filename) {

@@ -1,5 +1,29 @@
 // comfy-client —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
 import { LAYER_SEPARATION_NODE_CANDIDATES, VIDEO_TO_SPRITE_NODE_CANDIDATES, dataUrlToBlob, firstArrayItem, httpError, invalidComfyImageMeta, jsonResponse, mimeToExtension, normalizeFileCandidate, safeString, validateComfyImageMeta, validateImageDataUrl } from "../worker.js";
+import { isPngSignature } from "./binary.js";
+
+const COMFY_SPINE_LAYER_PROMPTS = [
+  { id: "subject", label: "Subject" },
+  { id: "head", label: "Head" },
+  { id: "torso", label: "Torso" },
+  { id: "hips", label: "Hips" },
+  { id: "arm_l", label: "Left arm" },
+  { id: "arm_r", label: "Right arm" },
+  { id: "leg_l", label: "Left leg" },
+  { id: "leg_r", label: "Right leg" },
+];
+
+function comfySpineLayerLabel(layerId) {
+  return COMFY_SPINE_LAYER_PROMPTS.find((item) => item.id === layerId)?.label || layerId;
+}
+
+function safeLibrarySegment(value) {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return (text || "asset")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "asset";
+}
 
 export function selectVideoToSprite(objectInfo = {}, modelLists = {}) {
   const hasNode = (name) => Boolean(objectInfo && objectInfo[name]);
@@ -407,7 +431,7 @@ export function layerSeparationOutput(outputs) {
         kind: "image",
         nodeId,
         layerId,
-        label: spineLayerLabel(layerId),
+        label: comfySpineLayerLabel(layerId),
         filename: image.filename,
         subfolder: image.subfolder || "",
         type: image.type || "output",
@@ -415,7 +439,7 @@ export function layerSeparationOutput(outputs) {
     }
   }
   if (files.length === 0) return null;
-  const order = new Map(SPINE_LAYER_PROMPTS.map((item, index) => [item.id, index]));
+  const order = new Map(COMFY_SPINE_LAYER_PROMPTS.map((item, index) => [item.id, index]));
   files.sort((a, b) => (order.get(a.layerId) ?? 999) - (order.get(b.layerId) ?? 999));
   return {
     kind: "layer-separation",

@@ -1,5 +1,13 @@
 // comfy-workflows —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { DEFAULT_NEGATIVE, pickFirst, safeLibrarySegment } from "../worker.js";
+import { DEFAULT_NEGATIVE, pickFirst } from "../worker.js";
+
+function safeLibrarySegment(value) {
+  const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
+  return (text || "asset")
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "asset";
+}
 
 export function buildWan22I2VWorkflow({ sourceImage, prompt, negativePrompt, seed, width, height, length, fps, models }) {
   const highModel = pickFirst(models?.wanI2v, /high/i);
