@@ -184,22 +184,32 @@ export function buildFlux1Workflow({ prompt, negativePrompt, width, height, seed
 // quality-WIP：以下采样参数（steps/cfg/guidance/shift、LoRA 强度、双 CLIP 组合）
 // 均为按 Klein 常见配置的保守猜测，质量需后续接入真实后端实测调参。
 export function buildPixelFlux2Workflow({ prompt, negativePrompt, width, height, seed, models }) {
-  // 优先 4b（更轻量、显存友好），取不到再退 9b；统称 klein 系。
+  // FLUX.2 Klein 架构（与 FLUX.1 不同，依据 ComfyUI 官方/BFL 文档）：
+  //   - 文本编码：单个 CLIPLoader + Qwen3 编码器 + type="flux2"（不是 FLUX.1 的 DualCLIP）
+  //   - VAE：full_encoder_small_decoder.safetensors（Klein 专用，ae 会偏色不兼容）
+  //   - base 版非蒸馏：真 CFG（cfg≈4.0），不接 FluxGuidance
+  // 优先 9b（质量更好，22G 显存可容），取不到退 4b；Qwen 编码器按模型规格配对。
   const unet =
+    pickFirst(models?.diffusion, /klein.*9b/i) ||
     pickFirst(models?.diffusion, /klein.*4b/i) ||
     pickFirst(models?.diffusion, /klein/i);
+  const is9b = /9b/i.test(unet || "");
+  // Qwen3 文本编码器：9b→qwen_3_8b、4b→qwen_3_4b，回退任意 qwen-flux2 / qwen。
+  const qwen =
+    (is9b
+      ? pickFirst(models?.textEncoders, /qwen.*8b/i)
+      : pickFirst(models?.textEncoders, /qwen.*4b/i)) ||
+    pickFirst(models?.textEncoders, /qwen.*flux2/i) ||
+    pickFirst(models?.textEncoders, /qwen/i);
+  const vae =
+    pickFirst(models?.vae, /full_encoder_small_decoder/i) ||
+    pickFirst(models?.vae, /flux2/i);
   const pixelLora =
     pickFirst(models?.loras, /pixel.*klein/i) ||
     pickFirst(models?.loras, /pixel/i);
-  // FLUX 双 CLIP：clip_l + t5xxl（type=flux）。Klein 的真实文本编码器可能不同，
-  // 这是基于现有清单的最合理猜测（quality-WIP，需实测验证）。
-  const clipL = pickFirst(models?.textEncoders, /clip_l/i);
-  const t5 = pickFirst(models?.textEncoders, /t5xxl/i);
-  // VAE：FLUX 系通用 ae.safetensors。
-  const vae = pickFirst(models?.vae, /(^|[^a-z])ae([^a-z]|\.safetensors|$)/i) || pickFirst(models?.vae, /ae/i);
 
   // 任一必需件缺失 → 回退（返回 null，由调用方落回 flux1-dev）。
-  if (!unet || !pixelLora || !clipL || !t5 || !vae) {
+  if (!unet || !qwen || !vae || !pixelLora) {
     return null;
   }
 
@@ -209,14 +219,14 @@ export function buildPixelFlux2Workflow({ prompt, negativePrompt, width, height,
       inputs: { unet_name: unet, weight_dtype: "default" },
     },
     "2": {
-      // pixel LoRA 仅作用于 model 分支（LoraLoaderModelOnly，与 Wan2.2 写法一致）。
-      // strength_model 1.0 为猜测，过强会糊化、过弱失去像素感——需实测。
+      // pixel LoRA 仅作用 model 分支；strength 0.9 为像素风经验起点。
       class_type: "LoraLoaderModelOnly",
-      inputs: { model: ["1", 0], lora_name: pixelLora, strength_model: 1.0 },
+      inputs: { model: ["1", 0], lora_name: pixelLora, strength_model: 0.9 },
     },
     "3": {
-      class_type: "DualCLIPLoader",
-      inputs: { clip_name1: clipL, clip_name2: t5, type: "flux" },
+      // FLUX.2 单编码器：CLIPLoader + Qwen3 + type="flux2"。
+      class_type: "CLIPLoader",
+      inputs: { clip_name: qwen, type: "flux2" },
     },
     "4": {
       class_type: "CLIPTextEncode",
@@ -227,41 +237,37 @@ export function buildPixelFlux2Workflow({ prompt, negativePrompt, width, height,
       inputs: { text: negativePrompt || DEFAULT_NEGATIVE, clip: ["3", 0] },
     },
     "6": {
-      // FLUX guidance（蒸馏模型走 guidance 而非 cfg）。4.0 为像素风偏锐利的猜测值。
-      class_type: "FluxGuidance",
-      inputs: { guidance: 4.0, conditioning: ["4", 0] },
-    },
-    "7": {
       class_type: "VAELoader",
       inputs: { vae_name: vae },
     },
-    "8": {
-      class_type: "EmptyLatentImage",
+    "7": {
+      // FLUX.2 latent 通道与 FLUX.1 不同，用 SD3/flux 通用空 latent 节点。
+      class_type: "EmptySD3LatentImage",
       inputs: { width, height, batch_size: 1 },
     },
-    "9": {
-      // steps 20 / cfg 1.0 / euler+simple：沿用 flux1-dev 蒸馏路径的保守配置（quality-WIP）。
+    "8": {
+      // base 非蒸馏：真 CFG=4.0、steps=20、euler+simple、负向有效（直接喂 CLIPTextEncode，不经 FluxGuidance）。
       class_type: "KSampler",
       inputs: {
         seed,
         steps: 20,
-        cfg: 1.0,
+        cfg: 4.0,
         sampler_name: "euler",
         scheduler: "simple",
         denoise: 1.0,
         model: ["2", 0],
-        positive: ["6", 0],
+        positive: ["4", 0],
         negative: ["5", 0],
-        latent_image: ["8", 0],
+        latent_image: ["7", 0],
       },
     },
-    "10": {
+    "9": {
       class_type: "VAEDecode",
-      inputs: { samples: ["9", 0], vae: ["7", 0] },
+      inputs: { samples: ["8", 0], vae: ["6", 0] },
     },
-    "11": {
+    "10": {
       class_type: "SaveImage",
-      inputs: { filename_prefix: "lingji_2d_asset", images: ["10", 0] },
+      inputs: { filename_prefix: "lingji_2d_asset", images: ["9", 0] },
     },
   };
 }
