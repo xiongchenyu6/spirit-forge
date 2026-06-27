@@ -1,0 +1,41 @@
+{
+  "packId": "e453472b-2786-4120-9b8f-1432471d1a34",
+  "saved": [
+    {
+      "id": "charge",
+      "file": "skill-vfx-charge.png",
+      "bytes": 247534,
+      "promptId": "229390b7-8f89-4330-8175-fb5c21331726",
+      "filename": "lingji_2d_asset_00066_.png"
+    },
+    {
+      "id": "burst",
+      "file": "skill-vfx-burst.png",
+      "bytes": 292068,
+      "promptId": "4cf3532c-433b-4486-af98-a3078c514a2a",
+      "filename": "lingji_2d_asset_00068_.png"
+    },
+    {
+      "id": "impact",
+      "file": "skill-vfx-impact.png",
+      "bytes": 291742,
+      "promptId": "d9aad6f7-4e31-42ff-b554-f6f4f2d282ad",
+      "filename": "lingji_2d_asset_00067_.png"
+    },
+    {
+      "id": "fade",
+      "file": "skill-vfx-fade.png",
+      "bytes": 269697,
+      "promptId": "4f911df2-7829-4487-982c-ec52f06ab2a8",
+      "filename": "lingji_2d_asset_00069_.png"
+    }
+  ],
+  "counts": {
+    "total": 4,
+    "complete": 4,
+    "failed": 0,
+    "pending": 0
+  },
+  "preset": "skill-vfx",
+  "packKind": "sprite-actions"
+}

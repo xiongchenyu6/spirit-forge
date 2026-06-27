@@ -84,8 +84,8 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   for (const subject of SUBJECTS) {
     if (args.only && subject.assetType !== args.only) continue;
-    if (spent + COSTS.generate2d > MAX_CREDITS) { console.log("预算用尽，停止。"); break; }
-    await runSubject(subject);
+    if (spent + COSTS.generate2d > MAX_CREDITS) { console.log("预算用尽，停止"); break; }
+    await runSubject(args.singlesOnly ? { ...subject, derive: [] } : subject);
   }
   writeFileSync(join(OUT, "manifest.json"), JSON.stringify({ base: BASE, generatedAt: null, spentCredits: spent, assets: manifest }, null, 2));
   console.log(`\n完成。共消耗 ${spent} 额度，产出 ${manifest.length} 件，manifest → ${join(OUT, "manifest.json")}`);
@@ -215,6 +215,7 @@ function parseArgs(argv) {
     else if (k === "--env-file") a.envFile = argv[++i];
     else if (k === "--only") a.only = argv[++i];
     else if (k === "--max-credits") a.maxCredits = Number(argv[++i]);
+    else if (k === "--singles-only") a.singlesOnly = true;
     else if (k === "--pace-ms") a.paceMs = Number(argv[++i]);
   }
   return a;

@@ -5,8 +5,10 @@ result
 public/
 .dev.vars
 
-# 生成产物（ComfyUI 输出的示例素材），不纳入仓库
-assets/generated/
+# 生成产物（ComfyUI 输出），默认不纳入仓库；
+# 但 official/ 是精选的官方展示素材（网站素材），需随仓库分发。
+assets/generated/*
+!assets/generated/official/
 
 # Local secrets fallback. Shared secrets should live in sops-encrypted
 # secrets/*.env files, which are committed encrypted in place.

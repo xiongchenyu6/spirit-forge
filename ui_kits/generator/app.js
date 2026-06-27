@@ -335,7 +335,7 @@ const SINGLE_BLUEPRINTS = {
     format: "768",
     qa: ["构图可读", "主体居中", "可再生产"],
     exports: ["PNG", "Alpha"],
-    samples: [{ label: "Pixel", file: "3f0120ef.png" }],
+    samples: [{ label: "像素骑士", file: "showcase-character-pixel.png" }],
   },
   portrait: {
     icon: "image",
@@ -344,7 +344,7 @@ const SINGLE_BLUEPRINTS = {
     format: "768 x 1024",
     qa: ["服装清楚", "脸部稳定", "轮廓完整"],
     exports: ["PNG"],
-    samples: [{ label: "Concept", file: "ec601ceb.png" }],
+    samples: [{ label: "仙侠剑客", file: "showcase-character-xianxia.png" }],
   },
   sprite: {
     icon: "image",
@@ -353,7 +353,7 @@ const SINGLE_BLUEPRINTS = {
     format: "512",
     qa: ["完整身体", "纯色背景", "可抠图"],
     exports: ["PNG", "Alpha"],
-    samples: [{ label: "Sprite", file: "3f0120ef.png" }],
+    samples: [{ label: "赛博角色", file: "showcase-character-cyberpunk.png" }],
   },
   icon: {
     icon: "shapes",
@@ -362,7 +362,7 @@ const SINGLE_BLUEPRINTS = {
     format: "512",
     qa: ["轮廓清楚", "材质明确", "无文字"],
     exports: ["PNG", "Alpha"],
-    samples: [{ label: "Gem", file: "item-gem.png" }],
+    samples: [{ label: "灵石", file: "showcase-prop-spirit-gem.png" }],
   },
 };
 

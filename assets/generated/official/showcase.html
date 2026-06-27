@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>灵机阁 · 万象造物展</title>
+<style>
+  :root { --ink:#0b0d11; --plate:#15181f; --gold:#d4af6a; --gold2:#f0d8a0; --jade:#6fb6a8; --line:rgba(212,175,106,.16); --paper:#e8e3d6; --dim:#9aa0ab; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(120% 80% at 50% -10%, #1a1d26 0%, var(--ink) 60%); color:var(--paper); font-family:"Noto Sans SC",system-ui,sans-serif; padding:40px 28px 64px; }
+  header { max-width:1200px; margin:0 auto 32px; }
+  .brand { color:var(--gold); font-weight:800; letter-spacing:.05em; font-size:13px; }
+  h1 { font-size:30px; font-weight:800; margin:6px 0 6px; background:linear-gradient(90deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lead { color:var(--dim); font-size:14px; line-height:1.7; max-width:760px; }
+  .meta-row { margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { font-size:11px; color:var(--gold); border:1px solid var(--line); border-radius:99px; padding:3px 11px; }
+  .grid { max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
+  .card { background:var(--plate); border:1px solid var(--line); border-radius:14px; overflow:hidden; transition:transform .18s ease, border-color .18s ease; }
+  .card:hover { transform:translateY(-3px); border-color:rgba(212,175,106,.4); }
+  .card img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#0a0b0e; }
+  .meta { padding:12px 14px 14px; }
+  .type { font-size:11px; color:var(--jade); letter-spacing:.1em; text-transform:uppercase; }
+  .brief { font-size:13px; color:#c7cad1; margin:5px 0 0; line-height:1.55; }
+  footer { max-width:1200px; margin:40px auto 0; color:var(--dim); font-size:12px; border-top:1px solid var(--line); padding-top:16px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">灵机阁 LINGJI FORGE</div>
+    <h1>万象造物展 · 真实生成样本</h1>
+    <p class="lead">以下素材由灵机阁生成台在自有 ComfyUI（RTX 4090 · FLUX-dev）上真实生成，覆盖角色、怪物、武器、道具、特效、UI、地图、图标，从仙侠到赛博朋克的多题材。界面是国风炼器阁，内容能力包罗万象。</p>
+    <div class="meta-row" id="chips"></div>
+  </header>
+  <div class="grid" id="grid"></div>
+  <footer>每张均为单次文生图真实输出 · 768×768 · 提示词忠实题材/物体/材质 · 可经动作包、SAM3 分层、Spine 绑骨继续生产</footer>
+  <script>
+    const ITEMS = [
+      ["showcase-character-xianxia","角色 · 仙侠","青衫剑客，御剑而立，鎏金衣纹"],
+      ["showcase-character-cyberpunk","角色 · 赛博朋克","都市夜行者，霓虹外套，机械义肢"],
+      ["showcase-character-pixel","角色 · 像素","银甲红披风骑士，侧身行走"],
+      ["showcase-creature-beast","怪物 · 西幻","幽蓝鬃毛巨狼魔兽，战斗姿态"],
+      ["showcase-creature-drone","怪物 · 科幻","悬浮侦察无人机，钢蓝装甲"],
+      ["showcase-weapon-jade-sword","武器 · 仙侠","玉骨长剑，半透碧玉剑身，鎏金护手"],
+      ["showcase-prop-spirit-gem","道具","灵石宝珠，多面切割，内蕴流光"],
+      ["showcase-vfx-burst","特效","金色爆发冲击波"],
+      ["showcase-ui-hud","UI 组件","现代游戏 HUD 边框，玻璃拟态"],
+      ["showcase-map-forest","地图","俯视森林地表，草地与石径"],
+      ["showcase-icon-portal","图标","传送阵法，青金灵光徽记"],
+    ];
+    const genres = [...new Set(ITEMS.map(i => i[1].split(" · ")[1]).filter(Boolean))];
+    document.getElementById("chips").innerHTML =
+      [`${ITEMS.length} 件真实输出`, ...genres.map(g => g)].map(t => `<span class="chip">${t}</span>`).join("");
+    document.getElementById("grid").innerHTML = ITEMS.map(([f,t,b]) =>
+      `<div class="card"><img src="${f}.png" alt="${t}" loading="lazy" />
+       <div class="meta"><div class="type">${t}</div><p class="brief">${b}</p></div></div>`
+    ).join("");
+  </script>
+</body>
+</html>
