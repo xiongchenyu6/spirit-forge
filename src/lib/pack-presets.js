@@ -6,12 +6,25 @@ const WALK_4DIR_DIRECTIONS = [
   { id: "right", label: "Right", facing: "in a right-facing side profile", extra: "right-facing silhouette" },
   { id: "up", label: "Up", facing: "facing away from the camera (back view)", extra: "back of the head and back of the costume visible" },
 ];
+// 8 方向行走（管线脚手架，quality-WIP）：4 正方向 + 四个斜向（3/4 侧身）。
+// 朝向顺序 direction-major：down, down-left, left, up-left, up, up-right, right, down-right。
+const WALK_8DIR_DIRECTIONS = [
+  { id: "down", label: "Down", facing: "facing toward the camera (front view)", extra: "front of the character clearly visible" },
+  { id: "down-left", label: "Down-Left", facing: "in a front three-quarter view turned toward the lower-left", extra: "three-quarter front-left silhouette" },
+  { id: "left", label: "Left", facing: "in a left-facing side profile", extra: "left-facing silhouette" },
+  { id: "up-left", label: "Up-Left", facing: "in a back three-quarter view turned toward the upper-left", extra: "three-quarter back-left silhouette" },
+  { id: "up", label: "Up", facing: "facing away from the camera (back view)", extra: "back of the head and back of the costume visible" },
+  { id: "up-right", label: "Up-Right", facing: "in a back three-quarter view turned toward the upper-right", extra: "three-quarter back-right silhouette" },
+  { id: "right", label: "Right", facing: "in a right-facing side profile", extra: "right-facing silhouette" },
+  { id: "down-right", label: "Down-Right", facing: "in a front three-quarter view turned toward the lower-right", extra: "three-quarter front-right silhouette" },
+];
 const WALK_4DIR_FRAME_COUNT = 4;
 const WALK_4DIR_PHASE_LABELS = ["contact", "passing", "contact", "passing"];
 
-function buildWalk4DirItems() {
+// 构建方向行走 items：行=朝向、列=帧（direction-major）；poseTag 区分 walk4 / walk8。
+function buildDirectionalWalkItems(directions, poseTag) {
   const items = [];
-  for (const direction of WALK_4DIR_DIRECTIONS) {
+  for (const direction of directions) {
     for (let frame = 0; frame < WALK_4DIR_FRAME_COUNT; frame += 1) {
       const phase = WALK_4DIR_PHASE_LABELS[frame] || "key";
       items.push({
@@ -19,14 +32,22 @@ function buildWalk4DirItems() {
         label: `${direction.label} ${frame + 1}`,
         direction: direction.id,
         frame,
-        // 姿态键映射到 image.js 的 4 方向行走骨架生成器。
-        pose: `walk4:${direction.id}:${frame}`,
+        // 姿态键映射到 image.js 的方向行走骨架生成器。
+        pose: `${poseTag}:${direction.id}:${frame}`,
         prompt: `walk cycle ${phase} pose, ${direction.facing}, mid-stride legs with one foot forward, arms swinging in opposition, ${direction.extra}, full body, not idle`,
         referenceDenoise: { stable: 0.5, balanced: 0.58, expressive: 0.66 },
       });
     }
   }
   return items;
+}
+
+function buildWalk4DirItems() {
+  return buildDirectionalWalkItems(WALK_4DIR_DIRECTIONS, "walk4");
+}
+
+function buildWalk8DirItems() {
+  return buildDirectionalWalkItems(WALK_8DIR_DIRECTIONS, "walk8");
 }
 
 export const PACK_PRESETS = {
@@ -41,6 +62,18 @@ export const PACK_PRESETS = {
     directional: true,
     shared: "same character identity, same costume and colors, one full-body walking sprite frame only, centered, plain solid background, no frame border, consistent scale across every direction and frame",
     items: buildWalk4DirItems(),
+  },
+  "character-walk-8dir": {
+    kind: "sprite-actions",
+    assetType: "character",
+    style: "pixel",
+    camera: "front",
+    cell: [512, 512],
+    columns: WALK_4DIR_FRAME_COUNT, // 列 = 帧
+    rows: WALK_8DIR_DIRECTIONS.length, // 行 = 朝向（8）
+    directional: true,
+    shared: "same character identity, same costume and colors, one full-body walking sprite frame only, centered, plain solid background, no frame border, consistent scale across every direction and frame",
+    items: buildWalk8DirItems(),
   },
   "character-actions": {
     kind: "sprite-actions",

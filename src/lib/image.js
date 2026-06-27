@@ -233,6 +233,12 @@ export function dataUrlToBlob(dataUrl) {
 // 后续可替换为更精细的逐帧骨架。
 export const WALK_4DIR_DIRECTIONS = ["down", "left", "right", "up"];
 export const WALK_4DIR_FRAMES = 4;
+// 8 方向行走：在 4 正方向之外补四个斜向（direction-major，行=朝向）。
+// 斜向骨架由相邻两个正方向基模板插值（≈ 3/4 侧身），右侧斜向再做镜像。
+export const WALK_8DIR_DIRECTIONS = [
+  "down", "down-left", "left", "up-left", "up", "up-right", "right", "down-right",
+];
+export const WALK_8DIR_FRAMES = 4;
 
 const DIRECTIONAL_WALK_OPENPOSE_BASE = {
   // 面向镜头（正面），脸部关键点可见。
@@ -282,15 +288,55 @@ function mirrorOpenPoseTemplate(template, width = 512) {
   return mirrored;
 }
 
+// 两个正方向模板按权重插值，得到 3/4 侧身的斜向基模板（左斜向用 down/up + left）。
+function blendOpenPoseTemplates(a, b, weight = 0.5) {
+  const blended = {};
+  for (const key of Object.keys(a)) {
+    if (!b[key]) continue;
+    blended[key] = [
+      a[key][0] * (1 - weight) + b[key][0] * weight,
+      a[key][1] * (1 - weight) + b[key][1] * weight,
+    ];
+  }
+  return blended;
+}
+
+// 解析任意 8 向的基模板：4 正方向沿用原 4dir 逻辑；四个斜向由相邻正方向插值，
+// 右侧斜向（up-right/down-right/right）由对应左侧模板镜像得到。
+function directionalWalkBaseTemplate(direction) {
+  switch (direction) {
+    case "down":
+      return DIRECTIONAL_WALK_OPENPOSE_BASE.down;
+    case "up":
+      return DIRECTIONAL_WALK_OPENPOSE_BASE.up;
+    case "left":
+      return DIRECTIONAL_WALK_OPENPOSE_BASE.left;
+    case "right":
+      return mirrorOpenPoseTemplate(DIRECTIONAL_WALK_OPENPOSE_BASE.left);
+    case "down-left":
+      return blendOpenPoseTemplates(DIRECTIONAL_WALK_OPENPOSE_BASE.down, DIRECTIONAL_WALK_OPENPOSE_BASE.left, 0.55);
+    case "up-left":
+      return blendOpenPoseTemplates(DIRECTIONAL_WALK_OPENPOSE_BASE.up, DIRECTIONAL_WALK_OPENPOSE_BASE.left, 0.55);
+    case "down-right":
+      return mirrorOpenPoseTemplate(
+        blendOpenPoseTemplates(DIRECTIONAL_WALK_OPENPOSE_BASE.down, DIRECTIONAL_WALK_OPENPOSE_BASE.left, 0.55),
+      );
+    case "up-right":
+      return mirrorOpenPoseTemplate(
+        blendOpenPoseTemplates(DIRECTIONAL_WALK_OPENPOSE_BASE.up, DIRECTIONAL_WALK_OPENPOSE_BASE.left, 0.55),
+      );
+    default:
+      return DIRECTIONAL_WALK_OPENPOSE_BASE.down;
+  }
+}
+
 // 根据朝向与帧相位生成行走骨架：4 帧相位 [contact, passing, contact, passing]，
-// 左右肢体反相摆动、躯干轻微上浮。属管线脚手架（quality-WIP）。
+// 左右肢体反相摆动、躯干轻微上浮。属管线脚手架（quality-WIP）。支持 4/8 向。
 function directionalWalkPoseKeypoints(direction, phase, frames = WALK_4DIR_FRAMES) {
-  const base = direction === "right"
-    ? mirrorOpenPoseTemplate(DIRECTIONAL_WALK_OPENPOSE_BASE.left)
-    : DIRECTIONAL_WALK_OPENPOSE_BASE[direction] || DIRECTIONAL_WALK_OPENPOSE_BASE.down;
+  const base = directionalWalkBaseTemplate(direction);
   const cycle = Math.max(1, frames);
   const swing = Math.sin((phase / cycle) * Math.PI * 2); // -1..1，左右肢体反相
-  const sideways = direction === "left" || direction === "right";
+  const sideways = direction.includes("left") || direction.includes("right");
   const legAmp = sideways ? 30 : 20;
   const footAmp = legAmp + 10;
   const armAmp = 16;
@@ -315,9 +361,10 @@ function directionalWalkPoseKeypoints(direction, phase, frames = WALK_4DIR_FRAME
   return pose;
 }
 
-// 解析姿态键：支持 4 方向行走的 "walk4:<direction>:<phase>" 复合键，否则查既有动作模板。
+// 解析姿态键：支持方向行走的 "walk4:<direction>:<phase>" / "walk8:<direction>:<phase>"
+// 复合键（斜向 direction 含连字符，如 down-left），否则查既有动作模板。
 function resolveOpenPoseTemplate(kind) {
-  if (typeof kind === "string" && kind.startsWith("walk4:")) {
+  if (typeof kind === "string" && (kind.startsWith("walk4:") || kind.startsWith("walk8:"))) {
     const [, direction = "down", phase = "0"] = kind.split(":");
     return directionalWalkPoseKeypoints(direction, Number(phase) || 0);
   }

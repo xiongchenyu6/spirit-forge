@@ -172,6 +172,7 @@ let modelViewerLoadPromise = null;
 const PRESET_FRAME_COUNTS = {
   "character-actions": 4,
   "character-walk-4dir": WALK_DIRECTIONS_4.length * WALK_FRAMES_PER_DIRECTION,
+  "character-walk-8dir": WALK_DIRECTIONS_8.length * WALK_FRAMES_PER_DIRECTION,
   "monster-actions": 4,
   "skill-vfx": 4,
   "ui-icons": 8,
@@ -366,6 +367,13 @@ const SINGLE_BLUEPRINTS = {
   },
 };
 
+// 选 8 向（walkMode===8）时把方向行走预设映射到后端的 character-walk-8dir，
+// 否则沿用所选预设。select 只暴露 4dir 选项，8 向由行走朝向开关切换。
+function effectiveWalkPreset(value = els.preset.value) {
+  if (value === "character-walk-4dir" && state.walkMode === 8) return "character-walk-8dir";
+  return value;
+}
+
 function currentInput() {
   const input = {
     mode: state.mode,
@@ -373,7 +381,7 @@ function currentInput() {
     assetType: els.assetType.value,
     style: els.style.value,
     camera: els.camera.value,
-    preset: els.preset.value,
+    preset: effectiveWalkPreset(els.preset.value),
     actionStrength: els.actionStrength.value,
     animationRoute: state.animationRoute,
   };
@@ -385,6 +393,7 @@ function currentInput() {
 }
 
 function presetFrameCount(value = els.preset.value) {
+  if (isDirectionalWalkPreset(value)) return directionalWalkFrameCount();
   const count = Number(PRESET_FRAME_COUNTS[value] || 0);
   return Number.isFinite(count) && count > 0 ? count : 0;
 }
@@ -394,11 +403,11 @@ function isPackPreset(value = els.preset.value) {
 }
 
 function isSpriteActionPreset(value = els.preset.value) {
-  return ["character-actions", "character-walk-4dir", "monster-actions"].includes(value);
+  return ["character-actions", "character-walk-4dir", "character-walk-8dir", "monster-actions"].includes(value);
 }
 
 function isDirectionalWalkPreset(value = els.preset.value) {
-  return value === "character-walk-4dir";
+  return value === "character-walk-4dir" || value === "character-walk-8dir";
 }
 
 function walkDirections() {
@@ -744,10 +753,9 @@ function renderAssetBlueprint() {
 function blueprintCapabilityText(preset) {
   if (preset === "monster-actions") return "主攻：2D 怪物动作 + SAM3 Spine";
   if (preset === "character-actions") return "主攻：2D 角色动作 + 姿态控制";
-  if (preset === "character-walk-4dir") {
-    return state.capabilities?.canDirectionalWalk
-      ? "方向行走：4 向（可扩展 8 向）行走表"
-      : "方向行走：当前后端未开启（待 canDirectionalWalk）";
+  if (isDirectionalWalkPreset(preset)) {
+    if (!state.capabilities?.canDirectionalWalk) return "方向行走：当前后端未开启（待 canDirectionalWalk）";
+    return state.walkMode === 8 ? "方向行走：8 向（含四斜向）行走表" : "方向行走：4 向（可扩展 8 向）行走表";
   }
   if (preset === "map-tiles") return "地图：tileability QA";
   if (preset === "ui-kit" || preset === "ui-icons") return "UI：切图与导入清单";
@@ -4988,8 +4996,16 @@ function updateWalkDirectionControls() {
   if (!els.walkDirectionField) return;
   const supported = isDirectionalWalkPreset() && Boolean(state.capabilities?.canDirectionalWalk);
   els.walkDirectionField.hidden = !supported;
+  // 8 向需后端 canDirectionalWalk8；不支持时禁用 8 向按钮并回退 4 向。
+  const allow8 = Boolean(state.capabilities?.canDirectionalWalk8);
+  if (!allow8 && state.walkMode === 8) state.walkMode = 4;
   els.walkDirOptions?.forEach((button) => {
-    button.classList.toggle("active", Number(button.dataset.walkMode) === state.walkMode);
+    const mode = Number(button.dataset.walkMode);
+    if (mode === 8) {
+      button.disabled = !allow8;
+      button.title = allow8 ? "8 朝向（含四斜向），每朝 4 帧" : "后端暂未开启 8 方向（待 canDirectionalWalk8）";
+    }
+    button.classList.toggle("active", mode === state.walkMode);
   });
   if (els.walkDirectionHint) {
     els.walkDirectionHint.textContent = state.walkMode === 8
@@ -4999,7 +5015,9 @@ function updateWalkDirectionControls() {
 }
 
 function setWalkMode(mode) {
-  state.walkMode = Number(mode) === 8 ? 8 : 4;
+  const want8 = Number(mode) === 8;
+  if (want8 && !state.capabilities?.canDirectionalWalk8) return;
+  state.walkMode = want8 ? 8 : 4;
   updateWalkDirectionControls();
   renderAssetBlueprint();
   renderUsageGuidance(state.lastUsage);

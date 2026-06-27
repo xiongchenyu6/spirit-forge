@@ -216,7 +216,7 @@ export async function submit2DPack(input, env, options = {}) {
   const referenceImage = shouldUseReference
     ? await ensureSpriteReferenceImage({ comfyImage: input.referenceImage }, env, "lingji_pack_reference.png")
     : null;
-  const poseControlPresets = new Set(["character-actions", "character-walk-4dir"]);
+  const poseControlPresets = new Set(["character-actions", "character-walk-4dir", "character-walk-8dir"]);
   const shouldUsePoseControl = Boolean(referenceImage && poseControlPresets.has(normalized.preset));
   const poseControl = shouldUsePoseControl && typeof options.getCapabilities === "function"
     ? (await options.getCapabilities(env)).poseControl
