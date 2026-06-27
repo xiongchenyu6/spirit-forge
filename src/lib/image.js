@@ -1,5 +1,5 @@
 // image —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { CHARACTER_OPENPOSE_TEMPLATES, OPENPOSE_LIMBS, PACK_ALPHA_CONFIG, validateImageDataUrl } from "../worker.js";
+import { CHARACTER_OPENPOSE_TEMPLATES, OPENPOSE_LIMBS, PACK_ALPHA_CONFIG, validateImageDataUrl } from "../app.js";
 import { bytesToBase64, decodePngRgba, encodePngRgba, positiveInteger } from "./binary.js";
 
 function imageSafeLibrarySegment(value) {

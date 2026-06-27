@@ -1,5 +1,5 @@
 // comfy-client —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { LAYER_SEPARATION_NODE_CANDIDATES, VIDEO_TO_SPRITE_NODE_CANDIDATES, dataUrlToBlob, firstArrayItem, httpError, invalidComfyImageMeta, jsonResponse, mimeToExtension, normalizeFileCandidate, safeString, validateComfyImageMeta, validateImageDataUrl } from "../worker.js";
+import { LAYER_SEPARATION_NODE_CANDIDATES, VIDEO_TO_SPRITE_NODE_CANDIDATES, dataUrlToBlob, firstArrayItem, httpError, invalidComfyImageMeta, jsonResponse, mimeToExtension, normalizeFileCandidate, safeString, validateComfyImageMeta, validateImageDataUrl } from "../app.js";
 import { isPngSignature } from "./binary.js";
 
 const COMFY_SPINE_LAYER_PROMPTS = [

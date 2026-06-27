@@ -1,5 +1,5 @@
 // pack-export —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { PACK_ALPHA_CONFIG, composePackSheetPng, composePackTransparentFrames, jsonResponse, positiveNumber, safeString } from "../worker.js";
+import { PACK_ALPHA_CONFIG, composePackSheetPng, composePackTransparentFrames, jsonResponse, positiveNumber, safeString } from "../app.js";
 import { createZipBlob } from "./binary.js";
 import { readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, withSignedPackRecord } from "./storage.js";
 import { buildSpineRigTemplate, buildSpineSam3LayersTemplate, packSpineAtlas, packSpineReadme, packSpineSkeletonJson, shouldIncludeSpineExport } from "./spine-sam3.js";

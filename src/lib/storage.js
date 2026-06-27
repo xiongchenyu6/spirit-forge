@@ -1,5 +1,5 @@
 // storage —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { USAGE_COSTS, buildComfyViewUrl, fetchComfyResponse, frameStatusCounts, layerIdFromFilename, packFrameZipName, packStatusFromCounts, safeString } from "../worker.js";
+import { USAGE_COSTS, buildComfyViewUrl, fetchComfyResponse, frameStatusCounts, layerIdFromFilename, packFrameZipName, packStatusFromCounts, safeString } from "../app.js";
 import { base64UrlEncode, decodePngRgba } from "./binary.js";
 import { contentTypeForResult } from "./result-utils.js";
 

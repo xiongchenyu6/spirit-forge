@@ -1,5 +1,5 @@
 // spine-sam3 —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { alphaBounds, alphaBoundsInRect, averageNumbers, composePackTransparentFrames, jsonResponse, latestPackLayerSeparationJob, packAnimations, packFrameRect, packGridMetrics, packZipFrames, pngBytesFromDataUrl, positiveNumber, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, safeString, shouldPackUseTransparentFrames, sourceImageForLayerJob, withSignedPackRecord } from "../worker.js";
+import { alphaBounds, alphaBoundsInRect, averageNumbers, composePackTransparentFrames, jsonResponse, latestPackLayerSeparationJob, packAnimations, packFrameRect, packGridMetrics, packZipFrames, pngBytesFromDataUrl, positiveNumber, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, safeString, shouldPackUseTransparentFrames, sourceImageForLayerJob, withSignedPackRecord } from "../app.js";
 import { bytesToBase64, decodePngRgba, encodePngRgba } from "./binary.js";
 
 function safeLibrarySegment(value) {

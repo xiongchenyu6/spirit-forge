@@ -1,5 +1,5 @@
 // comfy-workflows —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { DEFAULT_NEGATIVE, pickFirst } from "../worker.js";
+import { DEFAULT_NEGATIVE, pickFirst } from "../app.js";
 
 function safeLibrarySegment(value) {
   const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();

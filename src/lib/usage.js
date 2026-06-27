@@ -1,6 +1,6 @@
 // usage —— 额度计量 + 按用户/按 key 限流 + 激励广告奖励额度闭环。
 import { PACK_PRESETS } from "./pack-presets.js";
-import { DEFAULT_USAGE_DAILY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS, USAGE_COSTS, apiAccessToken, jsonResponse, positiveNumber, safeString } from "../worker.js";
+import { DEFAULT_USAGE_DAILY_CREDITS, DEFAULT_USAGE_HOURLY_CREDITS, USAGE_COSTS, apiAccessToken, jsonResponse, positiveNumber, safeString } from "../app.js";
 
 // 激励广告奖励额度：每次播放完广告后端发放固定额度，每日封顶。
 // 默认每次 5 灵石、每日上限 15 灵石（即每天最多领 3 次）。
