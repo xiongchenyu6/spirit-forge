@@ -31,24 +31,30 @@ async function main() {
     animationRoute: "frames",
     requestId: `validate-${a.preset || "pack"}-${OUT.length}`,
   };
-  console.log(`提交 pack: preset=${input.preset} asset=${input.assetType} style=${input.style}`);
-  const pack = await api("/api/generate/2d-pack", { method: "POST", body: JSON.stringify(input) });
-  if (!pack?.packId) return fail(`提交失败: ${pack?.message || JSON.stringify(pack).slice(0, 200)}`);
-  const packId = pack.packId;
-  const total = (pack.frames || []).length;
-  console.log(`packId=${packId} 总帧=${total} rows=${pack.metadata?.rows ?? pack.rows ?? "?"} cols=${pack.metadata?.columns ?? pack.columns ?? "?"}`);
+  let packId = a.packId;
+  if (!packId) {
+    console.log(`提交 pack: preset=${input.preset} asset=${input.assetType} style=${input.style}`);
+    const sub = await api("/api/generate/2d-pack", { method: "POST", body: JSON.stringify(input) });
+    const pk = sub?.pack || sub;
+    packId = sub?.packId || pk?.packId;
+    if (!packId) return fail(`提交失败: ${sub?.message || JSON.stringify(sub).slice(0, 200)}`);
+    console.log(`packId=${packId} 总帧=${(pk?.frames || []).length}`);
+  } else {
+    console.log(`轮询既有 packId=${packId}`);
+  }
 
-  // 轮询所有帧完成
+  // 轮询所有帧完成（pack 嵌在 .pack 下）
   let last = "";
   for (let i = 0; i < 600; i++) {
     await sleep(4000);
-    const p = await api(`/api/packs/${packId}`, { method: "GET" });
+    const r = await api(`/api/packs/${packId}`, { method: "GET" });
+    const p = r?.pack || r;
     const frames = p?.frames || [];
     const done = frames.filter((f) => f.status === "completed" || f.result).length;
     const failed = frames.filter((f) => f.status === "error" || f.status === "failed").length;
-    const line = `  ${done}/${frames.length} 完成${failed ? ` (${failed} 失败)` : ""} status=${p?.status}`;
+    const line = `  ${done}/${frames.length} 完成${failed ? ` (${failed} 失败)` : ""} status=${p?.status} rows=${p?.metadata?.rows ?? "?"} cols=${p?.metadata?.columns ?? "?"}`;
     if (line !== last) { console.log(line); last = line; }
-    if (p?.status === "completed" || (frames.length && done + failed >= frames.length)) {
+    if (p?.status === "completed" || p?.status === "ready" || (frames.length && done + failed >= frames.length)) {
       console.log(`帧生成结束: ${done} 成功 / ${failed} 失败`);
       break;
     }
