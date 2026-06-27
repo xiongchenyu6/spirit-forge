@@ -28,21 +28,27 @@ const ALLOWED_CAMERAS = new Set(["front", "top-down", "isometric", "turnaround",
 
 const STYLE_PROMPTS = {
   production: "production-ready game asset, clean readable silhouette, polished concept art, transparent-background friendly",
-  pixel: "pixel art game sprite, crisp hard edges, limited palette, no antialiasing, clean sprite silhouette, integer pixel clusters",
+  pixel: "true pixel art, visible square pixels, low-res retro game sprite, crisp hard edges, limited palette, no antialiasing, no smooth gradients, blocky integer pixel clusters, clean sprite silhouette",
   anime: "anime game character concept, clean cel shading, expressive face, detailed costume design",
   isometric: "isometric game asset, three-quarter view, readable top-down silhouette, asset catalog presentation",
   realistic: "stylized realistic game character, detailed materials, PBR-friendly forms, neutral studio lighting",
 };
 
 const ASSET_PROMPTS = {
-  character: "full body game character, complete outfit, clear front-facing design",
-  creature: "game creature or monster, readable anatomy, distinctive silhouette",
-  prop: "game prop item, centered object, clean material definition",
-  weapon: "game weapon asset, centered, readable shape language, no hands",
-  icon: "game item icon, centered on transparent-friendly background, strong silhouette",
+  character: "game character exactly as described in the brief, complete outfit faithful to the stated genre and materials, clear readable design",
+  creature: "game creature or monster as described in the brief, readable anatomy, distinctive silhouette",
+  prop: "game prop item exactly as described in the brief, centered single object, clean material definition, no character, no hands",
+  weapon: "render exactly the weapon described in the brief as a standalone object, default to a melee or magical armament (sword, blade, spear, staff, bow, talisman) faithful to the brief's genre and materials, NO firearm or gun unless the brief explicitly demands one, centered, readable shape language, no character, no hands",
+  icon: "game item icon faithful to the brief, centered on transparent-friendly background, strong silhouette",
   map: "2D game map terrain asset, tileable layout, readable gameplay shapes",
   ui: "game user interface asset, clean separable components, readable material layers",
-  vfx: "2D game skill visual effect, centered magical energy, readable silhouette, transparent-background friendly",
+  vfx: "standalone 2D game skill visual effect itself as described in the brief, centered magical energy or spell effect, NO character, NO person, NO body, NO hands, readable silhouette, transparent-background friendly",
+};
+
+const ASSET_NEGATIVE_PROMPTS = {
+  weapon: "gun, firearm, rifle, pistol, shotgun, machine gun, modern soldier, person, character, human figure, hands, holding hands",
+  prop: "person, character, human figure, hands",
+  vfx: "character, person, human figure, full body, face, hands, holding the effect",
 };
 
 const PRESET_PROMPTS = {
@@ -91,11 +97,12 @@ export function localPromptPlan(input) {
   return enforceAlphaReadyPromptPlan({
     title: titleFromBrief(input.brief),
     prompt: [
+      `(${input.brief}:1.3)`,
+      "stay faithful to the described genre, object and materials",
       asset,
       style,
       preset,
       camera,
-      `subject: ${input.brief}`,
       "clean separable game production asset, high contrast silhouette, no text, no watermark",
     ].join(", "),
     negativePrompt: DEFAULT_NEGATIVE,
@@ -231,6 +238,11 @@ function appendPromptSegment(value, segment, limit) {
 }
 
 function enforceAlphaReadyPromptPlan(plan, input = {}) {
+  const assetNegative = ASSET_NEGATIVE_PROMPTS[safeString(input.assetType)];
+  const planWithAssetNegative = assetNegative
+    ? { ...plan, negativePrompt: appendPromptSegment(plan.negativePrompt || DEFAULT_NEGATIVE, assetNegative, 1200) }
+    : plan;
+  plan = planWithAssetNegative;
   if (!shouldUseAlphaReadyBackground(input)) return plan;
   const productionNotes = Array.isArray(plan.productionNotes) ? [...plan.productionNotes] : [];
   const alphaNote = "已加入纯色背景约束，配合服务端 edge-connected alpha 导出";
