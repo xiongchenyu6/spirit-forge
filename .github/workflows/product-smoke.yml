@@ -1,0 +1,35 @@
+name: Product Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 3 * * *"
+
+jobs:
+  product-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GENERATOR_ACCESS_TOKEN: ${{ secrets.GENERATOR_ACCESS_TOKEN }}
+      PRODUCT_SMOKE_DIR: .qa/product-smoke
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Run product smoke
+        run: |
+          mkdir -p "$PRODUCT_SMOKE_DIR"
+          node scripts/run-product-smoke.mjs --output "$PRODUCT_SMOKE_DIR/product-smoke.json"
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: product-smoke
+          path: .qa/product-smoke
+          if-no-files-found: ignore

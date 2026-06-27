@@ -1,0 +1,130 @@
+name: Promote Spine SAM3 Sample
+
+on:
+  workflow_dispatch:
+    inputs:
+      pack_id:
+        description: "Pack id to promote; leave blank for the first pending-sam3 manifest sample."
+        required: false
+        type: string
+      frame_id:
+        description: "Frame id to send through SAM3 layer separation."
+        required: false
+        default: "idle"
+        type: string
+      qa_mode:
+        description: "QA mode for the promoted pack before manifest promotion."
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - preview
+      max_wait_minutes:
+        description: "Maximum time to wait for quota before failing."
+        required: true
+        default: "300"
+        type: string
+      force:
+        description: "Submit a new layer job even if the pack already has SAM3 layers."
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: "Check the selected sample and quota without submitting generation."
+        required: true
+        default: false
+        type: boolean
+      commit_manifest:
+        description: "Commit scripts/spine-sam3-packs.json after a successful promotion."
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  promote-spine-sam3-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GENERATOR_ACCESS_TOKEN: ${{ secrets.GENERATOR_ACCESS_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SPINE_SAM3_PROMOTION_DIR: .qa/spine-sam3-promotion
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@4.93.0
+
+      - name: Promote pending SAM3 sample
+        run: |
+          set -euo pipefail
+          mkdir -p "$SPINE_SAM3_PROMOTION_DIR"
+
+          max_wait_minutes="${{ inputs.max_wait_minutes }}"
+          if ! [[ "$max_wait_minutes" =~ ^[0-9]+$ ]]; then
+            echo "max_wait_minutes must be a positive integer, got: $max_wait_minutes" >&2
+            exit 2
+          fi
+          max_wait_ms=$((10#$max_wait_minutes * 60 * 1000))
+          args=(
+            scripts/promote-spine-sam3-sample.mjs
+            --frame-id "${{ inputs.frame_id }}"
+            --output-dir "$SPINE_SAM3_PROMOTION_DIR"
+            --max-wait-ms "$max_wait_ms"
+            --quota-poll-ms 60000
+            --qa-timeout-ms 1800000
+          )
+
+          if [ -n "${{ inputs.pack_id }}" ]; then
+            args+=(--pack "${{ inputs.pack_id }}")
+          fi
+
+          if [ "${{ inputs.force }}" = "true" ]; then
+            args+=(--force)
+          fi
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args+=(--dry-run --allow-quota-failure)
+          else
+            args+=(
+              --wait-for-quota
+              --promote
+              --qa-mode "${{ inputs.qa_mode }}"
+              --full-default-qa
+              --push-r2-baseline
+              --remote
+            )
+          fi
+
+          node "${args[@]}"
+
+      - name: Commit promoted manifest
+        if: success() && inputs.dry_run == false && inputs.commit_manifest == true
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- scripts/spine-sam3-packs.json; then
+            echo "No manifest changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/spine-sam3-packs.json
+          git commit -m "chore(sam3): promote spine qa sample"
+          git push
+
+      - name: Upload promotion artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spine-sam3-promotion
+          path: .qa/spine-sam3-promotion
+          if-no-files-found: ignore

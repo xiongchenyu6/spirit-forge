@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-27",
+  "packs": [
+    {
+      "packId": "914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd",
+      "label": "original character baseline",
+      "preset": "character-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "tags": [
+        "character",
+        "baseline"
+      ]
+    },
+    {
+      "packId": "06e7fd78-f60d-4a7b-983a-4a16678d2815",
+      "label": "original monster baseline",
+      "preset": "monster-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "tags": [
+        "monster",
+        "baseline"
+      ]
+    },
+    {
+      "packId": "88a75d8c-c3e1-4bc4-a089-4017aba7345f",
+      "label": "new character sample",
+      "preset": "character-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "tags": [
+        "character",
+        "new-sample"
+      ]
+    },
+    {
+      "packId": "2876d735-3add-432b-af93-4a251bd1afe7",
+      "label": "side-view monster sample",
+      "preset": "monster-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "tags": [
+        "monster",
+        "side-view"
+      ]
+    },
+    {
+      "packId": "91ad3ec1-58e2-4707-92f7-4a867c21a874",
+      "label": "appendage monster stress sample",
+      "preset": "monster-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "tags": [
+        "monster",
+        "appendage",
+        "tail",
+        "stress"
+      ]
+    },
+    {
+      "packId": "12bef735-ea1f-43b6-8aac-a6626a312303",
+      "label": "winged multi-limb monster candidate",
+      "preset": "monster-actions",
+      "status": "active",
+      "hasSam3": true,
+      "enabled": true,
+      "createdAt": "2026-06-26T16:29:48.019Z",
+      "tags": [
+        "monster",
+        "winged",
+        "multi-limb",
+        "sam3"
+      ],
+      "notes": "SAM3 layer job completed and QA passed.",
+      "promotedAt": "2026-06-27T00:35:16.634Z"
+    }
+  ]
+}
