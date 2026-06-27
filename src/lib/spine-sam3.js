@@ -33,12 +33,19 @@ const SPINE_SAM3_PART_RULES = {
   leg_r: { share: [0.02, 0.26], verticalBand: [0.42, 1], role: "limb" },
 };
 
+// 怪物侧视语义规则（仅 monster-sideview-v1 profile 生效）。怪物体态比角色更不规则：
+// 头/角可能很大、躯干臃肿、附肢（爪/翼/尾）会让单一部位的可见面积占比偏离角色经验值，
+// 因此这里给 head/torso 也补上更宽的 share/verticalBand，避免对怪物误报「面积过大/过小」「越界」。
+// 注意：以下区间均为经验值，需在真机 SAM3 输出上复测后再收紧。
 const SPINE_SAM3_MONSTER_SIDEVIEW_PART_RULES = {
-  hips: { share: [0.03, 0.36], verticalBand: [0.32, 0.86], role: "hips" },
-  arm_l: { share: [0.008, 0.24], verticalBand: [0.18, 0.9], role: "limb" },
-  arm_r: { share: [0.008, 0.24], verticalBand: [0.18, 0.9], role: "limb" },
-  leg_l: { share: [0.008, 0.28], verticalBand: [0.42, 1], role: "limb" },
-  leg_r: { share: [0.008, 0.28], verticalBand: [0.42, 1], role: "limb" },
+  head: { share: [0.04, 0.5], verticalBand: [0, 0.66], role: "head" },
+  torso: { share: [0.1, 0.6], verticalBand: [0.12, 0.82], role: "torso" },
+  // hips 上调上限并放宽下沿，使「卷曲/下垂的尾部」被并入 hips，而不是误判为腿或被丢弃。
+  hips: { share: [0.03, 0.44], verticalBand: [0.3, 0.92], role: "hips" },
+  arm_l: { share: [0.006, 0.28], verticalBand: [0.12, 0.92], role: "limb" },
+  arm_r: { share: [0.006, 0.28], verticalBand: [0.12, 0.92], role: "limb" },
+  leg_l: { share: [0.006, 0.3], verticalBand: [0.42, 1], role: "limb" },
+  leg_r: { share: [0.006, 0.3], verticalBand: [0.42, 1], role: "limb" },
 };
 
 const SPINE_SAM3_DRAW_ORDER = ["leg_l", "leg_r", "hips", "torso", "arm_l", "arm_r", "head"];
@@ -64,15 +71,30 @@ const SPINE_SAM3_CRITICAL_OVERLAP_PAIRS = new Set([
   "leg_r/head",
 ]);
 
+// 怪物解剖区域窗（monster-anatomy-window-v1）：把每个部位的 SAM3 mask 像素钳制到一个
+// 相对 subjectBounds 归一化的合理身体区域内，丢弃飘到其它身体区域的杂散像素。
+// 经验性放宽点（均需真机 SAM3 复测）：
+// - head/torso 略放宽：怪物常有大头/犄角/臃肿躯干，过窄会切掉真实像素并触发「面积过小」。
+// - arm_l/arm_r 横向延伸 + 纵向放宽：怪物前肢/爪可前伸、上扬或下压，窗口太窄会切掉爪尖。
+// - hips 横向加宽、下沿下探：让下垂或卷曲的尾部并入 hips（而非误判为腿或被丢弃）。
+// - leg 起点略上移到 0.5：兼容「短腿」怪物（腿起点偏高）。
 const SPINE_SAM3_MONSTER_REGION_WINDOWS = {
-  head: { x: [0.04, 0.68], y: [0, 0.38] },
-  torso: { x: [0.12, 0.78], y: [0.16, 0.66] },
-  hips: { x: [0.10, 0.82], y: [0.40, 0.82] },
-  arm_l: { x: [0, 0.62], y: [0.18, 0.78] },
-  arm_r: { x: [0.36, 1], y: [0.18, 0.78] },
-  leg_l: { x: [0, 0.58], y: [0.52, 1] },
-  leg_r: { x: [0.38, 0.94], y: [0.52, 1] },
+  head: { x: [0.02, 0.72], y: [0, 0.44] },
+  torso: { x: [0.08, 0.84], y: [0.12, 0.72] },
+  hips: { x: [0.06, 0.9], y: [0.38, 0.92] },
+  arm_l: { x: [0, 0.7], y: [0.12, 0.86] },
+  arm_r: { x: [0.3, 1], y: [0.12, 0.86] },
+  leg_l: { x: [0, 0.58], y: [0.5, 1] },
+  leg_r: { x: [0.38, 0.94], y: [0.5, 1] },
 };
+
+// 怪物侧视下天然会发生的「附肢-躯干/胯部」连接重叠（前肢/爪锚定在胯/躯干附近）。
+// 仅当 monster 模式时，把这些 pair 视为允许的关节重叠（joint），避免被当成 critical/merged
+// 而误报 + 被清理流程整段裁掉，从而保住爪/前肢与身体的视觉连接。需真机 SAM3 复测。
+const SPINE_SAM3_MONSTER_ALLOWED_OVERLAPS = new Set([
+  "hips/arm_l",
+  "hips/arm_r",
+]);
 
 export async function servePackSpineSam3Part(packId, variant, partName, env) {
   if (!env.ASSET_BUCKET) return jsonResponse({ error: "storage_not_configured" }, 503);
@@ -431,7 +453,7 @@ export async function buildSpineSam3LayersTemplate(env, pack, frameFiles) {
   if (cutouts.length === 0) return null;
   const semantic = spineSam3SemanticReport(cutouts, image, cutoutOptions);
   applySpineSam3SemanticHints(cutouts, semantic);
-  const overlap = spineSam3PartOverlapReport(cutouts, image.width, image.height, "sam3-cutout-overlap-v1");
+  const overlap = spineSam3PartOverlapReport(cutouts, image.width, image.height, "sam3-cutout-overlap-v1", cutoutOptions);
   const cleanup = await buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOptions);
   const sheet = await composeSpineRigPartsSheet(cutouts);
   const timelineQa = packSpineTimelineQuality(pack, cutouts);
@@ -484,6 +506,7 @@ function spineSam3CutoutOptionsForPack(pack, image) {
   const subjectBounds = alphaBounds(image.data, image.width, image.height, 8);
   if (!subjectBounds) return {};
   return {
+    monster: true,
     semanticClamp: "monster-anatomy-window-v1",
     semanticProfile: "monster-sideview-v1",
     subjectBounds,
@@ -1502,10 +1525,20 @@ function spineSam3PairBalance(warnings, semanticParts, leftName, rightName, imag
   const shareRatio = roundSpineNumber(maxShare / minShare);
   const centerDistance = roundSpineNumber(Math.abs(left.center.x - right.center.x));
   const closeCenterThreshold = image.width * 0.04;
-  const sideViewOcclusion = options.semanticProfile === "monster-sideview-v1"
+  const monsterSideView = options.semanticProfile === "monster-sideview-v1";
+  const sideViewOcclusion = monsterSideView
     && centerDistance < closeCenterThreshold;
-  if (shareRatio > 3.5) {
-    warnings.push(spineRigWarning("warn", `${leftName}/${rightName}`, `${leftName} and ${rightName} have a large visible-area imbalance.`));
+  // 怪物侧视时，近端肢体常被身体遮挡，左右可见面积天然失衡；放宽阈值并降级为 info，
+  // 避免把正常的侧视遮挡当作 mask 合并/歧义来报警。需真机 SAM3 复测。
+  const shareRatioThreshold = monsterSideView ? 6 : 3.5;
+  if (shareRatio > shareRatioThreshold) {
+    warnings.push(spineRigWarning(
+      monsterSideView ? "info" : "warn",
+      `${leftName}/${rightName}`,
+      monsterSideView
+        ? `${leftName} and ${rightName} have a large visible-area imbalance, likely side-view occlusion for a monster sprite.`
+        : `${leftName} and ${rightName} have a large visible-area imbalance.`,
+    ));
   }
   if (centerDistance < closeCenterThreshold) {
     warnings.push(spineRigWarning(
@@ -1617,9 +1650,13 @@ function spineSam3PairKey(a, b) {
   }).join("/");
 }
 
-function spineSam3OverlapClassification(a, b, minOverlapRatio) {
+function spineSam3OverlapClassification(a, b, minOverlapRatio, options = {}) {
   const key = spineSam3PairKey(a, b);
-  if (SPINE_SAM3_ALLOWED_OVERLAPS.has(key)) {
+  // 怪物模式下，前肢/爪与胯部的连接是天然的关节重叠，按 joint 处理而非 critical，
+  // 既减少误报，也避免清理流程把附肢整段裁掉。需真机 SAM3 复测。
+  const allowed = SPINE_SAM3_ALLOWED_OVERLAPS.has(key)
+    || (options.monster && SPINE_SAM3_MONSTER_ALLOWED_OVERLAPS.has(key));
+  if (allowed) {
     return minOverlapRatio > 0.72 ? "excessive-joint" : "joint";
   }
   if (SPINE_SAM3_CRITICAL_OVERLAP_PAIRS.has(key)) {
@@ -1646,10 +1683,10 @@ async function buildSpineSam3CleanupExport(pack, image, masks, overlap, cutoutOp
   if (parts.length === 0) return null;
   const semantic = spineSam3SemanticReport(parts, image, cutoutOptions);
   applySpineSam3SemanticHints(parts, semantic);
-  let remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height);
+  let remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height, "sam3-cleaned-part-overlap-v1", cutoutOptions);
   const secondPassActions = await applySpineSam3FinalOverlapCleanup(parts, remainingOverlap);
   if (secondPassActions.length > 0) {
-    remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height);
+    remainingOverlap = spineSam3PartOverlapReport(parts, image.width, image.height, "sam3-cleaned-part-overlap-v1", cutoutOptions);
   }
   const sheet = await composeSpineRigPartsSheet(parts);
   const timelineQa = packSpineTimelineQuality(pack, parts);
@@ -1790,7 +1827,8 @@ function trimSpineSam3PartAgainstCleanedPart(part, frontPart) {
   return trimmedPixels;
 }
 
-function spineSam3PartOverlapReport(parts, sourceWidth, sourceHeight, method = "sam3-cleaned-part-overlap-v1") {
+function spineSam3PartOverlapReport(parts, sourceWidth, sourceHeight, method = "sam3-cleaned-part-overlap-v1", options = {}) {
+  const monster = Boolean(options.monster);
   const warnings = [];
   const coverageByName = new Map(parts.map((part) => [part.name, 0]));
   const activeByPixel = new Map();
@@ -1833,14 +1871,16 @@ function spineSam3PartOverlapReport(parts, sourceWidth, sourceHeight, method = "
     const maxPixels = Math.max(1, Math.max(coverageByName.get(a) || 0, coverageByName.get(b) || 0));
     const minOverlapRatio = roundSpineNumber(overlapPixels / minPixels);
     const maxOverlapRatio = roundSpineNumber(overlapPixels / maxPixels);
-    const classification = spineSam3OverlapClassification(a, b, minOverlapRatio);
+    const classification = spineSam3OverlapClassification(a, b, minOverlapRatio, { monster });
+    const monsterJointOverlap = monster && SPINE_SAM3_MONSTER_ALLOWED_OVERLAPS.has(key);
     const pair = {
       pair: key,
       parts: [a, b],
       overlapPixels,
       minOverlapRatio,
       maxOverlapRatio,
-      allowedJointOverlap: SPINE_SAM3_ALLOWED_OVERLAPS.has(key),
+      allowedJointOverlap: SPINE_SAM3_ALLOWED_OVERLAPS.has(key) || monsterJointOverlap,
+      monsterJointOverlap,
       criticalPair: SPINE_SAM3_CRITICAL_OVERLAP_PAIRS.has(key),
       classification,
     };
