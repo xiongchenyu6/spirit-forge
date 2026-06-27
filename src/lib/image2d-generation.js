@@ -19,11 +19,16 @@ export async function submit2DJob(input, env, options = {}) {
     height: dimensions.height,
     seed,
   };
-  // 像素画风（pixel / pixel-art）专走 FLUX-2 Klein + pixel LoRA 分支；
+  // 像素画风（pixel / pixel-art）可走 FLUX-2 Klein + pixel LoRA 分支；
   // 其它画风（production/anime/isometric/realistic）行为完全不变，仍走 flux1-dev。
-  // 任一环节失败（清单拉取异常 / 必需模型缺失）都安全回退到 flux1-dev，绝不报错。
+  // 注意：Klein 工作流的节点/采样参数尚未在真实 ComfyUI 验证（实测会 error），
+  // 故默认关闭，仅当 env.ENABLE_PIXEL_KLEIN 显式开启时启用；否则像素风回退到
+  // flux1-dev + 强化的像素文本提示，保证稳定出图。任一环节失败也安全回退。
   let workflow = null;
-  if (normalized.style === "pixel" || normalized.style === "pixel-art") {
+  if (
+    (normalized.style === "pixel" || normalized.style === "pixel-art") &&
+    env.ENABLE_PIXEL_KLEIN
+  ) {
     try {
       const models = await listComfyModels(env);
       workflow = buildPixelFlux2Workflow({ ...flux1Args, models });
