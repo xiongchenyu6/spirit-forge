@@ -3,6 +3,7 @@ const ACCESS_TOKEN_KEY = "lingji-forge.generator-access-token.v1";
 const state = {
   items: [],
   packs: [],
+  samples: [],
   filter: "all",
   query: "",
   preview: {
@@ -30,6 +31,102 @@ const els = {
   packDetailPanel: $("#packDetailPanel"),
 };
 
+const OFFICIAL_SAMPLE_BASE = "../../assets/generated/official/";
+const OFFICIAL_SAMPLES = [
+  {
+    id: "sample-monster-actions",
+    title: "怪物动作四帧",
+    kind: "sample",
+    assetKind: "pack",
+    preset: "monster-actions",
+    assetType: "creature",
+    style: "pixel",
+    camera: "front",
+    brief: "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作",
+    summary: "Idle / Move / Attack / Death 真实输出样本，用作当前 2D 怪物动作和 SAM3 Spine 回归基线。",
+    tags: ["monster", "sprite", "sam3"],
+    files: [
+      ["monster-idle.png", "Idle"],
+      ["monster-move.png", "Move"],
+      ["monster-attack.png", "Attack"],
+      ["monster-death.png", "Death"],
+    ],
+  },
+  {
+    id: "sample-skill-vfx",
+    title: "技能特效四帧",
+    kind: "sample",
+    assetKind: "2d",
+    preset: "skill-vfx",
+    assetType: "vfx",
+    style: "pixel",
+    camera: "front",
+    brief: "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰",
+    summary: "Charge / Burst / Impact / Fade 真实输出样本，用于校准 VFX 帧表节奏和透明导出。",
+    tags: ["vfx", "sprite", "sheet"],
+    files: [
+      ["skill-vfx-charge.png", "Charge"],
+      ["skill-vfx-burst.png", "Burst"],
+      ["skill-vfx-impact.png", "Impact"],
+      ["skill-vfx-fade.png", "Fade"],
+    ],
+  },
+  {
+    id: "sample-map-tiles",
+    title: "地图 Tile 样本",
+    kind: "sample",
+    assetKind: "2d",
+    preset: "map-tiles",
+    assetType: "map",
+    style: "pixel",
+    camera: "top-down",
+    brief: "俯视 RPG 地图 tile 表：草地、泥路、石路、水边、悬崖、沙地、森林地表、熔岩岩地；需要可平铺方块",
+    summary: "俯视地形 tile 真实输出样本，用于检查视角、边缘连续性和 tileability。",
+    tags: ["map", "tile", "top-down"],
+    files: [
+      ["map-grass.png", "Grass"],
+      ["map-stone-road.png", "Stone"],
+      ["map-water-edge.png", "Water"],
+      ["map-forest-floor.png", "Forest"],
+    ],
+  },
+  {
+    id: "sample-ui-kit",
+    title: "奇幻 UI 套件",
+    kind: "sample",
+    assetKind: "2d",
+    preset: "ui-kit",
+    assetType: "ui",
+    style: "production",
+    camera: "front",
+    brief: "奇幻游戏 UI 套件：生命条、法力条、背包格、动作按钮、对话面板、任务面板、九宫格角件、装饰分隔线；每格一个可切图组件",
+    summary: "4x2 UI 组件 sheet 和 HUD 真实输出样本，用于检查组件可切性、边框完整度和材质一致性。",
+    tags: ["ui", "atlas", "hud"],
+    files: [
+      ["ui-kit-components-sheet.png", "Components"],
+      ["ui-modern-hud.png", "HUD"],
+    ],
+  },
+  {
+    id: "sample-ui-icons",
+    title: "物品图标样本",
+    kind: "sample",
+    assetKind: "2d",
+    preset: "ui-icons",
+    assetType: "icon",
+    style: "pixel",
+    camera: "front",
+    brief: "RPG 背包图标表：玉剑、红药水、盾、钥匙、金币、卷轴、宝石、靴子；每格一个物品",
+    summary: "背包和奖励图标真实输出样本，用于检查单格清晰度和光照统一。",
+    tags: ["icon", "item", "inventory"],
+    files: [
+      ["item-gem.png", "Gem"],
+      ["item-jade-sword.png", "Sword"],
+      ["item-shield.png", "Shield"],
+    ],
+  },
+];
+
 function accessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
 }
@@ -53,8 +150,17 @@ async function loadLibrary() {
   state.rerunRequest += 1;
   stopPackPreview();
   revokeSam3PreviewUrls();
+  state.samples = await loadOfficialSamples();
   els.packDetailPanel.hidden = true;
   els.packDetailPanel.innerHTML = "";
+  if (!accessToken()) {
+    state.items = [];
+    state.packs = [];
+    showAuth();
+    setStatus(`${state.samples.length} 个官方样本`, "warn");
+    render();
+    return;
+  }
   setStatus("连接中", "loading");
   els.grid.innerHTML = renderLoading();
   try {
@@ -71,7 +177,7 @@ async function loadLibrary() {
     state.packs = Array.isArray(packData?.packs) ? packData.packs : [];
     els.authPanel.hidden = true;
     const configured = Boolean(libraryData?.configured || packData?.configured);
-    const total = state.items.length + state.packs.length;
+    const total = state.items.length + state.packs.length + state.samples.length;
     const partial = !libraryData || !packData;
     setStatus(
       configured
@@ -81,9 +187,68 @@ async function loadLibrary() {
     );
     render();
   } catch (error) {
-    setStatus("读取失败", "warn");
-    els.grid.innerHTML = renderEmpty("素材库暂时不可用", error.message);
+    state.items = [];
+    state.packs = [];
+    showAuth();
+    setStatus(`${state.samples.length} 个官方样本 · 云端读取失败`, "warn");
+    render();
   }
+}
+
+async function loadOfficialSamples() {
+  try {
+    const response = await fetch("/api/demo/official-samples", {
+      headers: { accept: "application/json" },
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(data?.samples)) throw new Error(data?.message || data?.error || `${response.status}`);
+    return data.samples.map(normalizeOfficialSample).filter(Boolean);
+  } catch (error) {
+    console.warn("Official samples API failed, using local fallback", error);
+    return OFFICIAL_SAMPLES.map(normalizeOfficialSample).filter(Boolean);
+  }
+}
+
+function normalizeOfficialSample(sample) {
+  if (!sample?.id) return null;
+  const input = sample.input || {};
+  return {
+    id: sample.id,
+    title: sample.title || sample.id,
+    kind: sample.kind || "official-sample",
+    assetKind: sample.assetKind || (sample.preset === "monster-actions" ? "pack" : "2d"),
+    preset: sample.preset || input.preset || "",
+    assetType: sample.assetType || input.assetType || "",
+    style: sample.style || input.style || "",
+    camera: sample.camera || input.camera || "",
+    brief: sample.brief || input.brief || "",
+    summary: sample.summary || "",
+    tags: Array.isArray(sample.tags) ? sample.tags : [],
+    generatorUrl: sample.generatorUrl || "",
+    zipUrl: sample.zipUrl || "",
+    files: normalizeOfficialSampleFiles(sample.files),
+  };
+}
+
+function normalizeOfficialSampleFiles(files) {
+  return (Array.isArray(files) ? files : []).map((file, index) => {
+    if (Array.isArray(file)) {
+      const [filename, label] = file;
+      return {
+        index,
+        label: label || filename,
+        filename,
+        url: sampleFileUrl(filename),
+      };
+    }
+    return {
+      index: Number.isFinite(Number(file?.index)) ? Number(file.index) : index,
+      label: file?.label || file?.filename || `Frame ${index + 1}`,
+      filename: file?.filename || "",
+      path: file?.path || "",
+      url: file?.url || sampleFileUrl(file?.filename),
+    };
+  }).filter((file) => file.filename || file.url);
 }
 
 function showAuth() {
@@ -100,7 +265,7 @@ function setStatus(text, tone) {
 function render() {
   const entries = filteredEntries();
   if (entries.length === 0) {
-    els.grid.innerHTML = renderEmpty("暂无匹配素材", "去生成台完成一次 2D 或 3D 生成后会自动进入云端素材库。");
+    els.grid.innerHTML = renderEmpty("暂无匹配素材", "官方样本和云端素材都没有匹配当前筛选。");
   } else {
     els.grid.innerHTML = entries.map(renderEntryCard).join("");
   }
@@ -109,6 +274,11 @@ function render() {
 
 function filteredEntries() {
   const query = state.query.toLowerCase();
+  const samples = state.samples.map((sample, index) => ({
+    type: "sample",
+    sortAt: Number.MAX_SAFE_INTEGER - index,
+    sample,
+  }));
   const assets = state.items.map((item) => ({
     type: "asset",
     sortAt: item.createdAt,
@@ -119,8 +289,13 @@ function filteredEntries() {
     sortAt: pack.updatedAt || pack.createdAt,
     pack,
   }));
-  return [...packs, ...assets]
+  return [...samples, ...packs, ...assets]
     .filter((entry) => {
+      if (entry.type === "sample") {
+        if (!["all", "sample"].includes(state.filter) && state.filter !== entry.sample.assetKind) return false;
+        if (!query) return true;
+        return sampleSearchValues(entry.sample).some((value) => String(value || "").toLowerCase().includes(query));
+      }
       if (entry.type === "pack") {
         if (!["all", "pack"].includes(state.filter)) return false;
         if (!query) return true;
@@ -135,7 +310,29 @@ function filteredEntries() {
         entry.item.contentType,
       ].some((value) => String(value || "").toLowerCase().includes(query));
     })
-    .sort((a, b) => new Date(b.sortAt || 0).getTime() - new Date(a.sortAt || 0).getTime());
+    .sort((a, b) => entrySortValue(b) - entrySortValue(a));
+}
+
+function entrySortValue(entry) {
+  if (typeof entry.sortAt === "number") return entry.sortAt;
+  const timestamp = new Date(entry.sortAt || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sampleSearchValues(sample) {
+  return [
+    sample.id,
+    sample.title,
+    sample.preset,
+    sample.brief,
+    sample.summary,
+    sample.assetKind,
+    sample.assetType,
+    sample.style,
+    sample.camera,
+    ...(sample.tags || []),
+    ...(sample.files || []).flatMap((file) => [file.filename, file.label, file.url, file.path]),
+  ];
 }
 
 function packSearchValues(pack) {
@@ -152,7 +349,178 @@ function packSearchValues(pack) {
 }
 
 function renderEntryCard(entry) {
+  if (entry.type === "sample") return renderSampleCard(entry.sample);
   return entry.type === "pack" ? renderPackCard(entry.pack) : renderAssetCard(entry.item);
+}
+
+function renderSampleCard(sample) {
+  const files = sample.files || [];
+  const cover = files[0]?.url || "";
+  const generatorHref = sampleGeneratorHref(sample);
+  return `
+    <article class="asset-card sample-card">
+      <a class="asset-preview sample-preview" href="${escapeHtml(cover || generatorHref)}" target="_blank" rel="noreferrer">
+        ${cover
+          ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(sample.title)}" loading="lazy" />`
+          : `<i data-lucide="image"></i>`}
+        <span>OFFICIAL</span>
+      </a>
+      <div class="sample-frame-strip">
+        ${files.map((file) => `
+          <a href="${escapeHtml(file.url)}" target="_blank" rel="noreferrer" title="${escapeHtml(file.label || file.filename)}">
+            <img src="${escapeHtml(file.url)}" alt="" loading="lazy" />
+          </a>
+        `).join("")}
+      </div>
+      <div class="asset-body">
+        <strong title="${escapeHtml(sample.title)}">${escapeHtml(sample.title)}</strong>
+        <span>${escapeHtml(sample.preset || "sample")} · ${escapeHtml((sample.tags || []).join(" / "))}</span>
+        <small>${escapeHtml(sample.summary)}</small>
+      </div>
+      <div class="asset-actions">
+        <button type="button" data-sample-action="detail" data-sample-id="${escapeHtml(sample.id)}">
+          <i data-lucide="eye"></i>
+          <span>详情</span>
+        </button>
+        <a href="${escapeHtml(generatorHref)}">
+          <i data-lucide="wand-sparkles"></i>
+          <span>生成同类</span>
+        </a>
+        <a href="${escapeHtml(sampleZipHref(sample))}" download>
+          <i data-lucide="archive"></i>
+          <span>ZIP</span>
+        </a>
+        ${cover ? `<a href="${escapeHtml(cover)}" download><i data-lucide="download"></i><span>下载</span></a>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function sampleFileUrl(file) {
+  return `${OFFICIAL_SAMPLE_BASE}${file}`;
+}
+
+function sampleGeneratorHref(sample) {
+  if (sample.generatorUrl) return sample.generatorUrl;
+  const params = new URLSearchParams();
+  if (sample.preset) params.set("preset", sample.preset);
+  if (sample.assetType) params.set("assetType", sample.assetType);
+  if (sample.style) params.set("style", sample.style);
+  if (sample.camera) params.set("camera", sample.camera);
+  if (sample.brief) params.set("brief", sample.brief);
+  return `/generator/?${params.toString()}`;
+}
+
+function sampleZipHref(sample) {
+  if (sample.zipUrl) return sample.zipUrl;
+  return `/api/demo/official-samples/${encodeURIComponent(sample.id)}/download.zip`;
+}
+
+function openSampleDetail(sampleId) {
+  const sample = state.samples.find((item) => item.id === sampleId);
+  if (!sample) return;
+  renderSampleDetail(sample);
+  setStatus("官方样本详情已打开", "ready");
+}
+
+function renderSampleDetail(sample) {
+  stopPackPreview();
+  revokeSam3PreviewUrls();
+  const files = sample.files || [];
+  const manifestHref = sampleManifestDataHref(sample);
+  const manifestName = `${safeFilename(sample.preset || sample.id)}-official-sample.json`;
+  const generatorHref = sampleGeneratorHref(sample);
+  const zipHref = sampleZipHref(sample);
+  els.packDetailPanel.hidden = false;
+  els.packDetailPanel.innerHTML = `
+    <div class="pack-detail-header">
+      <div>
+        <strong>${escapeHtml(sample.title)}</strong>
+        <span>官方样本 · ${escapeHtml(sample.preset || "sample")} · ${files.length} 张</span>
+      </div>
+      <button class="pack-detail-close" type="button" data-pack-detail-close aria-label="关闭详情">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="sample-detail-summary">
+      <p>${escapeHtml(sample.summary)}</p>
+      <div class="sample-detail-tags">
+        ${(sample.tags || []).map((tag) => `<code>${escapeHtml(tag)}</code>`).join("")}
+      </div>
+    </div>
+    <div class="pack-detail-actions">
+      <a href="${escapeHtml(generatorHref)}">
+        <i data-lucide="wand-sparkles"></i>
+        <span>生成同类</span>
+      </a>
+      <a href="${escapeHtml(manifestHref)}" download="${escapeHtml(manifestName)}">
+        <i data-lucide="braces"></i>
+        <span>下载 Manifest</span>
+      </a>
+      <a href="${escapeHtml(zipHref)}" download>
+        <i data-lucide="archive"></i>
+        <span>下载 ZIP</span>
+      </a>
+    </div>
+    <section class="sample-detail-grid" aria-label="官方样本帧">
+      ${files.map((file, index) => renderSampleDetailFrame(sample, file, index)).join("")}
+    </section>
+  `;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function renderSampleDetailFrame(sample, file, index) {
+  const url = file.url;
+  const name = file.label || file.filename || `Frame ${index + 1}`;
+  return `
+    <article class="sample-detail-frame">
+      <a class="sample-detail-thumb" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+        <img src="${escapeHtml(url)}" alt="${escapeHtml(name)}" loading="lazy" />
+      </a>
+      <div class="sample-detail-frame-body">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(file.filename || url)}</span>
+        <small>${escapeHtml(sample.preset || "sample")} · ${escapeHtml(file.path || `frame ${index + 1}`)}</small>
+      </div>
+      <div class="pack-detail-frame-actions">
+        <a href="${escapeHtml(url)}" download>
+          <i data-lucide="download"></i>
+          <span>下载</span>
+        </a>
+        <a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">打开</a>
+      </div>
+    </article>
+  `;
+}
+
+function sampleManifestDataHref(sample) {
+  const body = {
+    version: 1,
+    kind: "official-sample",
+    id: sample.id,
+    title: sample.title,
+    preset: sample.preset,
+    assetKind: sample.assetKind,
+    input: {
+      brief: sample.brief,
+      assetType: sample.assetType,
+      style: sample.style,
+      camera: sample.camera,
+      preset: sample.preset,
+    },
+    summary: sample.summary,
+    tags: sample.tags || [],
+    files: (sample.files || []).map((file, index) => ({
+      index: file.index ?? index,
+      label: file.label,
+      filename: file.filename,
+      path: file.path || "",
+      url: file.url,
+    })),
+    generatorUrl: sampleGeneratorHref(sample),
+    zipUrl: sampleZipHref(sample),
+  };
+  return `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(body, null, 2))}`;
 }
 
 function renderAssetCard(item) {
@@ -520,10 +888,14 @@ function renderSam3PartComparison(pack) {
           <strong>SAM3 Spine 分层对比</strong>
           <span>原始 cutout / cleaned cutout</span>
         </div>
-        <code>${cleanupSummary
+        <code data-sam3-preview-status>${cleanupSummary
           ? `cleaned · ${cleanupSummary.remainingRiskyPairs ?? "-"} risky left`
-          : "cleaned export"}</code>
+          : "preview loading"}</code>
       </div>
+      <div class="sam3-quality-strip" data-sam3-quality-strip>
+        <span class="sam3-quality-pill info">读取质量摘要</span>
+      </div>
+      <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics。</p>
       <div class="sam3-part-grid">
         ${parts.map((part) => `
           <article class="sam3-part-row">
@@ -568,7 +940,79 @@ function sam3PartLabel(part) {
   }[part] || part;
 }
 
+function sam3QualityStatusLabel(status) {
+  return {
+    pass: "PASS",
+    warn: "WARN",
+    fail: "FAIL",
+  }[status] || "CHECK";
+}
+
+function sam3SemanticProfileLabel(profile) {
+  return {
+    default: "Default",
+    "monster-sideview-v1": "Monster side-view",
+  }[profile] || profile || "Default";
+}
+
+function sam3SideViewOcclusionLabels(quality) {
+  const pairBalance = quality?.semantics?.pairBalance || {};
+  return [
+    pairBalance.arms?.sideViewOcclusion ? "arms" : "",
+    pairBalance.legs?.sideViewOcclusion ? "legs" : "",
+  ].filter(Boolean);
+}
+
+function sam3QualityPillsHtml(data) {
+  const quality = data?.quality || {};
+  const cleanup = data?.cleanup?.summary || {};
+  const summary = quality.summary || {};
+  const profile = quality.semantics?.profile || "default";
+  const remainingRiskyPairs = cleanup.remainingRiskyPairs ?? summary.cleanupRemainingRiskyPairs;
+  const cleanupActions = cleanup.actions ?? summary.cleanupActions;
+  const trimmedPixels = cleanup.trimmedPixels;
+  const sideViewOcclusion = sam3SideViewOcclusionLabels(quality);
+  const chips = [
+    { label: "Score", value: `${quality.score ?? "-"} / 100`, tone: quality.status || "info" },
+    { label: "Profile", value: sam3SemanticProfileLabel(profile), tone: profile === "monster-sideview-v1" ? "info" : "" },
+    { label: "Risky left", value: remainingRiskyPairs ?? "-", tone: Number(remainingRiskyPairs || 0) === 0 ? "pass" : "warn" },
+    cleanupActions != null
+      ? { label: "Cleanup", value: trimmedPixels != null ? `${cleanupActions} / ${trimmedPixels}px` : cleanupActions, tone: "info" }
+      : null,
+    sideViewOcclusion.length
+      ? { label: "Side-view", value: sideViewOcclusion.join(", "), tone: "info" }
+      : null,
+  ].filter(Boolean);
+  return chips.map((chip) => `
+    <span class="sam3-quality-pill ${escapeHtml(chip.tone || "info")}">
+      <b>${escapeHtml(chip.label)}</b>${escapeHtml(String(chip.value))}
+    </span>
+  `).join("");
+}
+
+function sam3DiagnosticsText(data) {
+  const quality = data?.quality || {};
+  const sideViewOcclusion = sam3SideViewOcclusionLabels(quality);
+  const warnings = Array.isArray(quality.warnings)
+    ? quality.warnings.filter((warning) => warning.severity === "warn" || warning.severity === "fail")
+    : [];
+  if (warnings.length) {
+    return warnings.slice(0, 2).map((warning) => warning.message).join(" · ");
+  }
+  if (sideViewOcclusion.length) {
+    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分。`;
+  }
+  const semanticDiagnostics = quality.summary?.semanticDiagnostics;
+  return semanticDiagnostics
+    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警。`
+    : "无结构性分层告警。";
+}
+
 async function loadSam3PartComparisons(pack) {
+  const card = els.packDetailPanel.querySelector(".sam3-part-compare");
+  const status = card?.querySelector("[data-sam3-preview-status]");
+  const qualityStrip = card?.querySelector("[data-sam3-quality-strip]");
+  const diagnostics = card?.querySelector("[data-sam3-diagnostics]");
   const slots = [...els.packDetailPanel.querySelectorAll("[data-sam3-part-slot]")];
   try {
     const data = await api(`/api/packs/${encodeURIComponent(pack.packId)}/spine-sam3/preview.json`);
@@ -591,11 +1035,18 @@ async function loadSam3PartComparisons(pack) {
         slot.title = `${sam3PartLabel(partName)} · trimmed ${payload.cleanup.trimmedPixels}px`;
       }
     }
+    if (status) {
+      status.textContent = `${sam3QualityStatusLabel(data.quality?.status)} · ${data.quality?.score ?? "-"} / 100`;
+    }
+    if (qualityStrip) qualityStrip.innerHTML = sam3QualityPillsHtml(data);
+    if (diagnostics) diagnostics.textContent = sam3DiagnosticsText(data);
   } catch (error) {
     for (const slot of slots) {
       slot.classList.remove("loading");
       slot.classList.add("failed");
     }
+    if (status) status.textContent = "preview failed";
+    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试。";
     console.warn("SAM3 part comparison failed", error);
   }
 }
@@ -928,6 +1379,11 @@ els.filterTabs.forEach((tab) => {
 
 els.refreshBtn.addEventListener("click", loadLibrary);
 els.grid.addEventListener("click", (event) => {
+  const sampleAction = event.target.closest("[data-sample-action]");
+  if (sampleAction?.dataset.sampleAction === "detail") {
+    openSampleDetail(sampleAction.dataset.sampleId);
+    return;
+  }
   const action = event.target.closest("[data-pack-action]");
   if (!action) return;
   if (action.dataset.packAction === "detail") {

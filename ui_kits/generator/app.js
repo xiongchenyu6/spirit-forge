@@ -13,6 +13,7 @@ const state = {
   history: [],
   cloudPacks: [],
   cloudJobs: [],
+  lastUsage: null,
   pack: null,
   packResults: {},
   packFrameObjectUrls: {},
@@ -35,6 +36,7 @@ const els = {
   style: $("#style"),
   camera: $("#camera"),
   preset: $("#preset"),
+  assetBlueprint: $("#assetBlueprint"),
   actionStrength: $("#actionStrength"),
   brief: $("#brief"),
   planBtn: $("#planBtn"),
@@ -73,6 +75,7 @@ const els = {
   usageDaily: $("#usageDaily"),
   usageDailyReset: $("#usageDailyReset"),
   usageCosts: $("#usageCosts"),
+  usageGuidance: $("#usageGuidance"),
   usageStatus: $("#usageStatus"),
   queueSection: $("#queueSection"),
   refreshQueueBtn: $("#refreshQueueBtn"),
@@ -181,6 +184,128 @@ const PRESET_CONFIG = {
     style: "production",
     camera: "front",
     brief: "奇幻游戏 UI 套件：生命条、法力条、背包格、动作按钮、对话面板、任务面板、九宫格角件、装饰分隔线；每格一个可切图组件",
+  },
+};
+
+const OFFICIAL_ASSET_BASE = "../../assets/generated/official/";
+const PACK_BLUEPRINTS = {
+  "character-actions": {
+    icon: "user-round",
+    title: "角色动作包",
+    summary: "Idle / Walk / Attack / Hurt 四帧，优先用单帧定稿锁身份，完成后可导出透明帧、Sprite Sheet、JSON 和 ZIP。",
+    format: "4 x 512",
+    qa: ["身份一致", "姿态可控", "首帧可分层"],
+    exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP"],
+    samples: [
+      { label: "单帧定稿", file: "ec601ceb.png" },
+      { label: "像素样本", file: "3f0120ef.png" },
+    ],
+  },
+  "monster-actions": {
+    icon: "ghost",
+    title: "怪物动作包",
+    summary: "Idle / Move / Attack / Death 四帧，是当前 2D 主线和 SAM3 Spine 分层的重点样本。",
+    format: "4 x 512",
+    qa: ["轮廓清楚", "动作差异", "SAM3 部件"],
+    exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP", "Spine"],
+    samples: [
+      { label: "Idle", file: "monster-idle.png" },
+      { label: "Move", file: "monster-move.png" },
+      { label: "Attack", file: "monster-attack.png" },
+      { label: "Death", file: "monster-death.png" },
+    ],
+  },
+  "skill-vfx": {
+    icon: "sparkles",
+    title: "技能特效包",
+    summary: "Charge / Burst / Impact / Fade 四段式特效，适合做技能帧表、命中特效和循环预览。",
+    format: "4 x 512",
+    qa: ["中心稳定", "节奏清楚", "无角色遮挡"],
+    exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP"],
+    samples: [
+      { label: "Charge", file: "skill-vfx-charge.png" },
+      { label: "Burst", file: "skill-vfx-burst.png" },
+      { label: "Impact", file: "skill-vfx-impact.png" },
+      { label: "Fade", file: "skill-vfx-fade.png" },
+    ],
+  },
+  "ui-icons": {
+    icon: "gem",
+    title: "UI 图标表",
+    summary: "4x2 物品图标表，每格一个图标，用于背包、掉落、装备和奖励图标批量产出。",
+    format: "4 x 2",
+    qa: ["单格清晰", "光照一致", "无文字"],
+    exports: ["PNG", "Sheet", "JSON", "ZIP"],
+    samples: [
+      { label: "Gem", file: "item-gem.png" },
+      { label: "Sword", file: "item-jade-sword.png" },
+      { label: "Shield", file: "item-shield.png" },
+    ],
+  },
+  "map-tiles": {
+    icon: "map",
+    title: "地图 Tile 表",
+    summary: "4x2 俯视地形 tile，重点检查视角、边缘连续性和可平铺感。",
+    format: "4 x 2",
+    qa: ["严格俯视", "边缘可接", "无透视块"],
+    exports: ["PNG", "Sheet", "JSON", "ZIP"],
+    samples: [
+      { label: "Grass", file: "map-grass.png" },
+      { label: "Stone", file: "map-stone-road.png" },
+      { label: "Water", file: "map-water-edge.png" },
+      { label: "Forest", file: "map-forest-floor.png" },
+    ],
+  },
+  "ui-kit": {
+    icon: "layout-panel-top",
+    title: "UI 套件表",
+    summary: "4x2 UI 组件表，覆盖血条、按钮、面板、槽位和角件，适合做游戏 HUD 与系统界面素材。",
+    format: "4 x 2",
+    qa: ["组件可切", "边框完整", "材质统一"],
+    exports: ["PNG", "Sheet", "JSON", "ZIP"],
+    samples: [
+      { label: "Components", file: "ui-kit-components-sheet.png", wide: true },
+      { label: "HUD", file: "ui-modern-hud.png", wide: true },
+    ],
+  },
+};
+
+const SINGLE_BLUEPRINTS = {
+  square: {
+    icon: "image",
+    title: "单张方图",
+    summary: "用于先定方向、构图和题材风格，不生成资产包清单。",
+    format: "768",
+    qa: ["构图可读", "主体居中", "可再生产"],
+    exports: ["PNG", "Alpha"],
+    samples: [{ label: "Pixel", file: "3f0120ef.png" }],
+  },
+  portrait: {
+    icon: "image",
+    title: "角色立绘",
+    summary: "用于头像、角色立绘和宣传图方向验证，后续可切到动作包继续生产。",
+    format: "768 x 1024",
+    qa: ["服装清楚", "脸部稳定", "轮廓完整"],
+    exports: ["PNG"],
+    samples: [{ label: "Concept", file: "ec601ceb.png" }],
+  },
+  sprite: {
+    icon: "image",
+    title: "单帧 Sprite",
+    summary: "用于角色或怪物定稿，适合作为动作包、视频 K 帧或 3D 生成的源图。",
+    format: "512",
+    qa: ["完整身体", "纯色背景", "可抠图"],
+    exports: ["PNG", "Alpha"],
+    samples: [{ label: "Sprite", file: "3f0120ef.png" }],
+  },
+  icon: {
+    icon: "shapes",
+    title: "单枚图标",
+    summary: "用于装备、材料、技能图标的单张定稿。",
+    format: "512",
+    qa: ["轮廓清楚", "材质明确", "无文字"],
+    exports: ["PNG", "Alpha"],
+    samples: [{ label: "Gem", file: "item-gem.png" }],
   },
 };
 
@@ -306,6 +431,33 @@ function accessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
 }
 
+function createClientRequestId(prefix) {
+  const randomPart = globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${Date.now().toString(36)}-${randomPart}`;
+}
+
+async function recoverSubmittedPack(requestId) {
+  if (!requestId) return null;
+  try {
+    return await api(`/api/requests/2d-pack/${encodeURIComponent(requestId)}`);
+  } catch (error) {
+    console.warn("2D pack request recovery failed", error);
+    return null;
+  }
+}
+
+async function recoverSubmittedLayer(requestId) {
+  if (!requestId) return null;
+  try {
+    return await api(`/api/requests/layer-separation/${encodeURIComponent(requestId)}`);
+  } catch (error) {
+    console.warn("Layer separation request recovery failed", error);
+    return null;
+  }
+}
+
 async function loadCapabilities() {
   try {
     const data = await api("/api/capabilities");
@@ -427,6 +579,8 @@ function renderVideoRoutePlan() {
 }
 
 function renderRouteComparison() {
+  renderUsageGuidance(state.lastUsage);
+  renderAssetBlueprint();
   if (!els.routeComparison || !els.routeRecommendation) return;
   const decision = buildRouteDecision();
   els.routeRecommendation.textContent = decision.recommendation;
@@ -445,6 +599,95 @@ function renderRouteComparison() {
         </article>
       `).join("")}
     </div>
+  `;
+}
+
+function renderAssetBlueprint() {
+  if (!els.assetBlueprint) return;
+  const preset = els.preset.value;
+  const blueprint = PACK_BLUEPRINTS[preset] || SINGLE_BLUEPRINTS[preset] || singleBlueprintFromInput();
+  const frameCount = presetFrameCount(preset);
+  const estimate = estimateCurrentUsageCost();
+  const isPack = frameCount > 0;
+  const capability = blueprintCapabilityText(preset);
+  const samples = Array.isArray(blueprint.samples) ? blueprint.samples : [];
+  els.assetBlueprint.classList.toggle("single", !isPack);
+  els.assetBlueprint.innerHTML = `
+    <div class="asset-blueprint-head">
+      <div class="asset-blueprint-title">
+        <span class="asset-blueprint-icon"><i data-lucide="${escapeHtml(blueprint.icon || "boxes")}"></i></span>
+        <div>
+          <strong>${escapeHtml(blueprint.title)}</strong>
+          <small>${escapeHtml(capability)}</small>
+        </div>
+      </div>
+      <div class="asset-blueprint-cost">
+        <span>${escapeHtml(estimate.label)}</span>
+        <strong>${escapeHtml(String(estimate.cost))}</strong>
+      </div>
+    </div>
+    <p>${escapeHtml(blueprint.summary)}</p>
+    <div class="asset-blueprint-specs">
+      <span><b>${isPack ? frameCount : 1}</b>${isPack ? "张输出" : "张预览"}</span>
+      <span><b>${escapeHtml(blueprint.format || "-")}</b>规格</span>
+      ${(blueprint.qa || []).map((item) => `<span><b>QA</b>${escapeHtml(item)}</span>`).join("")}
+    </div>
+    <div class="asset-blueprint-body">
+      <div class="asset-blueprint-exports">
+        ${(blueprint.exports || []).map((item) => `<code>${escapeHtml(item)}</code>`).join("")}
+      </div>
+      <div class="asset-blueprint-samples">
+        ${samples.length
+          ? samples.map((sample) => assetBlueprintSampleHtml(sample)).join("")
+          : `<div class="asset-blueprint-empty">暂无官方样本</div>`}
+      </div>
+    </div>
+  `;
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function blueprintCapabilityText(preset) {
+  if (preset === "monster-actions") return "主攻：2D 怪物动作 + SAM3 Spine";
+  if (preset === "character-actions") return "主攻：2D 角色动作 + 姿态控制";
+  if (preset === "map-tiles") return "地图：tileability QA";
+  if (preset === "ui-kit" || preset === "ui-icons") return "UI：切图与导入清单";
+  if (preset === "skill-vfx") return "VFX：帧表与透明导出";
+  return "单张：定稿与源图准备";
+}
+
+function singleBlueprintFromInput() {
+  const assetType = els.assetType.value;
+  const map = {
+    character: ["user-round", "角色单张", "用于角色定稿，后续可切到角色动作包。"],
+    creature: ["ghost", "怪物单张", "用于怪物定稿，后续可切到怪物动作包或 SAM3 分层。"],
+    ui: ["layout-panel-top", "UI 单件", "用于按钮、面板、HUD 元件的单张定稿。"],
+    map: ["map", "地图单张", "用于地形风格和俯视构图验证。"],
+    vfx: ["sparkles", "特效单张", "用于技能视觉方向验证，后续可切到四帧 VFX。"],
+    icon: ["gem", "图标单张", "用于装备、材料和技能图标定稿。"],
+  };
+  const [icon, title, summary] = map[assetType] || ["image", "单张素材", "用于快速验证素材方向。"];
+  return {
+    icon,
+    title,
+    summary,
+    format: "single",
+    qa: ["主体清楚", "背景可处理", "可再生产"],
+    exports: ["PNG", shouldUseAlphaForSingleInput(currentInput()) ? "Alpha" : "Original"],
+    samples: SINGLE_BLUEPRINTS.sprite.samples,
+  };
+}
+
+function shouldUseAlphaForSingleInput(input = {}) {
+  return input.assetType !== "map" && !["map-tiles", "map-tile"].includes(input.preset);
+}
+
+function assetBlueprintSampleHtml(sample) {
+  const src = `${OFFICIAL_ASSET_BASE}${sample.file}`;
+  return `
+    <figure class="asset-blueprint-sample ${sample.wide ? "wide" : ""}">
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(sample.label || "")}" loading="lazy" />
+      <figcaption>${escapeHtml(sample.label || sample.file)}</figcaption>
+    </figure>
   `;
 }
 
@@ -1196,15 +1439,19 @@ function renderUsageEmpty(message) {
   els.usageDaily.textContent = "-";
   els.usageHourlyReset.textContent = "-";
   els.usageDailyReset.textContent = "-";
+  state.lastUsage = null;
+  renderUsageGuidance(null);
   els.usageStatus.textContent = message;
 }
 
 function renderUsageState(usage = {}) {
+  state.lastUsage = usage;
   els.usageSection.hidden = false;
   els.usageHourly.textContent = `${usage.hourly?.remaining ?? "-"} / ${usage.hourly?.limit ?? "-"}`;
   els.usageDaily.textContent = `${usage.daily?.remaining ?? "-"} / ${usage.daily?.limit ?? "-"}`;
   els.usageHourlyReset.textContent = `重置 ${formatUsageReset(usage.hourly?.resetAt)}`;
   els.usageDailyReset.textContent = `重置 ${formatUsageReset(usage.daily?.resetAt)}`;
+  renderUsageGuidance(usage);
   els.usageStatus.textContent = usage.allowed === false
     ? "当前额度已达到限制。"
     : "额度已同步。";
@@ -1213,7 +1460,56 @@ function renderUsageState(usage = {}) {
 function formatUsageReset(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderUsageGuidance(usage) {
+  if (!els.usageGuidance) return;
+  if (!usage?.configured || !accessToken()) {
+    els.usageGuidance.className = "usage-guidance";
+    els.usageGuidance.textContent = "保存访问令牌后显示本次生成预计消耗。";
+    return;
+  }
+  const estimate = estimateCurrentUsageCost();
+  const hourlyRemaining = Number(usage.hourly?.remaining ?? 0);
+  const dailyRemaining = Number(usage.daily?.remaining ?? 0);
+  const hourlyEnough = hourlyRemaining >= estimate.cost;
+  const dailyEnough = dailyRemaining >= estimate.cost;
+  const ready = hourlyEnough && dailyEnough;
+  els.usageGuidance.className = `usage-guidance ${ready ? "ready" : "warn"}`;
+  if (ready) {
+    els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；当前小时和今日额度都足够。`;
+    return;
+  }
+  const missing = [
+    hourlyEnough ? "" : `小时差 ${Math.max(0, estimate.cost - hourlyRemaining)}`,
+    dailyEnough ? "" : `今日差 ${Math.max(0, estimate.cost - dailyRemaining)}`,
+  ].filter(Boolean).join("，");
+  const reset = !dailyEnough
+    ? `今日重置 ${formatUsageReset(usage.daily?.resetAt)}`
+    : `小时重置 ${formatUsageReset(usage.hourly?.resetAt)}`;
+  els.usageGuidance.textContent = `${estimate.label}预计消耗 ${estimate.cost} 灵石；${missing}，${reset}。`;
+}
+
+function estimateCurrentUsageCost() {
+  const costs = state.capabilities?.usage?.costs || {};
+  if (state.mode === "3d") {
+    return { label: "3D 生成", cost: Number(costs.generate3d) || 120 };
+  }
+  if (state.animationRoute === "video") {
+    return { label: "视频精灵", cost: Number(costs.generateVideoSprite) || 80 };
+  }
+  if (isPackPreset()) {
+    const frameCost = Number(costs.generate2dPackFrame) || 12;
+    const frames = presetFrameCount();
+    return { label: "资产包", cost: Math.max(1, frames) * frameCost };
+  }
+  return { label: "单张 2D", cost: Number(costs.generate2d) || 20 };
 }
 
 function update3DButton() {
@@ -1294,6 +1590,7 @@ async function generatePack() {
     ...currentInput(),
     referenceImage: referenceImageForPack(),
     poseImages: poseImagesForPack(),
+    requestId: createClientRequestId("2d-pack"),
   };
   state.activeInput = input;
   setBusy(true, "资产包提交中");
@@ -1308,30 +1605,40 @@ async function generatePack() {
       setBusy(false);
       return;
     }
-    state.pack = pack;
-    state.packResults = {};
-    renderPlan({
-      kind: pack.kind,
-      preset: pack.preset,
-      packKind: pack.packKind,
-      metadata: pack.metadata,
-      reference: pack.metadata?.reference,
-      jobs: pack.jobs.map((job) => ({
-        id: job.id,
-        label: job.label,
-        promptId: job.promptId,
-        seed: job.seed,
-        referenceDenoise: job.referenceDenoise,
-        dimensions: job.dimensions,
-      })),
-    });
-    showPack(pack.jobs, pack);
-    startQueuePolling(pack.jobs[0]?.promptId);
-    pollPack(pack);
+    acceptSubmittedPack(pack);
   } catch (error) {
+    const recovered = await recoverSubmittedPack(input.requestId);
+    if (recovered?.ok) {
+      acceptSubmittedPack(recovered);
+      return;
+    }
     showError(error.message);
     setBusy(false);
   }
+}
+
+function acceptSubmittedPack(pack) {
+  const jobs = Array.isArray(pack.jobs) ? pack.jobs : [];
+  state.pack = pack;
+  state.packResults = {};
+  renderPlan({
+    kind: pack.kind,
+    preset: pack.preset,
+    packKind: pack.packKind,
+    metadata: pack.metadata,
+    reference: pack.metadata?.reference,
+    jobs: jobs.map((job) => ({
+      id: job.id,
+      label: job.label,
+      promptId: job.promptId,
+      seed: job.seed,
+      referenceDenoise: job.referenceDenoise,
+      dimensions: job.dimensions,
+    })),
+  });
+  showPack(jobs, pack);
+  startQueuePolling(jobs[0]?.promptId);
+  pollPack(pack);
 }
 
 async function generateVideoSprite() {
@@ -1751,6 +2058,43 @@ function renderPlan(plan) {
 function shouldLoadVideoSpriteDemo() {
   const params = new URLSearchParams(window.location.search);
   return params.get("demo") === "video-sprite";
+}
+
+function requestedGeneratorPreset() {
+  const params = new URLSearchParams(window.location.search);
+  const preset = params.get("preset") || "";
+  if (!preset) return "";
+  return Array.from(els.preset.options).some((option) => option.value === preset) ? preset : "";
+}
+
+function requestedGeneratorInput() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    preset: requestedGeneratorPreset(),
+    assetType: optionValueFromQuery(els.assetType, params.get("assetType")),
+    style: optionValueFromQuery(els.style, params.get("style")),
+    camera: optionValueFromQuery(els.camera, params.get("camera")),
+    actionStrength: optionValueFromQuery(els.actionStrength, params.get("actionStrength")),
+    brief: params.get("brief") || "",
+  };
+}
+
+function optionValueFromQuery(select, value) {
+  if (!value) return "";
+  return Array.from(select.options).some((option) => option.value === value) ? value : "";
+}
+
+function applyInitialQueryInput(input = {}) {
+  if (input.assetType) els.assetType.value = input.assetType;
+  if (input.style) els.style.value = input.style;
+  if (input.camera) els.camera.value = input.camera;
+  if (input.actionStrength) els.actionStrength.value = input.actionStrength;
+  if (input.brief) {
+    els.brief.value = input.brief;
+    els.brief.dataset.autofill = "false";
+  }
+  updateRouteControls();
+  renderMotionControlState();
 }
 
 function requestedVideoSpriteSampleId() {
@@ -3067,27 +3411,37 @@ async function generatePackLayers() {
 
   setBusy(true, "Spine 分层提交中");
   renderLayerSeparationCard("queued", { message: "SAM3 分层任务已准备提交。" });
+  const requestId = createClientRequestId("layer-separation");
   try {
     const job = await api(`/api/packs/${encodeURIComponent(state.pack.packId)}/layers/generate`, {
       method: "POST",
-      body: JSON.stringify({ frameId: "idle" }),
+      body: JSON.stringify({ frameId: "idle", requestId }),
     });
     if (!job.ok) {
       renderLayerSeparationCard("error", { message: job.message || job.error || "分层不可用。" });
       setBusy(false);
       return;
     }
-    state.lastLayerSeparation = job;
-    renderLayerSeparationCard("queued", {
-      message: `SAM3 分层已提交：${job.promptId}`,
-      job,
-    });
-    startQueuePolling(job.promptId);
-    pollLayerSeparation(job);
+    acceptLayerSeparationJob(job);
   } catch (error) {
+    const recovered = await recoverSubmittedLayer(requestId);
+    if (recovered?.ok) {
+      acceptLayerSeparationJob(recovered);
+      return;
+    }
     renderLayerSeparationCard("error", { message: error.message });
     setBusy(false);
   }
+}
+
+function acceptLayerSeparationJob(job) {
+  state.lastLayerSeparation = job;
+  renderLayerSeparationCard("queued", {
+    message: `SAM3 分层已提交：${job.promptId}`,
+    job,
+  });
+  startQueuePolling(job.promptId);
+  pollLayerSeparation(job);
 }
 
 function pollLayerSeparation(job) {
@@ -3804,6 +4158,10 @@ function renderSam3PartComparison(pack) {
       </div>
       <code data-sam3-preview-status>preview loading</code>
     </div>
+    <div class="sam3-quality-strip" data-sam3-quality-strip>
+      <span class="sam3-quality-pill info">读取质量摘要</span>
+    </div>
+    <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics。</p>
     <div class="sam3-part-grid">
       ${parts.map((part) => `
         <article class="sam3-part-row">
@@ -3858,8 +4216,78 @@ function sam3PartLabel(part) {
   }[part] || part;
 }
 
+function sam3QualityStatusLabel(status) {
+  return {
+    pass: "PASS",
+    warn: "WARN",
+    fail: "FAIL",
+  }[status] || "CHECK";
+}
+
+function sam3SemanticProfileLabel(profile) {
+  return {
+    default: "Default",
+    "monster-sideview-v1": "Monster side-view",
+  }[profile] || profile || "Default";
+}
+
+function sam3SideViewOcclusionLabels(quality) {
+  const pairBalance = quality?.semantics?.pairBalance || {};
+  return [
+    pairBalance.arms?.sideViewOcclusion ? "arms" : "",
+    pairBalance.legs?.sideViewOcclusion ? "legs" : "",
+  ].filter(Boolean);
+}
+
+function sam3QualityPillsHtml(data) {
+  const quality = data?.quality || {};
+  const cleanup = data?.cleanup?.summary || {};
+  const summary = quality.summary || {};
+  const profile = quality.semantics?.profile || "default";
+  const remainingRiskyPairs = cleanup.remainingRiskyPairs ?? summary.cleanupRemainingRiskyPairs;
+  const cleanupActions = cleanup.actions ?? summary.cleanupActions;
+  const trimmedPixels = cleanup.trimmedPixels;
+  const sideViewOcclusion = sam3SideViewOcclusionLabels(quality);
+  const chips = [
+    { label: "Score", value: `${quality.score ?? "-"} / 100`, tone: quality.status || "info" },
+    { label: "Profile", value: sam3SemanticProfileLabel(profile), tone: profile === "monster-sideview-v1" ? "info" : "" },
+    { label: "Risky left", value: remainingRiskyPairs ?? "-", tone: Number(remainingRiskyPairs || 0) === 0 ? "pass" : "warn" },
+    cleanupActions != null
+      ? { label: "Cleanup", value: trimmedPixels != null ? `${cleanupActions} / ${trimmedPixels}px` : cleanupActions, tone: "info" }
+      : null,
+    sideViewOcclusion.length
+      ? { label: "Side-view", value: sideViewOcclusion.join(", "), tone: "info" }
+      : null,
+  ].filter(Boolean);
+  return chips.map((chip) => `
+    <span class="sam3-quality-pill ${escapeHtml(chip.tone || "info")}">
+      <b>${escapeHtml(chip.label)}</b>${escapeHtml(String(chip.value))}
+    </span>
+  `).join("");
+}
+
+function sam3DiagnosticsText(data) {
+  const quality = data?.quality || {};
+  const sideViewOcclusion = sam3SideViewOcclusionLabels(quality);
+  const warnings = Array.isArray(quality.warnings)
+    ? quality.warnings.filter((warning) => warning.severity === "warn" || warning.severity === "fail")
+    : [];
+  if (warnings.length) {
+    return warnings.slice(0, 2).map((warning) => warning.message).join(" · ");
+  }
+  if (sideViewOcclusion.length) {
+    return `侧身怪物 profile 已把 ${sideViewOcclusion.join(" / ")} 的近中心点记录为遮挡诊断，不作为结构告警扣分。`;
+  }
+  const semanticDiagnostics = quality.summary?.semanticDiagnostics;
+  return semanticDiagnostics
+    ? `${semanticDiagnostics} 条 semantic diagnostics，未发现需要阻断的结构告警。`
+    : "无结构性分层告警。";
+}
+
 async function loadSam3PartComparisons(pack, card) {
   const status = card.querySelector("[data-sam3-preview-status]");
+  const qualityStrip = card.querySelector("[data-sam3-quality-strip]");
+  const diagnostics = card.querySelector("[data-sam3-diagnostics]");
   const slots = [...card.querySelectorAll("[data-sam3-part-slot]")];
   try {
     const data = await api(`/api/packs/${encodeURIComponent(pack.packId)}/spine-sam3/preview.json`);
@@ -3882,18 +4310,18 @@ async function loadSam3PartComparisons(pack, card) {
         slot.title = `${sam3PartLabel(partName)} · trimmed ${payload.cleanup.trimmedPixels}px`;
       }
     }
-    const cleanup = data.cleanup?.summary || null;
     if (status) {
-      status.textContent = cleanup
-        ? `${data.quality?.score ?? "-"} / 100 · ${cleanup.remainingRiskyPairs ?? "-"} risky left`
-        : `${data.quality?.score ?? "-"} / 100`;
+      status.textContent = `${sam3QualityStatusLabel(data.quality?.status)} · ${data.quality?.score ?? "-"} / 100`;
     }
+    if (qualityStrip) qualityStrip.innerHTML = sam3QualityPillsHtml(data);
+    if (diagnostics) diagnostics.textContent = sam3DiagnosticsText(data);
   } catch (error) {
     for (const slot of slots) {
       slot.classList.remove("loading");
       slot.classList.add("failed");
     }
     if (status) status.textContent = "preview failed";
+    if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试。";
     throw error;
   }
 }
@@ -4344,6 +4772,8 @@ els.modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     state.mode = tab.dataset.mode;
     els.modeTabs.forEach((item) => item.classList.toggle("active", item === tab));
+    renderRouteComparison();
+    update3DButton();
   });
 });
 
@@ -4429,7 +4859,10 @@ els.brief.addEventListener("input", () => {
   els.brief.dataset.autofill = "false";
 });
 
-applyPreset(els.preset.value);
+const initialInput = requestedGeneratorInput();
+if (initialInput.preset) els.preset.value = initialInput.preset;
+applyPreset(els.preset.value, Boolean(initialInput.preset));
+applyInitialQueryInput(initialInput);
 renderRouteComparison();
 loadHistory();
 loadCapabilities().then(() => {

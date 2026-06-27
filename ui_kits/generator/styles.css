@@ -207,7 +207,7 @@
 
 .workbench {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: var(--space-5);
   min-height: 0;
   padding: var(--space-6);
@@ -549,6 +549,61 @@
   font-family: var(--font-mono);
   font-size: 0.68rem;
   white-space: nowrap;
+}
+
+.sam3-quality-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sam3-quality-pill {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sam3-quality-pill b {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.sam3-quality-pill.pass {
+  border-color: rgba(90, 218, 178, 0.3);
+  background: rgba(90, 218, 178, 0.08);
+  color: var(--jade-200);
+}
+
+.sam3-quality-pill.warn {
+  border-color: rgba(224, 176, 74, 0.34);
+  background: rgba(224, 176, 74, 0.08);
+  color: var(--gold-200);
+}
+
+.sam3-quality-pill.fail {
+  border-color: rgba(255, 140, 140, 0.36);
+  background: rgba(255, 140, 140, 0.08);
+  color: #ffb7b7;
+}
+
+.sam3-diagnostics {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .sam3-part-grid {
@@ -910,6 +965,28 @@
 .usage-costs b {
   color: var(--gold-200);
   font-weight: 700;
+}
+
+.usage-guidance {
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.usage-guidance.ready {
+  border-color: rgba(90, 218, 178, 0.28);
+  background: rgba(90, 218, 178, 0.08);
+  color: var(--jade-200);
+}
+
+.usage-guidance.warn {
+  border-color: rgba(224, 176, 74, 0.32);
+  background: rgba(224, 176, 74, 0.08);
+  color: var(--gold-200);
 }
 
 .cloud-job-list,
@@ -1490,9 +1567,186 @@
   font-size: 0.78rem;
 }
 
+.asset-blueprint {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid rgba(74, 206, 178, 0.24);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(11, 20, 25, 0.82), rgba(5, 10, 14, 0.86)),
+    linear-gradient(90deg, rgba(74, 206, 178, 0.08), rgba(224, 176, 74, 0.06));
+}
+
+.asset-blueprint-head,
+.asset-blueprint-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.asset-blueprint-title {
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+  align-items: center;
+}
+
+.asset-blueprint-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(74, 206, 178, 0.28);
+  border-radius: var(--radius-md);
+  background: rgba(74, 206, 178, 0.08);
+  color: var(--jade-200);
+}
+
+.asset-blueprint-icon i {
+  width: 18px;
+  height: 18px;
+}
+
+.asset-blueprint-title strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-blueprint-title small,
+.asset-blueprint p {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.asset-blueprint p {
+  margin: 0;
+}
+
+.asset-blueprint-cost {
+  display: grid;
+  min-width: 82px;
+  justify-items: end;
+  gap: 2px;
+}
+
+.asset-blueprint-cost span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.asset-blueprint-cost strong {
+  color: var(--gold-200);
+  font-family: var(--font-mono);
+  font-size: 1.12rem;
+}
+
+.asset-blueprint-specs,
+.asset-blueprint-exports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.asset-blueprint-specs span,
+.asset-blueprint-exports code {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.asset-blueprint-specs b {
+  margin-right: 5px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.asset-blueprint-exports code {
+  color: var(--jade-200);
+  font-family: var(--font-mono);
+}
+
+.asset-blueprint-samples {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  gap: var(--space-2);
+  width: min(360px, 40vw);
+}
+
+.asset-blueprint.single .asset-blueprint-samples {
+  grid-template-columns: repeat(2, minmax(70px, 1fr));
+  width: min(190px, 34vw);
+}
+
+.asset-blueprint-sample {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+}
+
+.asset-blueprint-sample img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.055) 25%, transparent 25%),
+    rgba(2, 6, 10, 0.7);
+  background-position: 0 0, 0 6px;
+  background-size: 12px 12px;
+  image-rendering: pixelated;
+}
+
+.asset-blueprint-sample.wide {
+  grid-column: span 2;
+}
+
+.asset-blueprint-sample.wide img {
+  aspect-ratio: 2 / 1;
+}
+
+.asset-blueprint-sample figcaption,
+.asset-blueprint-empty {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 780px) {
   .route-ab-diagnostics {
     grid-template-columns: 1fr;
+  }
+
+  .asset-blueprint-head,
+  .asset-blueprint-body {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-blueprint-cost {
+    justify-items: start;
+  }
+
+  .asset-blueprint-samples,
+  .asset-blueprint.single .asset-blueprint-samples {
+    width: 100%;
   }
 }
 
