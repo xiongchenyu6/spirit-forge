@@ -43,13 +43,21 @@ async function main() {
     console.log(`轮询既有 packId=${packId}`);
   }
 
-  // 轮询所有帧完成（pack 嵌在 .pack 下）
+  // 轮询所有帧完成（pack 嵌在 .pack 下）。
+  // 关键：帧任务记录只在轮询各帧 /api/jobs/:promptId 时才从 ComfyUI 同步状态
+  // （前端 pollPack 即如此逐帧轮询）；仅查 /api/packs/:id 会读到陈旧的 queued。
   let last = "";
   for (let i = 0; i < 600; i++) {
     await sleep(4000);
     const r = await api(`/api/packs/${packId}`, { method: "GET" });
     const p = r?.pack || r;
     const frames = p?.frames || [];
+    // 逐帧驱动同步：对未终态且有 promptId 的帧查 job
+    for (const f of frames) {
+      if (f.promptId && f.status !== "completed" && f.status !== "error" && !f.result) {
+        await api(`/api/jobs/${f.promptId}`, { method: "GET" }).catch(() => {});
+      }
+    }
     const done = frames.filter((f) => f.status === "completed" || f.result).length;
     const failed = frames.filter((f) => f.status === "error" || f.status === "failed").length;
     const line = `  ${done}/${frames.length} 完成${failed ? ` (${failed} 失败)` : ""} status=${p?.status} rows=${p?.metadata?.rows ?? "?"} cols=${p?.metadata?.columns ?? "?"}`;
