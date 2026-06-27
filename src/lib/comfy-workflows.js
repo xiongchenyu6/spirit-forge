@@ -169,6 +169,103 @@ export function buildFlux1Workflow({ prompt, negativePrompt, width, height, seed
   };
 }
 
+// 像素画风专用工作流 —— FLUX-2 Klein UNET + pixel-art LoRA。
+//
+// 背景：现有 buildFlux1Workflow 走 flux1-dev-fp8（CheckpointLoaderSimple，无 LoRA），
+// 像素风只能靠文字提示，出不来真正的像素图。线上的 pixel LoRA
+// （pixel-art-flux2-klein）是 FLUX-2 Klein 系，与 flux1-dev 不兼容，
+// 必须切换到 Klein 的 diffusion(UNET) 模型 + LoraLoaderModelOnly（参考
+// buildWan22I2VWorkflow 的 UNETLoader + LoraLoaderModelOnly + pickFirst 写法）。
+//
+// 安全契约：所有模型/LoRA/VAE/encoder 名都用 pickFirst 从运行时清单防御式选择，
+// 不硬编码。只要任一必需件（Klein diffusion / pixel LoRA / VAE / 文本编码器）
+// 取不到，就返回 null，让调用方优雅回退到 flux1-dev 路径——绝不抛错。
+//
+// quality-WIP：以下采样参数（steps/cfg/guidance/shift、LoRA 强度、双 CLIP 组合）
+// 均为按 Klein 常见配置的保守猜测，质量需后续接入真实后端实测调参。
+export function buildPixelFlux2Workflow({ prompt, negativePrompt, width, height, seed, models }) {
+  // 优先 4b（更轻量、显存友好），取不到再退 9b；统称 klein 系。
+  const unet =
+    pickFirst(models?.diffusion, /klein.*4b/i) ||
+    pickFirst(models?.diffusion, /klein/i);
+  const pixelLora =
+    pickFirst(models?.loras, /pixel.*klein/i) ||
+    pickFirst(models?.loras, /pixel/i);
+  // FLUX 双 CLIP：clip_l + t5xxl（type=flux）。Klein 的真实文本编码器可能不同，
+  // 这是基于现有清单的最合理猜测（quality-WIP，需实测验证）。
+  const clipL = pickFirst(models?.textEncoders, /clip_l/i);
+  const t5 = pickFirst(models?.textEncoders, /t5xxl/i);
+  // VAE：FLUX 系通用 ae.safetensors。
+  const vae = pickFirst(models?.vae, /(^|[^a-z])ae([^a-z]|\.safetensors|$)/i) || pickFirst(models?.vae, /ae/i);
+
+  // 任一必需件缺失 → 回退（返回 null，由调用方落回 flux1-dev）。
+  if (!unet || !pixelLora || !clipL || !t5 || !vae) {
+    return null;
+  }
+
+  return {
+    "1": {
+      class_type: "UNETLoader",
+      inputs: { unet_name: unet, weight_dtype: "default" },
+    },
+    "2": {
+      // pixel LoRA 仅作用于 model 分支（LoraLoaderModelOnly，与 Wan2.2 写法一致）。
+      // strength_model 1.0 为猜测，过强会糊化、过弱失去像素感——需实测。
+      class_type: "LoraLoaderModelOnly",
+      inputs: { model: ["1", 0], lora_name: pixelLora, strength_model: 1.0 },
+    },
+    "3": {
+      class_type: "DualCLIPLoader",
+      inputs: { clip_name1: clipL, clip_name2: t5, type: "flux" },
+    },
+    "4": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: prompt, clip: ["3", 0] },
+    },
+    "5": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: negativePrompt || DEFAULT_NEGATIVE, clip: ["3", 0] },
+    },
+    "6": {
+      // FLUX guidance（蒸馏模型走 guidance 而非 cfg）。4.0 为像素风偏锐利的猜测值。
+      class_type: "FluxGuidance",
+      inputs: { guidance: 4.0, conditioning: ["4", 0] },
+    },
+    "7": {
+      class_type: "VAELoader",
+      inputs: { vae_name: vae },
+    },
+    "8": {
+      class_type: "EmptyLatentImage",
+      inputs: { width, height, batch_size: 1 },
+    },
+    "9": {
+      // steps 20 / cfg 1.0 / euler+simple：沿用 flux1-dev 蒸馏路径的保守配置（quality-WIP）。
+      class_type: "KSampler",
+      inputs: {
+        seed,
+        steps: 20,
+        cfg: 1.0,
+        sampler_name: "euler",
+        scheduler: "simple",
+        denoise: 1.0,
+        model: ["2", 0],
+        positive: ["6", 0],
+        negative: ["5", 0],
+        latent_image: ["8", 0],
+      },
+    },
+    "10": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["9", 0], vae: ["7", 0] },
+    },
+    "11": {
+      class_type: "SaveImage",
+      inputs: { filename_prefix: "lingji_2d_asset", images: ["10", 0] },
+    },
+  };
+}
+
 export function buildFlux1Img2ImgWorkflow({ prompt, negativePrompt, width, height, seed, filename, denoise }) {
   return {
     "10": {

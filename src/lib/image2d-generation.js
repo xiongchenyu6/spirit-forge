@@ -1,5 +1,5 @@
-import { submitComfyWorkflow } from "./comfy-client.js";
-import { buildFlux1Workflow } from "./comfy-workflows.js";
+import { listComfyModels, submitComfyWorkflow } from "./comfy-client.js";
+import { buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
 import { DEFAULT_NEGATIVE, localPromptPlan, normalizeDimensions, normalizeGenerationInput, randomSeed } from "./generation-utils.js";
 import { rememberJobRecord } from "./storage.js";
 
@@ -12,13 +12,28 @@ export async function submit2DJob(input, env, options = {}) {
   const plan = input.prompt ? localPromptPlan({ ...normalized, brief: input.prompt }) : await planPrompt(normalized, env);
   const seed = Number.isFinite(Number(input.seed)) ? Number(input.seed) : randomSeed();
   const dimensions = normalizeDimensions(input.width, input.height, normalized.preset);
-  const workflow = buildFlux1Workflow({
+  const flux1Args = {
     prompt: plan.prompt,
     negativePrompt: plan.negativePrompt || DEFAULT_NEGATIVE,
     width: dimensions.width,
     height: dimensions.height,
     seed,
-  });
+  };
+  // 像素画风（pixel / pixel-art）专走 FLUX-2 Klein + pixel LoRA 分支；
+  // 其它画风（production/anime/isometric/realistic）行为完全不变，仍走 flux1-dev。
+  // 任一环节失败（清单拉取异常 / 必需模型缺失）都安全回退到 flux1-dev，绝不报错。
+  let workflow = null;
+  if (normalized.style === "pixel" || normalized.style === "pixel-art") {
+    try {
+      const models = await listComfyModels(env);
+      workflow = buildPixelFlux2Workflow({ ...flux1Args, models });
+    } catch {
+      workflow = null;
+    }
+  }
+  if (!workflow) {
+    workflow = buildFlux1Workflow(flux1Args);
+  }
   const submitted = await submitComfyWorkflow(env, workflow);
   const job = {
     ok: true,
