@@ -41,7 +41,7 @@ const ASSET_PROMPTS = {
   prop: "game prop item exactly as described in the brief, centered single object, clean material definition, no character, no hands",
   weapon: "render exactly the weapon described in the brief as a standalone object, default to a melee or magical armament (sword, blade, spear, staff, bow, talisman) faithful to the brief's genre and materials, NO firearm or gun unless the brief explicitly demands one, centered, readable shape language, no character, no hands",
   icon: "game item icon faithful to the brief, centered on transparent-friendly background, strong silhouette",
-  map: "2D game map terrain asset, tileable layout, readable gameplay shapes",
+  map: "seamless tileable texture, edge-to-edge repeating pattern, flat top-down orthographic, uniform even lighting, no scene composition, no buildings, no characters, no central focal object, fills entire frame, consistent density to corners",
   ui: "game user interface asset, clean separable components, readable material layers",
   vfx: "standalone 2D game skill visual effect itself as described in the brief, centered magical energy or spell effect, NO character, NO person, NO body, NO hands, readable silhouette, transparent-background friendly",
 };
@@ -50,6 +50,7 @@ const ASSET_NEGATIVE_PROMPTS = {
   weapon: "gun, firearm, rifle, pistol, shotgun, machine gun, modern soldier, person, character, human figure, hands, holding hands",
   prop: "person, character, human figure, hands",
   vfx: "character, person, human figure, full body, face, hands, holding the effect",
+  map: "perspective, horizon, vignette, drop shadow at edges, border, frame, scene, building, character, water body as focal point, isometric blocks, depth of field, single centered object",
 };
 
 const PRESET_PROMPTS = {
@@ -89,10 +90,12 @@ export function localPromptPlan(input) {
   const preset = PRESET_PROMPTS[input.preset] || PRESET_PROMPTS.square;
   const camera = input.assetType === "vfx"
     ? "orthographic centered VFX sprite frame, no character body, no perspective camera"
+    : input.assetType === "map"
+      ? "strict top-down orthographic plan view, flat overhead angle, no perspective, no horizon, no vanishing point, no depth"
     : input.camera === "turnaround"
     ? "orthographic front view, symmetry-friendly, suitable for later 3D reconstruction"
     : input.camera === "top-down"
-      ? "strict top-down orthographic camera, no horizon, no perspective depth"
+      ? "strict top-down orthographic plan view camera, no perspective, no horizon, no vanishing point, no perspective depth"
     : input.camera === "isometric"
       ? "isometric three-quarter camera"
       : "front view, full body, centered composition";
