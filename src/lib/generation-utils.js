@@ -99,17 +99,23 @@ export function localPromptPlan(input) {
     : input.camera === "isometric"
       ? "isometric three-quarter camera"
       : "front view, full body, centered composition";
+  // 用户核心主体优先强加权:资产包帧的 input.brief 会拼上动作/共享描述(idle/walk/
+  // "same character, full-body, plain bg"…),会稀释主体。input.subject 是用户原始主体,
+  // 单独高权重前置,让题材/对象/材质主导,再附完整 brief(含动作)做次级约束。
+  const subject = input.subject || input.brief;
+  const hasDistinctBrief = input.subject && input.brief && input.subject !== input.brief;
   return enforceAlphaReadyPromptPlan({
-    title: titleFromBrief(input.brief),
+    title: titleFromBrief(input.subject || input.brief),
     prompt: [
-      `(${input.brief}:1.3)`,
-      "stay faithful to the described genre, object and materials",
+      `(${subject}:1.4)`,
+      hasDistinctBrief ? `(${input.brief}:1.05)` : null,
+      "stay faithful to the described genre, object, character design and materials",
       asset,
       style,
       preset,
       camera,
       "clean separable game production asset, high contrast silhouette, no text, no watermark",
-    ].join(", "),
+    ].filter(Boolean).join(", "),
     negativePrompt: DEFAULT_NEGATIVE,
     styleTags: [input.style, input.assetType, input.preset, input.camera].filter(Boolean),
     productionNotes: [
@@ -202,13 +208,16 @@ export function poseDenoiseForPackItem(input, normalized, item) {
   // img2img + OpenPose 身份锁定 denoise（经验值，需真机实测微调）：
   // 锁定同一角色身份的同时让姿态/动作变化生效。动作帧落在 ~0.5–0.7 平衡区间；
   // idle 与锚点几乎同姿，刻意取更低值以最大化身份一致性。
+  // 提高动作帧 denoise:低 denoise 会贴住站姿锚点导致姿态几乎不变。靠 img2img+
+  // 强 OpenPose ControlNet(end_percent 已延长)保身份,denoise 调高让姿态真正改变。
+  // idle 与锚点几乎同姿,保持低值最大化一致性。
   const values = {
     idle: { stable: 0.34, balanced: 0.4, expressive: 0.46 },
-    walk: { stable: 0.52, balanced: 0.58, expressive: 0.66 },
-    move: { stable: 0.52, balanced: 0.58, expressive: 0.66 },
-    attack: { stable: 0.58, balanced: 0.66, expressive: 0.72 },
-    hurt: { stable: 0.55, balanced: 0.62, expressive: 0.68 },
-    death: { stable: 0.55, balanced: 0.62, expressive: 0.68 },
+    walk: { stable: 0.62, balanced: 0.7, expressive: 0.78 },
+    move: { stable: 0.62, balanced: 0.7, expressive: 0.78 },
+    attack: { stable: 0.7, balanced: 0.78, expressive: 0.84 },
+    hurt: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
+    death: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
   };
   const value = values[item.id]?.[normalized.actionStrength] ?? values[item.id]?.balanced;
   return normalizeDenoise(value ?? denoiseForPackItem(input, normalized, item));

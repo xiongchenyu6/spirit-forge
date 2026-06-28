@@ -394,7 +394,9 @@ export function buildFlux1PoseImg2ImgWorkflow({
         image: ["43", 0],
         strength: controlStrength,
         start_percent: 0.0,
-        end_percent: 0.62,
+        // 延长姿态控制到 85%:原 0.62 让后 38% 去噪脱离 OpenPose 控制、漂回站姿锚点,
+        // 导致动作帧看着像站姿。延长后姿态保持到接近收尾,动作更明显。
+        end_percent: 0.85,
         vae: ["10", 2],
       },
     },

@@ -39,6 +39,8 @@ function withIdentityConsistencyPrompt(prompt) {
 function buildPackItemGenerationInput(normalized, preset, item) {
   return {
     ...normalized,
+    // 用户原始主体,供 localPromptPlan 重点加权,避免被动作/共享描述稀释。
+    subject: normalized.brief,
     assetType: item.assetType || preset.assetType || normalized.assetType,
     style: item.style || preset.style || normalized.style,
     camera: item.camera || preset.camera || normalized.camera,
