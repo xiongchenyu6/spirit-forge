@@ -199,11 +199,16 @@ export function poseDenoiseForPackItem(input, normalized, item) {
   if (input.referenceDenoise !== undefined && input.referenceDenoise !== null) {
     return normalizeDenoise(input.referenceDenoise);
   }
+  // img2img + OpenPose 身份锁定 denoise（经验值，需真机实测微调）：
+  // 锁定同一角色身份的同时让姿态/动作变化生效。动作帧落在 ~0.5–0.7 平衡区间；
+  // idle 与锚点几乎同姿，刻意取更低值以最大化身份一致性。
   const values = {
-    idle: { stable: 0.32, balanced: 0.36, expressive: 0.42 },
-    walk: { stable: 0.5, balanced: 0.56, expressive: 0.64 },
-    attack: { stable: 0.56, balanced: 0.64, expressive: 0.72 },
-    hurt: { stable: 0.52, balanced: 0.6, expressive: 0.68 },
+    idle: { stable: 0.34, balanced: 0.4, expressive: 0.46 },
+    walk: { stable: 0.52, balanced: 0.58, expressive: 0.66 },
+    move: { stable: 0.52, balanced: 0.58, expressive: 0.66 },
+    attack: { stable: 0.58, balanced: 0.66, expressive: 0.72 },
+    hurt: { stable: 0.55, balanced: 0.62, expressive: 0.68 },
+    death: { stable: 0.55, balanced: 0.62, expressive: 0.68 },
   };
   const value = values[item.id]?.[normalized.actionStrength] ?? values[item.id]?.balanced;
   return normalizeDenoise(value ?? denoiseForPackItem(input, normalized, item));

@@ -191,6 +191,26 @@ export async function submitComfyWorkflow(env, workflow) {
   return { ...json, client_id: clientId };
 }
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// 有界轮询 Comfy /history 直到出现首个图像输出。用于动作表“身份锚点”帧：
+// 需要先拿到锚点成品图才能给其余帧做 img2img 参考。超时/失败返回 null，调用方回退。
+export async function waitForComfyImageOutput(env, promptId, { timeoutMs = 90000, intervalMs = 3000 } = {}) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  while (Date.now() < deadline) {
+    const history = await comfyFetchJson(env, `/history/${encodeURIComponent(promptId)}`).catch(() => null);
+    const entry = history?.[promptId];
+    if (entry) {
+      const image = firstImageOutput(entry.outputs || {});
+      if (image) return image;
+      const statusStr = entry.status?.status_str;
+      if (statusStr && statusStr !== "success" && statusStr !== "running") return null;
+    }
+    await delay(intervalMs);
+  }
+  return null;
+}
+
 export async function ensureComfyInputImage(input, env, fallbackName = "lingji_3d_source.png") {
   const blob = await sourceImageBlob(input, env);
   return await uploadImageToComfy(env, blob, fallbackName);

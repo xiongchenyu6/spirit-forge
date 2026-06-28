@@ -1,4 +1,4 @@
-import { ensureComfyInputImage, ensureSpriteReferenceImage, submitComfyWorkflow } from "./comfy-client.js";
+import { ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, submitComfyWorkflow, uploadImageToComfy, waitForComfyImageOutput } from "./comfy-client.js";
 import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1Workflow } from "./comfy-workflows.js";
 import { characterOpenPoseDataUrl } from "./image.js";
 import { frameStatusCounts, packItemBrief, packStatusFromCounts } from "./pack-export.js";
@@ -23,6 +23,65 @@ import {
   rememberPackRequestIndex,
   withSignedPackRecord,
 } from "./storage.js";
+
+// 动作表跨帧身份一致性约束（英文，进 FLUX prompt）：减少颜色/服装/体型漂移。
+const SPRITE_IDENTITY_PROMPT =
+  "same character as reference, consistent outfit, consistent colors, consistent proportions, identical character design across frames, model sheet, turnaround consistency";
+
+// 给 sprite-actions 帧的 prompt 追加身份一致性约束（去重，避免重复堆叠）。
+function withIdentityConsistencyPrompt(prompt) {
+  const base = typeof prompt === "string" ? prompt.trim() : "";
+  if (base.toLowerCase().includes("turnaround consistency")) return base.slice(0, 1600);
+  return [base, SPRITE_IDENTITY_PROMPT].filter(Boolean).join(", ").slice(0, 1600);
+}
+
+// 复刻 submitPackItemJob 的 packInput 推导，供锚点帧与动作帧共用，避免漂移。
+function buildPackItemGenerationInput(normalized, preset, item) {
+  return {
+    ...normalized,
+    assetType: item.assetType || preset.assetType || normalized.assetType,
+    style: item.style || preset.style || normalized.style,
+    camera: item.camera || preset.camera || normalized.camera,
+    preset: item.preset || (
+      preset.kind === "tile-pack"
+        ? "map-tile"
+        : preset.kind === "icon-pack"
+            ? "icon"
+            : preset.kind === "ui-pack"
+            ? "ui-component"
+            : "sprite"
+    ),
+    brief: packItemBrief(normalized, preset, item),
+  };
+}
+
+// 无外部参考图时，自动用一个中性帧（优先 idle）文生图生成“身份锚点”成品，
+// 再把它上传为 Comfy 输入图，供其余帧 img2img + pose 锁定同一身份。
+// 任何失败/超时返回 null，调用方回退到统一种子 + 一致性提示策略。
+async function establishIdentityAnchor({ env, normalized, preset, seed }) {
+  const anchorItem = preset.items.find((item) => item.id === "idle") || preset.items[0];
+  if (!anchorItem) return null;
+  const packInput = buildPackItemGenerationInput(normalized, preset, anchorItem);
+  const plan = localPromptPlan(packInput);
+  const [width, height] = preset.cell;
+  const submitted = await submitComfyWorkflow(
+    env,
+    buildFlux1Workflow({
+      prompt: withIdentityConsistencyPrompt(plan.prompt),
+      negativePrompt: plan.negativePrompt || DEFAULT_NEGATIVE,
+      width,
+      height,
+      seed,
+    }),
+  );
+  const meta = await waitForComfyImageOutput(env, submitted.prompt_id);
+  if (!meta?.filename) return null;
+  const response = await fetchComfyResponse(env, meta);
+  if (!response.ok) return null;
+  const blob = await response.blob();
+  const referenceImage = await uploadImageToComfy(env, blob, "lingji_pack_anchor.png");
+  return { referenceImage, anchorItemId: anchorItem.id, anchorPromptId: submitted.prompt_id };
+}
 
 export async function recoverSubmitted2DPack(input, env) {
   const requestId = normalizePackRequestId(input);
@@ -213,9 +272,21 @@ export async function submit2DPack(input, env, options = {}) {
   const seedBase = Number.isFinite(Number(input.seed)) ? Number(input.seed) : randomSeed();
   const packId = crypto.randomUUID();
   const shouldUseReference = Boolean(input.referenceImage?.filename && preset.kind === "sprite-actions");
-  const referenceImage = shouldUseReference
+  const externalReference = shouldUseReference
     ? await ensureSpriteReferenceImage({ comfyImage: input.referenceImage }, env, "lingji_pack_reference.png")
     : null;
+  // 无外部参考图的动作表：自动建立身份锚点（先生成中性帧再以其为 img2img 参考），
+  // 让所有帧锁定同一角色。锚点失败时 referenceImage 仍为 null，走统一种子回退。
+  let anchor = null;
+  if (!externalReference && preset.kind === "sprite-actions") {
+    anchor = await establishIdentityAnchor({ env, normalized, preset, seed: seedBase }).catch((error) => {
+      console.warn("身份锚点生成失败，回退到统一种子一致性策略", error);
+      return null;
+    });
+  }
+  const referenceImage = externalReference || anchor?.referenceImage || null;
+  // 无参考图回退：所有帧共用同一种子，配合一致性提示最大化跨帧身份一致性。
+  const useUnifiedSeed = !referenceImage && preset.kind === "sprite-actions";
   const poseControlPresets = new Set(["character-actions", "character-walk-4dir", "character-walk-8dir"]);
   const shouldUsePoseControl = Boolean(referenceImage && poseControlPresets.has(normalized.preset));
   const poseControl = shouldUsePoseControl && typeof options.getCapabilities === "function"
@@ -223,7 +294,7 @@ export async function submit2DPack(input, env, options = {}) {
     : null;
   const jobs = await Promise.all(
     preset.items.map(async (item, index) => {
-      const seed = (seedBase + index) >>> 0;
+      const seed = useUnifiedSeed ? seedBase >>> 0 : (seedBase + index) >>> 0;
       // 4 方向行走预设的 item 携带 pose 复合键（walk4:<direction>:<phase>）；
       // 其余动作预设回退到 item.id 查既有动作模板。
       const poseKey = item.pose || item.id;
@@ -252,6 +323,10 @@ export async function submit2DPack(input, env, options = {}) {
     ? {
         mode: usedPoseControl ? "img2img+pose" : "img2img",
         source: referenceImage,
+        // 锚点参考为本服务自动生成（非用户上传定稿）。
+        auto: Boolean(anchor),
+        anchorPromptId: anchor?.anchorPromptId || null,
+        anchorItemId: anchor?.anchorItemId || null,
         actionStrength: normalized.actionStrength,
         poseControl: usedPoseControl
           ? {
@@ -262,6 +337,8 @@ export async function submit2DPack(input, env, options = {}) {
       }
     : {
         mode: "text-to-image",
+        // 无参考图回退：统一种子 + 一致性提示约束跨帧身份。
+        consistency: useUnifiedSeed ? "unified-seed+identity-prompt" : null,
       };
   const packMetadata = {
     output: "separate-images",
@@ -362,24 +439,14 @@ async function submitPackItemJob({
   poseImage = null,
   poseControl = null,
 }) {
-  const packInput = {
-    ...normalized,
-    assetType: item.assetType || preset.assetType || normalized.assetType,
-    style: item.style || preset.style || normalized.style,
-    camera: item.camera || preset.camera || normalized.camera,
-    preset: item.preset || (
-      preset.kind === "tile-pack"
-        ? "map-tile"
-        : preset.kind === "icon-pack"
-            ? "icon"
-            : preset.kind === "ui-pack"
-            ? "ui-component"
-            : "sprite"
-    ),
-    brief: packItemBrief(normalized, preset, item),
-  };
+  const packInput = buildPackItemGenerationInput(normalized, preset, item);
+  const basePlan = localPromptPlan(packInput);
   const plan = {
-    ...localPromptPlan(packInput),
+    ...basePlan,
+    // 仅动作表帧追加跨帧身份一致性约束；单图/图标/瓦片等预设不受影响。
+    prompt: preset.kind === "sprite-actions"
+      ? withIdentityConsistencyPrompt(basePlan.prompt)
+      : basePlan.prompt,
     title: `${titleFromBrief(normalized.brief)}_${item.id}`,
     source: "local-pack",
   };
