@@ -2,6 +2,9 @@ name = "lingji-forge"
 account_id = "2764ae0fd9a5cb92c9ac67708620e54c"
 main = "src/worker.js"
 compatibility_date = "2026-05-25"
+# 注：当前为 Free plan，无法设置 [limits].cpu_ms。SAM3 抠图较重，首次构建偏慢，
+# 但会写入 R2 缓存（preview JSON + 逐部位 PNG），之后 preview/part 走缓存即快。
+# 若首次构建在 Free plan CPU 上限下无法完成，需升级到 paid 或把抠图移到 ComfyUI 侧。
 
 # Worker Assets 只托管生成后的 public/，避免把 .git、.direnv、
 # secrets/ 等本地文件发布到 Cloudflare。部署前运行：

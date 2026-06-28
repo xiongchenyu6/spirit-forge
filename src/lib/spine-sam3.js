@@ -103,6 +103,16 @@ export async function servePackSpineSam3Part(packId, variant, partName, env) {
   if (!allowedParts.has(safePart)) {
     return jsonResponse({ error: "part_not_found", message: "Unknown SAM3 Spine part." }, 404);
   }
+  // 取最新分层 job 以定位逐部位缓存键（轻量：仅读 job 索引，不触发抠图）。
+  const job = await latestPackLayerSeparationJob(env, packId).catch(() => null);
+  const jobId = job?.promptId || null;
+  // 快路径：逐部位 R2 缓存命中即直接返回，跳过昂贵的整套 preview 抠图构建。
+  if (jobId) {
+    const cached = await env.ASSET_BUCKET.get(packSpineSam3PartCacheKey(packId, jobId, variant, safePart)).catch(() => null);
+    if (cached) return spineSam3PartResponse(cached.body, variant, safePart, true);
+  }
+  // 慢路径：首次构建（受 wrangler.toml [limits].cpu_ms 上限保护，可跑完）→
+  // 抽取该部位 PNG → 写入 R2 逐部位缓存 → 返回。下次同部位走快路径。
   let preview;
   try {
     preview = await getPackSpineSam3Preview(packId, env);
@@ -118,15 +128,31 @@ export async function servePackSpineSam3Part(packId, variant, partName, env) {
     return jsonResponse({ error: "part_not_found", message: "The requested SAM3 Spine part is not available." }, 404);
   }
   const bytes = pngBytesFromDataUrl(payload.dataUrl);
-  return new Response(bytes, {
+  const writeJobId = jobId || preview.jobId;
+  if (writeJobId) {
+    await env.ASSET_BUCKET.put(packSpineSam3PartCacheKey(packId, writeJobId, variant, safePart), bytes, {
+      httpMetadata: { contentType: "image/png" },
+      customMetadata: { packId, jobId: writeJobId, kind: "spine-sam3-part", variant, part: safePart },
+    }).catch((error) => console.warn("Spine SAM3 part cache write failed", error));
+  }
+  return spineSam3PartResponse(bytes, variant, safePart, false);
+}
+
+function spineSam3PartResponse(body, variant, safePart, cacheHit) {
+  return new Response(body, {
     headers: {
       "content-type": "image/png",
       "cache-control": "private, max-age=300",
       "access-control-allow-origin": "*",
       "x-lingji-spine-sam3-variant": variant,
       "x-lingji-spine-sam3-part": safePart,
+      "x-lingji-spine-sam3-cache": cacheHit ? "hit" : "miss",
     },
   });
+}
+
+function packSpineSam3PartCacheKey(packId, jobId, variant, partName) {
+  return `library/packs/${safeLibrarySegment(packId)}/spine-sam3/parts-v1-${safeLibrarySegment(jobId)}/${safeLibrarySegment(variant)}/${safeLibrarySegment(partName)}.png`;
 }
 
 export async function getPackSpineSam3Preview(packId, env) {
