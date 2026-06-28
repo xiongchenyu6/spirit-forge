@@ -39,10 +39,15 @@ function withIdentityConsistencyPrompt(prompt) {
 
 // 复刻 submitPackItemJob 的 packInput 推导，供锚点帧与动作帧共用，避免漂移。
 function buildPackItemGenerationInput(normalized, preset, item) {
+  // 关键:单帧生成必须剥离用户 brief 里的"多帧/动作表"指令(如"需要 idle、walk、
+  // attack、hurt 四帧"),否则会被画成带标注的一排角色设定图(sprite sheet)。
+  // 每帧的动作由 item.prompt 决定,brief 只保留角色主体描述。
+  const cleanBrief = stripFrameInstructions(normalized.brief);
+  const cleanNormalized = { ...normalized, brief: cleanBrief };
   return {
-    ...normalized,
-    // 用户原始主体,供 localPromptPlan 重点加权,避免被动作/共享描述稀释。
-    subject: normalized.brief,
+    ...cleanNormalized,
+    // 用户原始主体(已剥离多帧指令),供 localPromptPlan 重点加权,避免被动作/共享描述稀释。
+    subject: cleanBrief,
     assetType: item.assetType || preset.assetType || normalized.assetType,
     style: item.style || preset.style || normalized.style,
     camera: item.camera || preset.camera || normalized.camera,
@@ -55,8 +60,19 @@ function buildPackItemGenerationInput(normalized, preset, item) {
             ? "ui-component"
             : "sprite"
     ),
-    brief: packItemBrief(normalized, preset, item),
+    brief: packItemBrief(cleanNormalized, preset, item),
   };
+}
+
+// 按子句切分 brief,丢弃提及"帧/动作表/idle·walk·attack·hurt/sprite sheet"等
+// 多帧/动作清单的子句,只保留角色主体描述。全被丢弃时回退原文。
+function stripFrameInstructions(brief) {
+  const text = typeof brief === "string" ? brief : "";
+  if (!text) return text;
+  const FRAME_RE = /帧|动作表|多帧|分帧|序列|sprite\s*sheet|\bframes?\b|\bidle\b|\bwalk\b|\battack\b|\bhurt\b|\bmove\b|\bdeath\b|\brun\b|\bjump\b/i;
+  const clauses = text.split(/[，,;；。\n]+/).map((s) => s.trim()).filter(Boolean);
+  const kept = clauses.filter((c) => !FRAME_RE.test(c));
+  return (kept.length ? kept : clauses).join("，");
 }
 
 // 无外部参考图时，自动用一个中性帧（优先 idle）文生图生成“身份锚点”成品，
