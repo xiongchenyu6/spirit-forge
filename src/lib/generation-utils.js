@@ -213,8 +213,8 @@ export function poseDenoiseForPackItem(input, normalized, item) {
   // idle 与锚点几乎同姿,保持低值最大化一致性。
   const values = {
     idle: { stable: 0.34, balanced: 0.4, expressive: 0.46 },
-    walk: { stable: 0.62, balanced: 0.7, expressive: 0.78 },
-    move: { stable: 0.62, balanced: 0.7, expressive: 0.78 },
+    walk: { stable: 0.68, balanced: 0.76, expressive: 0.82 },
+    move: { stable: 0.68, balanced: 0.76, expressive: 0.82 },
     attack: { stable: 0.7, balanced: 0.78, expressive: 0.84 },
     hurt: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
     death: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
@@ -226,11 +226,13 @@ export function poseDenoiseForPackItem(input, normalized, item) {
 export function poseStrengthForPackItem(item) {
   const values = {
     idle: 0.55,
-    walk: 0.82,
-    attack: 0.95,
-    hurt: 0.86,
+    walk: 0.95,
+    move: 0.95,
+    attack: 1.0,
+    hurt: 0.92,
+    death: 0.92,
   };
-  return values[item.id] || 0.78;
+  return values[item.id] || 0.85;
 }
 
 export function titleFromBrief(brief) {
