@@ -44,9 +44,21 @@ process.exit(ok ? 0 : 1);
 
 async function runChecks() {
   await checkTextRoute({
-    name: "root generator route",
+    name: "root landing route",
     path: "/",
-    includes: ["assetBlueprint", "usageGuidance"],
+    includes: ["GenreShowcase", "TopNav", "Hero", "/ui_kits/landing/"],
+    excludes: ["window.location.replace", "assetBlueprint", "usageGuidance"],
+  });
+  await checkRedirectRoute({
+    name: "clean en root redirect",
+    path: "/en",
+    locationPath: "/en/",
+  });
+  await checkTextRoute({
+    name: "en root landing route",
+    path: "/en/",
+    includes: ["GenreShowcase", "TopNav", "Hero", "/ui_kits/landing/"],
+    excludes: ["window.location.replace", "assetBlueprint", "usageGuidance"],
   });
   await checkRedirectRoute({
     name: "clean generator redirect",
@@ -93,6 +105,16 @@ async function runChecks() {
     name: "generator route",
     path: "/generator/",
     includes: ["assetBlueprint", "usageGuidance"],
+  });
+  await checkStatusRoute({
+    name: "missing generator script stays 404",
+    path: "/generator/missing-script.js",
+    status: 404,
+  });
+  await checkStatusRoute({
+    name: "unknown page stays 404",
+    path: "/definitely-missing-route",
+    status: 404,
   });
   await checkTextRoute({
     name: "landing route",
@@ -184,6 +206,11 @@ async function runChecks() {
     name: "generator app",
     path: "/generator/app.js",
     includes: ["requestedGeneratorInput", "applyInitialQueryInput", "PACK_BLUEPRINTS"],
+  });
+  await checkScriptRoute({
+    name: "generator gif encoder script",
+    path: "/generator/gif-encoder.js",
+    includes: ["GIF89a", "LingjiGifEncoder"],
   });
   await checkTextRoute({
     name: "library html",
@@ -378,11 +405,14 @@ async function checkPageResourceReferences({ name, pages }) {
 
     for (const [resourceUrl, source] of resources) {
       const response = await fetchWithTimeout(resourceUrl, { timeoutMs: options.timeoutMs });
+      const contentType = response.headers.get("content-type") || "";
       const body = Buffer.from(await response.arrayBuffer());
       if (response.status !== 200) {
         failures.push(`${source.page} -> ${source.ref} status ${response.status}`);
       } else if (body.length === 0) {
         failures.push(`${source.page} -> ${source.ref} empty`);
+      } else if (isCodeResource(resourceUrl, contentType) && looksLikeHtml(body)) {
+        failures.push(`${source.page} -> ${source.ref} returned html as code`);
       }
     }
 
@@ -397,6 +427,18 @@ async function checkPageResourceReferences({ name, pages }) {
       },
     };
   });
+}
+
+function isCodeResource(resourceUrl, contentType) {
+  const pathname = new URL(resourceUrl).pathname;
+  return /\.(?:m?js|css|json)$/i.test(pathname)
+    || contentType.includes("javascript")
+    || contentType.includes("css")
+    || contentType.includes("json");
+}
+
+function looksLikeHtml(body) {
+  return body.subarray(0, 128).toString("utf8").trimStart().startsWith("<");
 }
 
 function extractHtmlRefs(html) {
@@ -450,6 +492,28 @@ async function checkRedirectRoute({ name, path, locationPath, locationSearchIncl
   });
 }
 
+async function checkStatusRoute({ name, path, status }) {
+  await recordCheck(name, async () => {
+    const response = await fetchWithTimeout(urlFor(path), {
+      timeoutMs: options.timeoutMs,
+      redirect: "manual",
+    });
+    const body = await response.text();
+    const failures = [];
+    if (response.status !== status) failures.push(`status ${response.status}`);
+    if (response.status === 200 && looksLikeHtml(Buffer.from(body))) failures.push("returned html");
+    return {
+      ok: failures.length === 0,
+      detail: failures.length ? failures.join("; ") : `${response.status}`,
+      meta: {
+        path,
+        status: response.status,
+        bytes: body.length,
+      },
+    };
+  });
+}
+
 async function checkTextRoute({ name, path, includes, excludes = [] }) {
   await recordCheck(name, async () => {
     const response = await fetchWithTimeout(urlFor(path), { timeoutMs: options.timeoutMs });
@@ -468,6 +532,31 @@ async function checkTextRoute({ name, path, includes, excludes = [] }) {
       meta: {
         path,
         status: response.status,
+        bytes: body.length,
+      },
+    };
+  });
+}
+
+async function checkScriptRoute({ name, path, includes }) {
+  await recordCheck(name, async () => {
+    const response = await fetchWithTimeout(urlFor(path), { timeoutMs: options.timeoutMs });
+    const contentType = response.headers.get("content-type") || "";
+    const body = await response.text();
+    const failures = [];
+    if (response.status !== 200) failures.push(`status ${response.status}`);
+    if (!/javascript|ecmascript|text\/plain/i.test(contentType)) failures.push(`content-type ${contentType || "missing"}`);
+    if (body.trimStart().startsWith("<")) failures.push("returned html");
+    for (const token of includes) {
+      if (!body.includes(token)) failures.push(`missing ${token}`);
+    }
+    return {
+      ok: failures.length === 0,
+      detail: failures.length ? failures.join("; ") : `${contentType}, ${body.length} bytes`,
+      meta: {
+        path,
+        status: response.status,
+        contentType,
         bytes: body.length,
       },
     };

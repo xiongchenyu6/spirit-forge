@@ -1,5 +1,6 @@
 const ROUTE_ALIAS = {
-  "/": "/generator/",
+  "/": "/landing/",
+  "/favicon.ico": "/assets/logo-emblem-transparent.png",
   "/generator/": "/generator/",
   "/landing/": "/landing/",
   "/studio/": "/studio/",
@@ -7,7 +8,7 @@ const ROUTE_ALIAS = {
   "/templates/": "/templates/",
   "/pricing/": "/pricing/",
   "/onboarding/": "/onboarding/",
-  "/en/": "/generator/",
+  "/en/": "/landing/",
   "/en/generator/": "/generator/",
   "/en/landing/": "/landing/",
   "/en/studio/": "/studio/",
@@ -67,10 +68,6 @@ export async function handleAssets(request, env, url) {
     candidates.push(`${pathname}/index.html`);
   }
 
-  if (pathname === "/" || original === "") {
-    candidates.push("/ui_kits/generator/index.html");
-  }
-
   const matched = await tryFetchAsset(request, env, candidates);
   if (matched) {
     const headers = new Headers(matched.headers);
@@ -95,8 +92,10 @@ export async function handleAssets(request, env, url) {
     });
   }
 
-  const fallback = await env.ASSETS.fetch(buildAssetRequest(request, "/ui_kits/generator/index.html"));
-  if (fallback.status !== 404) return fallback;
+  if (isFilePath(pathname)) {
+    return new Response("Not Found", { status: 404 });
+  }
+
   return new Response("Not Found", { status: 404 });
 }
 

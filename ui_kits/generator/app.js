@@ -9,6 +9,7 @@ const state = {
   lastVideoSprite: null,
   videoDemos: [],
   activeVideoDemoId: null,
+  activeMotionAction: null,
   activeInput: null,
   history: [],
   cloudPacks: [],
@@ -180,6 +181,15 @@ const PRESET_FRAME_COUNTS = {
   "ui-kit": 8,
 };
 const CHARACTER_POSE_ORDER = ["idle", "walk", "attack", "hurt"];
+const MONSTER_ACTION_ORDER = ["idle", "move", "attack", "death"];
+const MOTION_ACTION_LABELS = {
+  idle: "Idle",
+  walk: "Walk",
+  move: "Move",
+  attack: "Attack",
+  hurt: "Hurt",
+  death: "Death",
+};
 
 const MONSTER_ACTIONS_DEMO_FRAMES = [
   { id: "idle", label: "Idle", src: "../../assets/generated/official/monster-idle.png" },
@@ -267,10 +277,10 @@ const PACK_BLUEPRINTS = {
     qa: ["轮廓清楚", "动作差异", "SAM3 部件"],
     exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP", "Spine"],
     samples: [
-      { label: "Idle", file: "monster-idle.png" },
-      { label: "Move", file: "monster-move.png" },
-      { label: "Attack", file: "monster-attack.png" },
-      { label: "Death", file: "monster-death.png" },
+      { label: "Idle", file: "monster-idle.png", action: "idle" },
+      { label: "Move", file: "monster-move.png", action: "move" },
+      { label: "Attack", file: "monster-attack.png", action: "attack" },
+      { label: "Death", file: "monster-death.png", action: "death" },
     ],
   },
   "skill-vfx": {
@@ -791,10 +801,26 @@ function shouldUseAlphaForSingleInput(input = {}) {
 
 function assetBlueprintSampleHtml(sample) {
   const src = `${OFFICIAL_ASSET_BASE}${sample.file}`;
+  const action = sample.action || "";
+  const label = sample.label || sample.file;
+  const className = [
+    "asset-blueprint-sample",
+    sample.wide ? "wide" : "",
+    action ? "action" : "",
+    action && state.activeMotionAction === action ? "selected" : "",
+  ].filter(Boolean).join(" ");
+  if (action) {
+    return `
+      <button class="${escapeHtml(className)}" type="button" data-blueprint-action="${escapeHtml(action)}" aria-label="聚焦 ${escapeHtml(label)}" aria-pressed="${state.activeMotionAction === action ? "true" : "false"}">
+        <img src="${escapeHtml(src)}" alt="" loading="lazy" />
+        <span class="asset-blueprint-caption">${escapeHtml(label)}</span>
+      </button>
+    `;
+  }
   return `
-    <figure class="asset-blueprint-sample ${sample.wide ? "wide" : ""}">
-      <img src="${escapeHtml(src)}" alt="${escapeHtml(sample.label || "")}" loading="lazy" />
-      <figcaption>${escapeHtml(sample.label || sample.file)}</figcaption>
+    <figure class="${escapeHtml(className)}">
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(label)}" loading="lazy" />
+      <figcaption>${escapeHtml(label)}</figcaption>
     </figure>
   `;
 }
@@ -810,6 +836,12 @@ function renderMotionControlState() {
   }
 
   els.motionControlSection.hidden = false;
+  const actionOrder = isCharacterActions ? CHARACTER_POSE_ORDER : MONSTER_ACTION_ORDER;
+  if (!actionOrder.includes(state.activeMotionAction)) {
+    state.activeMotionAction = null;
+  }
+  const selectedAction = state.activeMotionAction;
+  const focusText = selectedAction ? ` / 当前聚焦 ${motionActionLabel(selectedAction)}` : "";
   const referenceState = spriteReferenceState(preset);
   const reference = referenceState.ok ? referenceImageForPack() : null;
   const referenceName = reference?.filename || "";
@@ -820,14 +852,10 @@ function renderMotionControlState() {
 
   if (referenceState.state === "invalid" || referenceState.state === "pending") {
     els.motionControlStatus.textContent = referenceState.state === "invalid" ? "参考图无效" : "检测参考图";
-    els.motionControlDetail.textContent = referenceState.message;
+    els.motionControlDetail.textContent = `${referenceState.message}${focusText}`;
     els.motionControlPreview.innerHTML = isCharacterActions
-      ? CHARACTER_POSE_ORDER.map((id) => motionPoseFrameHtml(id, false)).join("")
-      : ["idle", "move", "attack", "death"].map((id) => `
-        <figure class="motion-action-chip">
-          <strong>${escapeHtml(id)}</strong>
-        </figure>
-      `).join("");
+      ? CHARACTER_POSE_ORDER.map((id) => motionPoseFrameHtml(id, false, selectedAction === id)).join("")
+      : MONSTER_ACTION_ORDER.map((id) => motionActionChipHtml(id, false, selectedAction === id)).join("");
     return;
   }
 
@@ -843,8 +871,10 @@ function renderMotionControlState() {
       : reference
         ? `参考 ${referenceName} / img2img`
         : "Text-to-image / Idle Walk Attack Hurt";
-    els.motionControlDetail.textContent = `${detail} / ${layerText}`;
-    els.motionControlPreview.innerHTML = CHARACTER_POSE_ORDER.map((id) => motionPoseFrameHtml(id, poseActive)).join("");
+    els.motionControlDetail.textContent = `${detail}${focusText} / ${layerText}`;
+    els.motionControlPreview.innerHTML = CHARACTER_POSE_ORDER
+      .map((id) => motionPoseFrameHtml(id, poseActive, selectedAction === id))
+      .join("");
     return;
   }
 
@@ -852,12 +882,10 @@ function renderMotionControlState() {
   const detail = reference
     ? `参考 ${referenceName} / Idle Move Attack Death`
     : "Text-to-image / Idle Move Attack Death";
-  els.motionControlDetail.textContent = `${detail} / ${layerText}`;
-  els.motionControlPreview.innerHTML = ["idle", "move", "attack", "death"].map((id) => `
-    <figure class="motion-action-chip ${reference ? "active" : ""}">
-      <strong>${escapeHtml(id)}</strong>
-    </figure>
-  `).join("");
+  els.motionControlDetail.textContent = `${detail}${focusText} / ${layerText}`;
+  els.motionControlPreview.innerHTML = MONSTER_ACTION_ORDER
+    .map((id) => motionActionChipHtml(id, Boolean(reference), selectedAction === id))
+    .join("");
 }
 
 function layerSeparationSummary() {
@@ -867,13 +895,99 @@ function layerSeparationSummary() {
   return "Spine 模板导出";
 }
 
-function motionPoseFrameHtml(id, active) {
+function setMotionAction(action) {
+  const preset = els.preset.value;
+  const actionOrder = preset === "character-actions"
+    ? CHARACTER_POSE_ORDER
+    : preset === "monster-actions"
+      ? MONSTER_ACTION_ORDER
+      : [];
+  if (!actionOrder.includes(action)) return;
+  state.activeMotionAction = state.activeMotionAction === action ? null : action;
+  renderMotionControlState();
+  renderAssetBlueprint();
+  if (state.activeMotionAction) {
+    showMotionActionPreview(state.activeMotionAction);
+  } else {
+    restorePrimaryPreview();
+  }
+}
+
+function motionActionLabel(id) {
+  return MOTION_ACTION_LABELS[id] || id;
+}
+
+function motionActionPreviewSample(action) {
+  const preset = els.preset.value;
+  const blueprint = PACK_BLUEPRINTS[preset];
+  const sample = blueprint?.samples?.find((item) => item.action === action);
+  if (!sample?.file) return null;
+  return {
+    ...sample,
+    src: `${OFFICIAL_ASSET_BASE}${sample.file}`,
+    label: sample.label || motionActionLabel(action),
+  };
+}
+
+function showMotionActionPreview(action) {
+  const sample = motionActionPreviewSample(action);
+  if (!sample?.src) return;
+  showPreviewImageOnly(sample.src, `${sample.label} 动作帧预览`);
+}
+
+function showPreviewImageOnly(url, alt = "动作帧预览") {
+  if (!url) return;
+  els.emptyState.hidden = true;
+  els.modelViewer.hidden = true;
+  els.resultGrid.hidden = true;
+  els.resultVideo.pause();
+  els.resultVideo.hidden = true;
+  els.resultVideo.removeAttribute("src");
+  els.resultImage.onload = null;
+  els.resultImage.onerror = null;
+  els.resultImage.alt = alt;
+  els.resultImage.src = url;
+  els.resultImage.hidden = false;
+}
+
+function restorePrimaryPreview() {
+  if (state.lastVideoSprite?.url) {
+    els.emptyState.hidden = true;
+    els.resultImage.hidden = true;
+    els.resultGrid.hidden = true;
+    els.modelViewer.hidden = true;
+    els.resultVideo.src = state.lastVideoSprite.url;
+    els.resultVideo.hidden = false;
+    els.resultVideo.play().catch(() => {});
+    return;
+  }
+  const result = state.last2d?.result;
+  if (result?.url) {
+    showPreviewImageOnly(result.url, "生成的 2D 游戏素材");
+    return;
+  }
+  resetEmptyState();
+  els.resultImage.hidden = true;
+  els.resultVideo.hidden = true;
+  els.resultVideo.removeAttribute("src");
+  els.emptyState.hidden = false;
+}
+
+function motionActionChipHtml(id, active, selected) {
+  return `
+    <button class="motion-action-chip ${active ? "active" : ""} ${selected ? "selected" : ""}" type="button" data-motion-action="${escapeHtml(id)}" aria-pressed="${selected ? "true" : "false"}">
+      <strong>${escapeHtml(motionActionLabel(id))}</strong>
+    </button>
+  `;
+}
+
+function motionPoseFrameHtml(id, active, selected) {
   const src = drawPoseTemplate(id);
   return `
-    <figure class="motion-pose-frame ${active ? "active" : ""}">
+    <button class="motion-pose-frame ${active ? "active" : ""} ${selected ? "selected" : ""}" type="button" data-motion-action="${escapeHtml(id)}" aria-pressed="${selected ? "true" : "false"}">
       <img src="${escapeHtml(src)}" alt="" />
-      <figcaption>${escapeHtml(id)}</figcaption>
-    </figure>
+      <span class="motion-frame-caption">${escapeHtml(motionActionLabel(id))}</span>
+    </button>
   `;
 }
 
@@ -2267,6 +2381,7 @@ async function loadVideoSpriteDemo() {
 function restoreVideoSpriteDemo(demo) {
   if (!demo?.url) return;
   state.activeVideoDemoId = demo.id || null;
+  state.activeMotionAction = null;
   renderPlan({
     kind: "video-sprite-demo",
     status: "ready",
@@ -2281,6 +2396,8 @@ function restoreVideoSpriteDemo(demo) {
     route: "WEBM -> sample frames -> alpha remove -> baseline normalize -> Sprite Sheet / Metadata / ZIP",
   });
   showVideo(demo.url, demo.filename);
+  renderMotionControlState();
+  renderAssetBlueprint();
 }
 
 function loadHistory() {
@@ -5232,8 +5349,21 @@ els.routeAbComparison?.addEventListener("click", (event) => {
   const demo = state.videoDemos.find((item) => item.id === button.dataset.videoDemoId);
   if (demo) restoreVideoSpriteDemo(demo);
 });
+els.assetBlueprint?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-blueprint-action]");
+  if (!button || !els.assetBlueprint.contains(button)) return;
+  setMotionAction(button.dataset.blueprintAction);
+});
+els.motionControlPreview?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-motion-action]");
+  if (!button) return;
+  setMotionAction(button.dataset.motionAction);
+});
 els.clearHistoryBtn.addEventListener("click", clearHistory);
-els.preset.addEventListener("change", () => applyPreset(els.preset.value, true));
+els.preset.addEventListener("change", () => {
+  state.activeMotionAction = null;
+  applyPreset(els.preset.value, true);
+});
 els.assetType.addEventListener("change", renderRouteComparison);
 els.style.addEventListener("change", renderRouteComparison);
 els.camera.addEventListener("change", renderRouteComparison);

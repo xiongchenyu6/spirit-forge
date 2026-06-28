@@ -264,6 +264,10 @@
   box-shadow: none;
 }
 
+.download-link.disabled {
+  pointer-events: none;
+}
+
 .ghost-button {
   min-width: 128px;
   padding: 0 var(--space-4);
@@ -1367,18 +1371,47 @@
 
 .motion-pose-frame,
 .motion-action-chip {
+  appearance: none;
+  padding: 0;
   min-width: 0;
   margin: 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
   overflow: hidden;
+  text-align: center;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
 }
 
 .motion-pose-frame.active,
 .motion-action-chip.active {
   border-color: rgba(74, 206, 178, 0.45);
   background: rgba(74, 206, 178, 0.08);
+}
+
+.motion-pose-frame.selected,
+.motion-action-chip.selected {
+  border-color: rgba(224, 176, 74, 0.72);
+  background: rgba(224, 176, 74, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(224, 176, 74, 0.18);
+}
+
+.motion-pose-frame:hover,
+.motion-action-chip:hover {
+  border-color: rgba(224, 176, 74, 0.5);
+  transform: translateY(-1px);
+}
+
+.motion-pose-frame:focus-visible,
+.motion-action-chip:focus-visible {
+  outline: 2px solid rgba(224, 176, 74, 0.72);
+  outline-offset: 2px;
 }
 
 .motion-pose-frame img {
@@ -1393,7 +1426,7 @@
   opacity: 1;
 }
 
-.motion-pose-frame figcaption,
+.motion-pose-frame .motion-frame-caption,
 .motion-action-chip strong {
   display: block;
   padding: 5px 3px 6px;
@@ -1751,6 +1784,16 @@
   margin: 0;
 }
 
+button.asset-blueprint-sample {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
 .asset-blueprint-sample img {
   width: 100%;
   aspect-ratio: 1;
@@ -1764,6 +1807,25 @@
   background-position: 0 0, 0 6px;
   background-size: 12px 12px;
   image-rendering: pixelated;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.asset-blueprint-sample.action:hover img {
+  border-color: rgba(224, 176, 74, 0.55);
+  transform: translateY(-1px);
+}
+
+.asset-blueprint-sample.action.selected img {
+  border-color: rgba(224, 176, 74, 0.78);
+  box-shadow: 0 0 0 1px rgba(224, 176, 74, 0.2), 0 0 18px rgba(224, 176, 74, 0.12);
+}
+
+.asset-blueprint-sample.action:focus-visible {
+  outline: 2px solid rgba(224, 176, 74, 0.72);
+  outline-offset: 3px;
 }
 
 .asset-blueprint-sample.wide {
@@ -1775,6 +1837,7 @@
 }
 
 .asset-blueprint-sample figcaption,
+.asset-blueprint-sample .asset-blueprint-caption,
 .asset-blueprint-empty {
   overflow: hidden;
   color: var(--text-muted);

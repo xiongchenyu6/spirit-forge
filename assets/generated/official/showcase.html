@@ -17,7 +17,13 @@
   .grid { max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:20px; }
   .card { background:var(--plate); border:1px solid var(--line); border-radius:14px; overflow:hidden; transition:transform .18s ease, border-color .18s ease; }
   .card:hover { transform:translateY(-3px); border-color:rgba(212,175,106,.4); }
+  .thumb { position:relative; }
   .card img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#0a0b0e; }
+  .anim-badge { position:absolute; top:10px; left:10px; z-index:1; padding:3px 9px; border-radius:999px;
+    font-size:11px; letter-spacing:.04em; color:#0a0b0e; font-weight:600;
+    background:linear-gradient(135deg,#e8c97a,#d4af6a); border:1px solid rgba(255,255,255,.25);
+    box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .anim-badge::before { content:"▶ "; font-size:9px; }
   .meta { padding:12px 14px 14px; }
   .type { font-size:11px; color:var(--jade); letter-spacing:.1em; text-transform:uppercase; }
   .brief { font-size:13px; color:#c7cad1; margin:5px 0 0; line-height:1.55; }
@@ -32,17 +38,17 @@
     <div class="meta-row" id="chips"></div>
   </header>
   <div class="grid" id="grid"></div>
-  <footer>每张均为单次文生图真实输出 · 768×768 · 提示词忠实题材/物体/材质 · 可经动作包、SAM3 分层、Spine 绑骨继续生产</footer>
+  <footer>单帧为单次文生图真实输出 · 标注「帧动画」者为多帧动作包合成的循环预览 · 提示词忠实题材/物体/材质 · 可经动作包、SAM3 分层、Spine 绑骨继续生产</footer>
   <script>
     const ITEMS = [
       ["showcase-character-xianxia","角色 · 仙侠","青衫剑客，御剑而立，鎏金衣纹"],
       ["showcase-character-cyberpunk","角色 · 赛博朋克","都市夜行者，霓虹外套，机械义肢"],
       ["showcase-character-pixel","角色 · 像素","银甲红披风骑士，侧身行走"],
-      ["showcase-creature-beast","怪物 · 西幻","幽蓝鬃毛巨狼魔兽，战斗姿态"],
+      ["showcase-monster-anim","怪物 · 西幻","幽蓝鬃毛巨狼魔兽，待机·移动·攻击·倒地",{anim:true,frames:4,ext:"gif"}],
       ["showcase-creature-drone","怪物 · 科幻","悬浮侦察无人机，钢蓝装甲"],
       ["showcase-weapon-jade-sword","武器 · 仙侠","玉骨长剑，半透碧玉剑身，鎏金护手"],
       ["showcase-prop-spirit-gem","道具","灵石宝珠，多面切割，内蕴流光"],
-      ["showcase-vfx-burst","特效","金色爆发冲击波"],
+      ["showcase-vfx-anim","特效","金色爆发冲击波 · 蓄力·爆发·命中·消散",{anim:true,frames:4,ext:"gif"}],
       ["showcase-ui-hud","UI 组件","现代游戏 HUD 边框，玻璃拟态"],
       ["showcase-map-forest","地图","俯视森林地表，草地与石径"],
       ["showcase-icon-portal","图标","传送阵法，青金灵光徽记"],
@@ -50,10 +56,15 @@
     const genres = [...new Set(ITEMS.map(i => i[1].split(" · ")[1]).filter(Boolean))];
     document.getElementById("chips").innerHTML =
       [`${ITEMS.length} 件真实输出`, ...genres.map(g => g)].map(t => `<span class="chip">${t}</span>`).join("");
-    document.getElementById("grid").innerHTML = ITEMS.map(([f,t,b]) =>
-      `<div class="card"><img src="${f}.png" alt="${t}" loading="lazy" />
-       <div class="meta"><div class="type">${t}</div><p class="brief">${b}</p></div></div>`
-    ).join("");
+    document.getElementById("grid").innerHTML = ITEMS.map(([f,t,b,opt]) => {
+      const o = opt || {};
+      const src = `${f}.${o.ext || "png"}`;
+      const badge = o.anim ? `<span class="anim-badge">${o.frames} 帧动画</span>` : "";
+      return `<div class="card">
+        <div class="thumb">${badge}<img src="${src}" alt="${t}" loading="lazy" /></div>
+        <div class="meta"><div class="type">${t}</div><p class="brief">${b}</p></div>
+      </div>`;
+    }).join("");
   </script>
 </body>
 </html>

@@ -1,3 +1,10 @@
+/* hidden 属性必须权威:.library-auth/.pack-detail-panel 等带 display 的类会覆盖
+   [hidden] 的 UA display:none,导致 authPanel/packDetailPanel 一开页就常驻可见。
+   与 generator/styles.css 同一根治手法。 */
+[hidden] {
+  display: none !important;
+}
+
 .library-shell {
   min-height: 100vh;
   color: var(--text-primary);
