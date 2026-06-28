@@ -67,13 +67,36 @@ export async function composePackTransparentFrames(frameFiles) {
   return outputs;
 }
 
-export async function composePackSheetPng(pack, frameFiles) {
+export async function composePackSheetBundlePng(pack, frameFiles, options = {}) {
   if (!frameFiles.length) return null;
+  const decoded = await decodePackFrameFiles(frameFiles);
+  const includeSheet = options.includeSheet !== false;
+  const includeClipSheets = options.includeClipSheets !== false;
+  return {
+    sheet: includeSheet ? await composeFullPackSheetPng(pack, decoded) : null,
+    clipSheets: includeClipSheets ? await composePackClipSheetsFromDecoded(pack, decoded) : [],
+  };
+}
+
+export async function composePackSheetPng(pack, frameFiles) {
+  const bundle = await composePackSheetBundlePng(pack, frameFiles, { includeClipSheets: false });
+  return bundle?.sheet || null;
+}
+
+export async function composePackClipSheetsPng(pack, frameFiles) {
+  const bundle = await composePackSheetBundlePng(pack, frameFiles, { includeSheet: false });
+  return bundle?.clipSheets || [];
+}
+
+async function decodePackFrameFiles(frameFiles) {
   const decoded = [];
   for (const frameFile of frameFiles) {
     decoded.push({ ...frameFile, image: frameFile.image || await decodePngRgba(frameFile.bytes) });
   }
+  return decoded;
+}
 
+async function composeFullPackSheetPng(pack, decoded) {
   const columns = positiveInteger(pack.metadata?.columns)
     || Math.max(1, ...decoded.map((item) => positiveInteger(item.frame?.column) + 1 || 1));
   const rows = positiveInteger(pack.metadata?.rows)
@@ -107,6 +130,7 @@ export async function composePackSheetPng(pack, frameFiles) {
 
   return {
     bytes: await encodePngRgba(width, height, sheet),
+    path: "sheet.png",
     width,
     height,
     columns,
@@ -114,6 +138,88 @@ export async function composePackSheetPng(pack, frameFiles) {
     cellWidth,
     cellHeight,
   };
+}
+
+async function composePackClipSheetsFromDecoded(pack, decoded) {
+  if (pack?.packKind !== "sprite-actions" || decoded.length === 0) return [];
+  const groups = groupDecodedClipFrames(decoded);
+  const cellWidth = positiveInteger(pack.metadata?.cellWidth)
+    || positiveInteger(decoded[0]?.frame?.dimensions?.width)
+    || decoded[0].image.width;
+  const cellHeight = positiveInteger(pack.metadata?.cellHeight)
+    || positiveInteger(decoded[0]?.frame?.dimensions?.height)
+    || decoded[0].image.height;
+  const sheets = [];
+  for (const group of groups) {
+    const frames = group.frames.slice().sort(compareClipFrameOrder);
+    const columns = Math.max(1, frames.length);
+    const width = columns * cellWidth;
+    const height = cellHeight;
+    const sheet = new Uint8Array(width * height * 4);
+    frames.forEach((item, index) => {
+      blitContainRgba({
+        target: sheet,
+        targetWidth: width,
+        targetHeight: height,
+        source: item.image.data,
+        sourceWidth: item.image.width,
+        sourceHeight: item.image.height,
+        x: index * cellWidth,
+        y: 0,
+        width: cellWidth,
+        height: cellHeight,
+      });
+    });
+    sheets.push({
+      key: group.key,
+      action: group.action,
+      direction: group.direction,
+      path: `sheets/${imageSafeLibrarySegment(group.key)}.png`,
+      bytes: await encodePngRgba(width, height, sheet),
+      width,
+      height,
+      columns,
+      rows: 1,
+      cellWidth,
+      cellHeight,
+      frames: frames.map((item, index) => ({
+        id: item.frame?.id || "",
+        index,
+        row: 0,
+        column: index,
+        sourceRow: positiveInteger(item.frame?.row),
+        sourceColumn: positiveInteger(item.frame?.column),
+      })),
+    });
+  }
+  return sheets;
+}
+
+function groupDecodedClipFrames(decoded) {
+  const groups = [];
+  const byKey = new Map();
+  for (const item of decoded) {
+    const frame = item.frame || {};
+    const action = frame.action || frame.clip || "";
+    const direction = action ? "" : frame.direction || "";
+    const key = action || direction || "animation";
+    if (!byKey.has(key)) {
+      const group = { key, action: action || null, direction: direction || null, frames: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    byKey.get(key).frames.push(item);
+  }
+  return groups;
+}
+
+function compareClipFrameOrder(a, b) {
+  const af = a.frame || {};
+  const bf = b.frame || {};
+  const aFrame = Number.isFinite(Number(af.actionFrame)) ? Number(af.actionFrame) : Number(af.column);
+  const bFrame = Number.isFinite(Number(bf.actionFrame)) ? Number(bf.actionFrame) : Number(bf.column);
+  if (Number.isFinite(aFrame) && Number.isFinite(bFrame) && aFrame !== bFrame) return aFrame - bFrame;
+  return (Number(af.index) || 0) - (Number(bf.index) || 0);
 }
 
 function removeEdgeConnectedBackgroundRgba(data, width, height) {
@@ -361,12 +467,81 @@ function directionalWalkPoseKeypoints(direction, phase, frames = WALK_4DIR_FRAME
   return pose;
 }
 
+function cloneOpenPoseTemplate(template) {
+  const pose = {};
+  for (const [key, point] of Object.entries(template || {})) {
+    pose[key] = [point[0], point[1]];
+  }
+  return pose;
+}
+
+function roundedOpenPoseTemplate(template) {
+  const pose = {};
+  for (const [key, point] of Object.entries(template || {})) {
+    pose[key] = [Math.round(point[0]), Math.round(point[1])];
+  }
+  return pose;
+}
+
+function applyPoseOffset(template, dx = 0, dy = 0, keys = null) {
+  const pose = cloneOpenPoseTemplate(template);
+  const targetKeys = Array.isArray(keys) ? keys : Object.keys(pose);
+  for (const key of targetKeys) {
+    if (!pose[key]) continue;
+    pose[key] = [pose[key][0] + dx, pose[key][1] + dy];
+  }
+  return pose;
+}
+
+function idleActionPoseKeypoints(frame) {
+  const bob = [0, -4, -1, 2][Math.abs(frame) % 4] || 0;
+  const pose = applyPoseOffset(CHARACTER_OPENPOSE_TEMPLATES.idle, 0, bob, [
+    "nose", "lEye", "rEye", "lEar", "rEar", "neck",
+    "lShoulder", "rShoulder", "lElbow", "rElbow", "lHand", "rHand",
+  ]);
+  if (frame % 4 === 1) {
+    pose.lHand = [pose.lHand[0] - 4, pose.lHand[1] - 2];
+    pose.rHand = [pose.rHand[0] + 4, pose.rHand[1] - 2];
+  } else if (frame % 4 === 3) {
+    pose.lHand = [pose.lHand[0] + 3, pose.lHand[1] + 2];
+    pose.rHand = [pose.rHand[0] - 3, pose.rHand[1] + 2];
+  }
+  return roundedOpenPoseTemplate(pose);
+}
+
+function characterActionPoseKeypoints(action, frame) {
+  const phase = Math.max(0, Number(frame) || 0) % 4;
+  if (action === "idle") return idleActionPoseKeypoints(phase);
+  if (action === "walk") return directionalWalkPoseKeypoints("down", phase);
+  if (action === "attack") {
+    const weights = [0.25, 0.75, 1, 0.45];
+    return roundedOpenPoseTemplate(blendOpenPoseTemplates(
+      CHARACTER_OPENPOSE_TEMPLATES.idle,
+      CHARACTER_OPENPOSE_TEMPLATES.attack,
+      weights[phase] ?? 1,
+    ));
+  }
+  if (action === "hurt") {
+    const weights = [0.35, 1, 0.7, 0.25];
+    return roundedOpenPoseTemplate(blendOpenPoseTemplates(
+      CHARACTER_OPENPOSE_TEMPLATES.idle,
+      CHARACTER_OPENPOSE_TEMPLATES.hurt,
+      weights[phase] ?? 1,
+    ));
+  }
+  return CHARACTER_OPENPOSE_TEMPLATES[action] || CHARACTER_OPENPOSE_TEMPLATES.idle;
+}
+
 // 解析姿态键：支持方向行走的 "walk4:<direction>:<phase>" / "walk8:<direction>:<phase>"
 // 复合键（斜向 direction 含连字符，如 down-left），否则查既有动作模板。
 function resolveOpenPoseTemplate(kind) {
   if (typeof kind === "string" && (kind.startsWith("walk4:") || kind.startsWith("walk8:"))) {
     const [, direction = "down", phase = "0"] = kind.split(":");
     return directionalWalkPoseKeypoints(direction, Number(phase) || 0);
+  }
+  if (typeof kind === "string" && kind.startsWith("action:")) {
+    const [, action = "idle", phase = "0"] = kind.split(":");
+    return characterActionPoseKeypoints(action, Number(phase) || 0);
   }
   return CHARACTER_OPENPOSE_TEMPLATES[kind] || CHARACTER_OPENPOSE_TEMPLATES.idle;
 }

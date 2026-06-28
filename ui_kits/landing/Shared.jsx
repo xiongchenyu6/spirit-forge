@@ -5,11 +5,13 @@ const LFIcon = ({ name, size = 18, color, style = {} }) =>
   React.createElement("i", { "data-lucide": name, style: { width: size, height: size, color, ...style } });
 
 const generatedAssetPath = (file) => `../../assets/generated/official/${file}`;
+const OFFICIAL_MONSTER_ACTIONS_PACK_ID = "db8c0fff-918e-4e76-baef-9064e9b47052";
+const OFFICIAL_MONSTER_ACTIONS_BRIEF = "同一只红黑色甲壳怪物，橙红背刺，深色腹甲，弯尾，尖牙大嘴，完整身体居中，纯色背景；生成 idle、move、attack、death 四个动作 clip，每个动作 8 帧；每一帧必须是不同关键姿势，保持同一怪物身份和比例";
 const OFFICIAL_SAMPLE_BY_IMAGE = {
-  "monster-idle.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作"),
-  "monster-move.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作"),
-  "monster-attack.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作"),
-  "monster-death.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作"),
+  "monster-idle.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "monster-move.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "monster-attack.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "monster-death.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
   "skill-vfx-charge.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),
   "skill-vfx-burst.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),
   "skill-vfx-impact.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),
@@ -27,8 +29,9 @@ const OFFICIAL_SAMPLE_BY_IMAGE = {
   "ec601ceb.png": { generatorUrl: "/generator/?preset=icon&assetType=prop&style=pixel&camera=front&brief=%E5%83%8F%E7%B4%A0%E9%A3%8E%E7%81%B5%E7%9F%B3%E9%81%93%E5%85%B7%E5%9B%BE%E6%A0%87%EF%BC%8C%E9%80%8F%E6%98%8E%E8%83%8C%E6%99%AF%EF%BC%8C%E8%83%8C%E5%8C%85%E5%8D%95%E6%A0%BC%E5%8F%AF%E7%94%A8" },
 };
 
-function sampleInfo(id, preset, assetType, style, camera, brief) {
+function sampleInfo(id, preset, assetType, style, camera, brief, demoPackId = "") {
   const params = new URLSearchParams({ preset, assetType, style, camera, brief });
+  if (demoPackId) params.set("demoPackId", demoPackId);
   return {
     id,
     generatorUrl: `/generator/?${params.toString()}`,

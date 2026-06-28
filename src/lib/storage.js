@@ -284,15 +284,17 @@ export async function listPacks(env, url) {
   const preset = safeString(url.searchParams.get("preset"), "all");
   const status = safeString(url.searchParams.get("status"), "all");
   const limit = Math.max(1, Math.min(40, Number(url.searchParams.get("limit")) || 12));
+  const offset = Math.max(0, Number(url.searchParams.get("cursor") || url.searchParams.get("offset")) || 0);
   const listed = await env.ASSET_BUCKET.list({ prefix: "library/packs/", limit: 1000 });
   const objects = listed.objects
     .filter((object) => isPackRecordObjectKey(object.key))
     .sort((a, b) => Number(b.uploaded || 0) - Number(a.uploaded || 0));
   const packs = [];
   const seenPackIds = new Set();
+  let matched = 0;
 
   for (const object of objects) {
-    if (packs.length >= limit) break;
+    if (packs.length > limit) break;
     const stored = await env.ASSET_BUCKET.get(object.key);
     if (!stored) continue;
     const pack = JSON.parse(await stored.text());
@@ -300,10 +302,16 @@ export async function listPacks(env, url) {
     if (preset !== "all" && pack.preset !== preset) continue;
     if (status !== "all" && pack.status !== status) continue;
     seenPackIds.add(pack.packId);
+    if (matched < offset) {
+      matched += 1;
+      continue;
+    }
     packs.push(pack);
+    matched += 1;
   }
-  const layerJobsByPack = await latestIndexedLayerSeparationJobsByPack(env, packs.map((pack) => pack.packId));
-  const signedPacks = await Promise.all(packs.map((pack) => withSignedPackRecord(env, pack, {
+  const pagePacks = packs.slice(0, limit);
+  const layerJobsByPack = await latestIndexedLayerSeparationJobsByPack(env, pagePacks.map((pack) => pack.packId));
+  const signedPacks = await Promise.all(pagePacks.map((pack) => withSignedPackRecord(env, pack, {
     layerJobsByPack,
     skipLayerJobLookup: true,
   })));
@@ -312,11 +320,17 @@ export async function listPacks(env, url) {
     ok: true,
     configured: true,
     packs: signedPacks,
-    nextCursor: listed.truncated ? listed.cursor : null,
+    nextCursor: packs.length > limit || listed.truncated ? String(offset + pagePacks.length) : null,
+    page: {
+      limit,
+      offset,
+      returned: signedPacks.length,
+      hasMore: packs.length > limit || listed.truncated,
+    },
   };
 }
 
-export async function getPack(packId, env) {
+export async function getPack(packId, env, options = {}) {
   const pack = await readPackRecord(env, packId);
   if (!pack) {
     const error = new Error("Pack not found.");
@@ -324,14 +338,18 @@ export async function getPack(packId, env) {
     error.code = "not_found";
     throw error;
   }
-  const refreshed = await refreshPackRecord(env, packId).catch((error) => {
-    console.warn("R2 pack refresh failed", error);
-    return pack;
-  });
+  const refreshed = options.refresh === false
+    ? pack
+    : await refreshPackRecord(env, packId).catch((error) => {
+        console.warn("R2 pack refresh failed", error);
+        return pack;
+      });
   return {
     ok: true,
     configured: true,
-    pack: await withSignedPackRecord(env, refreshed || pack),
+    pack: await withSignedPackRecord(env, refreshed || pack, {
+      skipLayerJobLookup: options.skipLayerJobLookup === true,
+    }),
   };
 }
 
@@ -660,26 +678,40 @@ export async function listLibrary(env, url) {
 
   const kind = safeString(url.searchParams.get("kind"), "all");
   const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 48));
+  const offset = Math.max(0, Number(url.searchParams.get("cursor") || url.searchParams.get("offset")) || 0);
   const listed = await env.ASSET_BUCKET.list({ prefix: "library/items/", limit: 1000 });
   const objects = listed.objects
     .filter((object) => object.key.endsWith(".json"))
     .sort((a, b) => Number(b.uploaded || 0) - Number(a.uploaded || 0));
   const items = [];
+  let matched = 0;
 
   for (const object of objects) {
-    if (items.length >= limit) break;
+    if (items.length > limit) break;
     const stored = await env.ASSET_BUCKET.get(object.key);
     if (!stored) continue;
     const item = JSON.parse(await stored.text());
     if (kind !== "all" && item.kind !== kind) continue;
+    if (matched < offset) {
+      matched += 1;
+      continue;
+    }
     items.push(await withSignedLibraryItem(env, item));
+    matched += 1;
   }
+  const pageItems = items.slice(0, limit);
 
   return {
     ok: true,
     configured: true,
-    items,
-    nextCursor: listed.truncated ? listed.cursor : null,
+    items: pageItems,
+    nextCursor: items.length > limit || listed.truncated ? String(offset + pageItems.length) : null,
+    page: {
+      limit,
+      offset,
+      returned: pageItems.length,
+      hasMore: items.length > limit || listed.truncated,
+    },
   };
 }
 

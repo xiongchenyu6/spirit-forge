@@ -1,0 +1,1099 @@
+{
+  "packId": "db8c0fff-918e-4e76-baef-9064e9b47052",
+  "preset": "monster-actions",
+  "rows": 4,
+  "columns": 8,
+  "cell": {
+    "width": 512,
+    "height": 512
+  },
+  "frames": [
+    {
+      "id": "idle_0",
+      "label": "Idle 1",
+      "action": "idle",
+      "actionFrame": 0,
+      "index": 0,
+      "row": 0,
+      "column": 0,
+      "file": "monster-actions/idle-1.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 0,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 0,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_1",
+      "label": "Idle 2",
+      "action": "idle",
+      "actionFrame": 1,
+      "index": 1,
+      "row": 0,
+      "column": 1,
+      "file": "monster-actions/idle-2.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 512,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 512,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_2",
+      "label": "Idle 3",
+      "action": "idle",
+      "actionFrame": 2,
+      "index": 2,
+      "row": 0,
+      "column": 2,
+      "file": "monster-actions/idle-3.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1024,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 1024,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_3",
+      "label": "Idle 4",
+      "action": "idle",
+      "actionFrame": 3,
+      "index": 3,
+      "row": 0,
+      "column": 3,
+      "file": "monster-actions/idle-4.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1536,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 1536,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_4",
+      "label": "Idle 5",
+      "action": "idle",
+      "actionFrame": 4,
+      "index": 4,
+      "row": 0,
+      "column": 4,
+      "file": "monster-actions/idle-5.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2048,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 2048,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_5",
+      "label": "Idle 6",
+      "action": "idle",
+      "actionFrame": 5,
+      "index": 5,
+      "row": 0,
+      "column": 5,
+      "file": "monster-actions/idle-6.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2560,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 2560,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_6",
+      "label": "Idle 7",
+      "action": "idle",
+      "actionFrame": 6,
+      "index": 6,
+      "row": 0,
+      "column": 6,
+      "file": "monster-actions/idle-7.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3072,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 3072,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "idle_7",
+      "label": "Idle 8",
+      "action": "idle",
+      "actionFrame": 7,
+      "index": 7,
+      "row": 0,
+      "column": 7,
+      "file": "monster-actions/idle-8.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3584,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/idle.png",
+        "x": 3584,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_0",
+      "label": "Move 1",
+      "action": "move",
+      "actionFrame": 0,
+      "index": 8,
+      "row": 1,
+      "column": 0,
+      "file": "monster-actions/move-1.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 0,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 0,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_1",
+      "label": "Move 2",
+      "action": "move",
+      "actionFrame": 1,
+      "index": 9,
+      "row": 1,
+      "column": 1,
+      "file": "monster-actions/move-2.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 512,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 512,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_2",
+      "label": "Move 3",
+      "action": "move",
+      "actionFrame": 2,
+      "index": 10,
+      "row": 1,
+      "column": 2,
+      "file": "monster-actions/move-3.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1024,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 1024,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_3",
+      "label": "Move 4",
+      "action": "move",
+      "actionFrame": 3,
+      "index": 11,
+      "row": 1,
+      "column": 3,
+      "file": "monster-actions/move-4.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1536,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 1536,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_4",
+      "label": "Move 5",
+      "action": "move",
+      "actionFrame": 4,
+      "index": 12,
+      "row": 1,
+      "column": 4,
+      "file": "monster-actions/move-5.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2048,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 2048,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_5",
+      "label": "Move 6",
+      "action": "move",
+      "actionFrame": 5,
+      "index": 13,
+      "row": 1,
+      "column": 5,
+      "file": "monster-actions/move-6.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2560,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 2560,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_6",
+      "label": "Move 7",
+      "action": "move",
+      "actionFrame": 6,
+      "index": 14,
+      "row": 1,
+      "column": 6,
+      "file": "monster-actions/move-7.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3072,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 3072,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "move_7",
+      "label": "Move 8",
+      "action": "move",
+      "actionFrame": 7,
+      "index": 15,
+      "row": 1,
+      "column": 7,
+      "file": "monster-actions/move-8.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3584,
+        "y": 512,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/move.png",
+        "x": 3584,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_0",
+      "label": "Attack 1",
+      "action": "attack",
+      "actionFrame": 0,
+      "index": 16,
+      "row": 2,
+      "column": 0,
+      "file": "monster-actions/attack-1.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 0,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 0,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_1",
+      "label": "Attack 2",
+      "action": "attack",
+      "actionFrame": 1,
+      "index": 17,
+      "row": 2,
+      "column": 1,
+      "file": "monster-actions/attack-2.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 512,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 512,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_2",
+      "label": "Attack 3",
+      "action": "attack",
+      "actionFrame": 2,
+      "index": 18,
+      "row": 2,
+      "column": 2,
+      "file": "monster-actions/attack-3.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1024,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 1024,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_3",
+      "label": "Attack 4",
+      "action": "attack",
+      "actionFrame": 3,
+      "index": 19,
+      "row": 2,
+      "column": 3,
+      "file": "monster-actions/attack-4.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1536,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 1536,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_4",
+      "label": "Attack 5",
+      "action": "attack",
+      "actionFrame": 4,
+      "index": 20,
+      "row": 2,
+      "column": 4,
+      "file": "monster-actions/attack-5.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2048,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 2048,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_5",
+      "label": "Attack 6",
+      "action": "attack",
+      "actionFrame": 5,
+      "index": 21,
+      "row": 2,
+      "column": 5,
+      "file": "monster-actions/attack-6.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2560,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 2560,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_6",
+      "label": "Attack 7",
+      "action": "attack",
+      "actionFrame": 6,
+      "index": 22,
+      "row": 2,
+      "column": 6,
+      "file": "monster-actions/attack-7.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3072,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 3072,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "attack_7",
+      "label": "Attack 8",
+      "action": "attack",
+      "actionFrame": 7,
+      "index": 23,
+      "row": 2,
+      "column": 7,
+      "file": "monster-actions/attack-8.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3584,
+        "y": 1024,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/attack.png",
+        "x": 3584,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_0",
+      "label": "Death 1",
+      "action": "death",
+      "actionFrame": 0,
+      "index": 24,
+      "row": 3,
+      "column": 0,
+      "file": "monster-actions/death-1.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 0,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 0,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_1",
+      "label": "Death 2",
+      "action": "death",
+      "actionFrame": 1,
+      "index": 25,
+      "row": 3,
+      "column": 1,
+      "file": "monster-actions/death-2.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 512,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 512,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_2",
+      "label": "Death 3",
+      "action": "death",
+      "actionFrame": 2,
+      "index": 26,
+      "row": 3,
+      "column": 2,
+      "file": "monster-actions/death-3.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1024,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 1024,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_3",
+      "label": "Death 4",
+      "action": "death",
+      "actionFrame": 3,
+      "index": 27,
+      "row": 3,
+      "column": 3,
+      "file": "monster-actions/death-4.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 1536,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 1536,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_4",
+      "label": "Death 5",
+      "action": "death",
+      "actionFrame": 4,
+      "index": 28,
+      "row": 3,
+      "column": 4,
+      "file": "monster-actions/death-5.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2048,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 2048,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_5",
+      "label": "Death 6",
+      "action": "death",
+      "actionFrame": 5,
+      "index": 29,
+      "row": 3,
+      "column": 5,
+      "file": "monster-actions/death-6.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 2560,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 2560,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_6",
+      "label": "Death 7",
+      "action": "death",
+      "actionFrame": 6,
+      "index": 30,
+      "row": 3,
+      "column": 6,
+      "file": "monster-actions/death-7.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3072,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 3072,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    },
+    {
+      "id": "death_7",
+      "label": "Death 8",
+      "action": "death",
+      "actionFrame": 7,
+      "index": 31,
+      "row": 3,
+      "column": 7,
+      "file": "monster-actions/death-8.png",
+      "sheetRect": {
+        "sheet": "monster-actions/sheet.png",
+        "x": 3584,
+        "y": 1536,
+        "width": 512,
+        "height": 512
+      },
+      "actionSheetRect": {
+        "sheet": "monster-actions/sheets/death.png",
+        "x": 3584,
+        "y": 0,
+        "width": 512,
+        "height": 512
+      }
+    }
+  ],
+  "sheet": {
+    "path": "monster-actions/sheet.png",
+    "width": 4096,
+    "height": 2048,
+    "columns": 8,
+    "rows": 4,
+    "cellWidth": 512,
+    "cellHeight": 512
+  },
+  "actionSheets": [
+    {
+      "key": "idle",
+      "action": "idle",
+      "path": "monster-actions/sheets/idle.png",
+      "width": 4096,
+      "height": 512,
+      "columns": 8,
+      "rows": 1,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "frames": [
+        {
+          "id": "idle_0",
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "sourceRow": 0,
+          "sourceColumn": 0
+        },
+        {
+          "id": "idle_1",
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "sourceRow": 0,
+          "sourceColumn": 1
+        },
+        {
+          "id": "idle_2",
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "sourceRow": 0,
+          "sourceColumn": 2
+        },
+        {
+          "id": "idle_3",
+          "index": 3,
+          "row": 0,
+          "column": 3,
+          "sourceRow": 0,
+          "sourceColumn": 3
+        },
+        {
+          "id": "idle_4",
+          "index": 4,
+          "row": 0,
+          "column": 4,
+          "sourceRow": 0,
+          "sourceColumn": 4
+        },
+        {
+          "id": "idle_5",
+          "index": 5,
+          "row": 0,
+          "column": 5,
+          "sourceRow": 0,
+          "sourceColumn": 5
+        },
+        {
+          "id": "idle_6",
+          "index": 6,
+          "row": 0,
+          "column": 6,
+          "sourceRow": 0,
+          "sourceColumn": 6
+        },
+        {
+          "id": "idle_7",
+          "index": 7,
+          "row": 0,
+          "column": 7,
+          "sourceRow": 0,
+          "sourceColumn": 7
+        }
+      ]
+    },
+    {
+      "key": "move",
+      "action": "move",
+      "path": "monster-actions/sheets/move.png",
+      "width": 4096,
+      "height": 512,
+      "columns": 8,
+      "rows": 1,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "frames": [
+        {
+          "id": "move_0",
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "sourceRow": 1,
+          "sourceColumn": 0
+        },
+        {
+          "id": "move_1",
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "sourceRow": 1,
+          "sourceColumn": 1
+        },
+        {
+          "id": "move_2",
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "sourceRow": 1,
+          "sourceColumn": 2
+        },
+        {
+          "id": "move_3",
+          "index": 3,
+          "row": 0,
+          "column": 3,
+          "sourceRow": 1,
+          "sourceColumn": 3
+        },
+        {
+          "id": "move_4",
+          "index": 4,
+          "row": 0,
+          "column": 4,
+          "sourceRow": 1,
+          "sourceColumn": 4
+        },
+        {
+          "id": "move_5",
+          "index": 5,
+          "row": 0,
+          "column": 5,
+          "sourceRow": 1,
+          "sourceColumn": 5
+        },
+        {
+          "id": "move_6",
+          "index": 6,
+          "row": 0,
+          "column": 6,
+          "sourceRow": 1,
+          "sourceColumn": 6
+        },
+        {
+          "id": "move_7",
+          "index": 7,
+          "row": 0,
+          "column": 7,
+          "sourceRow": 1,
+          "sourceColumn": 7
+        }
+      ]
+    },
+    {
+      "key": "attack",
+      "action": "attack",
+      "path": "monster-actions/sheets/attack.png",
+      "width": 4096,
+      "height": 512,
+      "columns": 8,
+      "rows": 1,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "frames": [
+        {
+          "id": "attack_0",
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "sourceRow": 2,
+          "sourceColumn": 0
+        },
+        {
+          "id": "attack_1",
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "sourceRow": 2,
+          "sourceColumn": 1
+        },
+        {
+          "id": "attack_2",
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "sourceRow": 2,
+          "sourceColumn": 2
+        },
+        {
+          "id": "attack_3",
+          "index": 3,
+          "row": 0,
+          "column": 3,
+          "sourceRow": 2,
+          "sourceColumn": 3
+        },
+        {
+          "id": "attack_4",
+          "index": 4,
+          "row": 0,
+          "column": 4,
+          "sourceRow": 2,
+          "sourceColumn": 4
+        },
+        {
+          "id": "attack_5",
+          "index": 5,
+          "row": 0,
+          "column": 5,
+          "sourceRow": 2,
+          "sourceColumn": 5
+        },
+        {
+          "id": "attack_6",
+          "index": 6,
+          "row": 0,
+          "column": 6,
+          "sourceRow": 2,
+          "sourceColumn": 6
+        },
+        {
+          "id": "attack_7",
+          "index": 7,
+          "row": 0,
+          "column": 7,
+          "sourceRow": 2,
+          "sourceColumn": 7
+        }
+      ]
+    },
+    {
+      "key": "death",
+      "action": "death",
+      "path": "monster-actions/sheets/death.png",
+      "width": 4096,
+      "height": 512,
+      "columns": 8,
+      "rows": 1,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "frames": [
+        {
+          "id": "death_0",
+          "index": 0,
+          "row": 0,
+          "column": 0,
+          "sourceRow": 3,
+          "sourceColumn": 0
+        },
+        {
+          "id": "death_1",
+          "index": 1,
+          "row": 0,
+          "column": 1,
+          "sourceRow": 3,
+          "sourceColumn": 1
+        },
+        {
+          "id": "death_2",
+          "index": 2,
+          "row": 0,
+          "column": 2,
+          "sourceRow": 3,
+          "sourceColumn": 2
+        },
+        {
+          "id": "death_3",
+          "index": 3,
+          "row": 0,
+          "column": 3,
+          "sourceRow": 3,
+          "sourceColumn": 3
+        },
+        {
+          "id": "death_4",
+          "index": 4,
+          "row": 0,
+          "column": 4,
+          "sourceRow": 3,
+          "sourceColumn": 4
+        },
+        {
+          "id": "death_5",
+          "index": 5,
+          "row": 0,
+          "column": 5,
+          "sourceRow": 3,
+          "sourceColumn": 5
+        },
+        {
+          "id": "death_6",
+          "index": 6,
+          "row": 0,
+          "column": 6,
+          "sourceRow": 3,
+          "sourceColumn": 6
+        },
+        {
+          "id": "death_7",
+          "index": 7,
+          "row": 0,
+          "column": 7,
+          "sourceRow": 3,
+          "sourceColumn": 7
+        }
+      ]
+    }
+  ]
+}

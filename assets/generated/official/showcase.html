@@ -24,6 +24,8 @@
     background:linear-gradient(135deg,#e8c97a,#d4af6a); border:1px solid rgba(255,255,255,.25);
     box-shadow:0 2px 8px rgba(0,0,0,.4); }
   .anim-badge::before { content:"▶ "; font-size:9px; }
+  .anim-badge.rig { background:linear-gradient(135deg,#8fe0cf,#4aceB2); }
+  .anim-badge.rig::before { content:"⛓ "; }
   .view-hint { position:absolute; right:10px; bottom:10px; z-index:1; font-size:11px; color:var(--paper); background:rgba(7,9,11,.66); border:1px solid rgba(255,255,255,.1); border-radius:99px; padding:3px 10px; opacity:0; transition:opacity .15s; }
   .card:hover .view-hint { opacity:1; }
   .meta { padding:12px 14px 14px; }
@@ -95,6 +97,10 @@
         prompt:"西幻巨狼魔兽，幽蓝鬃毛，獠牙利爪，全身战斗姿态，含待机/移动/攻击/倒地四帧动作，俯视角 RPG，透明背景",
         anim:"showcase-monster-anim.gif",
         frames:[ ["monster-idle","Idle 待机"],["monster-move","Move 移动"],["monster-attack","Attack 攻击"],["monster-death","Death 倒地"] ] },
+      { file:"rig-monster-walk", type:"怪物 · Spine 骨骼绑定", brief:"SAM3 分层 → Spine 绑骨 → 关节驱动:待机/行走/攻击",
+        prompt:"以单帧怪物为种子,SAM3 按语义分出头/躯干/胯/四肢图层,自动绑定骨骼并推断关节枢轴,再用关节旋转驱动 idle/walk/attack 循环——真正的 2D 骨骼动画,而非逐帧换图。可导出 Spine skeleton.json + atlas 进引擎。",
+        cover:"rig-monster-walk.gif",
+        clips:[ ["rig-monster-idle","Idle 待机"],["rig-monster-walk","Walk 行走"],["rig-monster-attack","Attack 攻击"] ] },
       { file:"showcase-creature-drone", type:"怪物 · 科幻", brief:"悬浮侦察无人机，钢蓝装甲",
         prompt:"悬浮侦察无人机，钢蓝装甲，发光传感器阵列，科幻机械，俯视角游戏素材，透明背景" },
       { file:"showcase-weapon-jade-sword", type:"武器 · 仙侠", brief:"玉骨长剑，半透碧玉剑身，鎏金护手",
@@ -118,8 +124,9 @@
       [`${ITEMS.length} 件真实输出`, ...genres].map(t => `<span class="chip">${t}</span>`).join("");
 
     document.getElementById("grid").innerHTML = ITEMS.map((it, idx) => {
-      const cover = it.anim ? it.anim : `${it.file}.png`;
-      const badge = it.frames ? `<span class="anim-badge">${it.frames.length} 帧动画</span>` : "";
+      const cover = it.cover || (it.anim ? it.anim : `${it.file}.png`);
+      const badge = it.clips ? `<span class="anim-badge rig">Spine 骨骼</span>`
+        : it.frames ? `<span class="anim-badge">${it.frames.length} 帧动画</span>` : "";
       return `<div class="card" data-idx="${idx}">
         <div class="thumb">${badge}<span class="view-hint">点开看提示词与每一帧</span><img src="${cover}" alt="${it.type}" loading="lazy" /></div>
         <div class="meta"><div class="type">${it.type}</div><p class="brief">${it.brief}</p></div>
@@ -135,6 +142,7 @@
 
     function openModal(idx){
       const it = ITEMS[idx];
+      if (it.clips) { openClipsModal(it); return; }
       const frames = it.frames || [[it.file, it.type.split(" · ")[0]]];
       const multi = frames.length > 1;
       modal.innerHTML = `
@@ -187,6 +195,40 @@
         frameBtns.forEach((b,i)=> b.onclick = () => { pause(); show(i); });
         play();
       }
+    }
+
+    // Spine 骨骼动画弹窗:每个 clip 本身就是循环 GIF(自动播放),大图=当前 clip,
+    // 缩略图切换 clip;无需 flipbook 定时器。
+    function openClipsModal(it){
+      const clips = it.clips;
+      modal.innerHTML = `
+        <div class="modal-head">
+          <div><div class="modal-genre">${it.type}</div><div class="modal-title">${it.brief}</div></div>
+          <button class="modal-close" aria-label="关闭">×</button>
+        </div>
+        <div class="modal-body">
+          <div>
+            <div class="stage"><img id="clipImg" src="${clips[1] ? clips[1][0] : clips[0][0]}.gif" alt="rig" />
+              <span class="stage-tag">▶ <span id="clipLabel">${(clips[1]||clips[0])[1]}</span></span></div>
+            <div class="frames" id="clipRow">${clips.map((c,i)=>`<button class="frame${i===1?' sel':''}" data-ci="${i}"><img src="${c[0]}.gif" alt="${c[1]}"/><span>${c[1].split(" ")[0]}</span></button>`).join("")}</div>
+          </div>
+          <div class="side">
+            <h3>提示词 / 流程</h3>
+            <div class="prompt">${it.prompt}</div>
+            <div class="actions">
+              <button class="btn gold" id="copyBtn">复制说明</button>
+              <a class="btn" href="/generator/">去生成台造物 →</a>
+            </div>
+            <p class="note">每个动作都是 Spine 骨骼关节驱动的循环动画(非逐帧换图)。可在素材库对任意动作包做 SAM3 分层 + 绑骨,导出 skeleton.json 进引擎二次编辑。</p>
+          </div>
+        </div>`;
+      overlay.classList.add("open");
+      document.body.style.overflow = "hidden";
+      modal.querySelector(".modal-close").onclick = closeModal;
+      modal.querySelector("#copyBtn").onclick = (e) => { navigator.clipboard?.writeText(it.prompt).then(()=>{ e.target.textContent="已复制 ✓"; setTimeout(()=>{e.target.textContent="复制说明";},1600); }); };
+      const clipImg = modal.querySelector("#clipImg"), clipLabel = modal.querySelector("#clipLabel");
+      const btns = [...modal.querySelectorAll("#clipRow .frame")];
+      btns.forEach((b,i)=> b.onclick = () => { clipImg.src = `${clips[i][0]}.gif`; clipLabel.textContent = clips[i][1]; btns.forEach((x,xi)=>x.classList.toggle("sel",xi===i)); });
     }
 
     function closeModal(){ clearTimer(); overlay.classList.remove("open"); document.body.style.overflow = ""; }

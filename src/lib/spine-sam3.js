@@ -1,6 +1,7 @@
 // spine-sam3 —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
 import { alphaBounds, alphaBoundsInRect, averageNumbers, composePackTransparentFrames, jsonResponse, latestPackLayerSeparationJob, packAnimations, packFrameRect, packGridMetrics, packZipFrames, pngBytesFromDataUrl, positiveNumber, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, safeString, shouldPackUseTransparentFrames, sourceImageForLayerJob, withSignedPackRecord } from "../app.js";
 import { bytesToBase64, decodePngRgba, encodePngRgba } from "./binary.js";
+import { RIG_CLIPS, renderPackRigAnimation } from "./rig-render.js";
 
 function safeLibrarySegment(value) {
   const text = typeof value === "string" ? value.trim() : String(value ?? "").trim();
@@ -155,12 +156,97 @@ function packSpineSam3PartCacheKey(packId, jobId, variant, partName) {
   return `library/packs/${safeLibrarySegment(packId)}/spine-sam3/parts-v1-${safeLibrarySegment(jobId)}/${safeLibrarySegment(variant)}/${safeLibrarySegment(partName)}.png`;
 }
 
+const SPINE_RIG_ANIM_CLIPS = new Set(RIG_CLIPS);
+
+function rigAnimationLinks(packId) {
+  return RIG_CLIPS.map((clip) => ({ clip, url: `/api/packs/${packId}/spine-sam3/animation/${clip}.gif` }));
+}
+
+function packSpineSam3AnimCacheKey(packId, jobId, clip) {
+  return `library/packs/${safeLibrarySegment(packId)}/spine-sam3/anim-v1-${safeLibrarySegment(jobId)}/${safeLibrarySegment(clip)}.gif`;
+}
+
+function spineSam3AnimResponse(body, clip, cacheHit) {
+  return new Response(body, {
+    headers: {
+      "content-type": "image/gif",
+      "cache-control": "private, max-age=300",
+      "access-control-allow-origin": "*",
+      "x-lingji-spine-sam3-clip": clip,
+      "x-lingji-spine-sam3-cache": cacheHit ? "hit" : "miss",
+    },
+  });
+}
+
+// 载入绑骨渲染所需的源帧 + 全幅 masks(镜像 buildPackSpineSam3PreviewTemplate 的帧加载,
+// 但跳过昂贵的抠图/清理,仅取渲染输入)。
+async function loadPackRigInputs(env, packId) {
+  const job = await latestPackLayerSeparationJob(env, packId).catch(() => null);
+  if (!job?.result?.files?.length) return null;
+  const pack = await readPackRecord(env, packId);
+  if (!pack) return null;
+  const signed = await withSignedPackRecord(env, (await refreshPackRecord(env, packId).catch(() => pack)) || pack);
+  if (signed.packKind !== "sprite-actions") return null;
+  const completedFrameFiles = await readPackCompletedFrameFiles(env, signed);
+  if (!completedFrameFiles.length) return null;
+  // 不做 transparent 合成(逐帧抠图很重、易超 Worker CPU):mask 自带 alpha,
+  // mask×原帧 已能排除背景,渲染输入用原帧即可。
+  const sourceFile = await sourceImageForLayerJob(env, job, completedFrameFiles);
+  if (!sourceFile) return null;
+  const image = sourceFile.image || await decodePngRgba(sourceFile.bytes);
+  const masks = await readLayerSeparationMasks(env, job);
+  return { job, image, masks };
+}
+
+// GET /api/packs/:id/spine-sam3/animation/:clip.gif — 真·骨骼驱动循环动画。
+// 快路径:R2 缓存命中直接返回。慢路径:重建全幅部件→层级旋转渲染→GIF→写缓存。
+export async function servePackSpineSam3Animation(packId, clip, env) {
+  if (!env.ASSET_BUCKET) return jsonResponse({ error: "storage_not_configured" }, 503);
+  const safeClip = safeLibrarySegment(clip);
+  if (!SPINE_RIG_ANIM_CLIPS.has(safeClip)) {
+    return jsonResponse({ error: "clip_not_found", message: `Unknown rig clip. Available: ${RIG_CLIPS.join(", ")}.` }, 404);
+  }
+  const job = await latestPackLayerSeparationJob(env, packId).catch(() => null);
+  const jobId = job?.promptId || null;
+  if (jobId) {
+    const cached = await env.ASSET_BUCKET.get(packSpineSam3AnimCacheKey(packId, jobId, safeClip)).catch(() => null);
+    if (cached) return spineSam3AnimResponse(cached.body, safeClip, true);
+  }
+  // 缓存未命中:内联渲染会解码 8 张 512² PNG + 逐帧合成,纯 JS 远超 Free plan 的
+  // Worker CPU 上限(实测 error 1102)。因此默认走"离线烘焙→R2 缓存"模式:未烘焙则
+  // 返回 not_baked,前端回退到静态分层。仅当 RIG_INLINE_RENDER=1(付费 plan)才内联渲染。
+  if (safeString(env.RIG_INLINE_RENDER) !== "1") {
+    return jsonResponse({ error: "animation_not_baked", message: "Rig animation has not been baked for this pack yet.", clip: safeClip }, 404);
+  }
+  const inputs = await loadPackRigInputs(env, packId);
+  if (!inputs) {
+    return jsonResponse({ error: "sam3_layers_not_ready", message: "This pack does not have SAM3 Spine layers yet." }, 404);
+  }
+  const result = renderPackRigAnimation({ image: inputs.image, masks: inputs.masks, clip: safeClip, size: 200, bilinear: false, maxFrames: 10 });
+  if (!result?.gif) {
+    return jsonResponse({ error: "rig_unavailable", message: "SAM3 parts are insufficient to drive a rig animation." }, 422);
+  }
+  const writeJobId = jobId || inputs.job?.promptId;
+  if (writeJobId) {
+    await env.ASSET_BUCKET.put(packSpineSam3AnimCacheKey(packId, writeJobId, safeClip), result.gif, {
+      httpMetadata: { contentType: "image/gif" },
+      customMetadata: { packId, jobId: writeJobId, kind: "spine-sam3-anim", clip: safeClip },
+    }).catch((error) => console.warn("Spine SAM3 anim cache write failed", error));
+  }
+  return spineSam3AnimResponse(result.gif, safeClip, false);
+}
+
 export async function getPackSpineSam3Preview(packId, env) {
   if (!env.ASSET_BUCKET) {
     return { ok: true, configured: false, parts: [] };
   }
   const cached = await readPackSpineSam3PreviewCache(packId, env);
-  if (cached) return cached;
+  if (cached) {
+    // 动画链接是确定性的(packId+clip),为旧版缓存(无 animations 字段)补挂,
+    // 避免 bump 预览缓存版本触发昂贵的 SAM3 抠图重建。
+    if (!cached.animations) cached.animations = rigAnimationLinks(packId);
+    return cached;
+  }
   const template = await buildPackSpineSam3PreviewTemplate(packId, env);
   if (!template) {
     const error = new Error("This pack does not have SAM3 Spine layers yet.");
@@ -195,6 +281,8 @@ export async function getPackSpineSam3Preview(packId, env) {
       warnings: spineSam3PreviewWarnings(template.quality.warnings),
     },
     parts,
+    // 真·骨骼驱动循环动画(离线烘焙 + R2 缓存)。
+    animations: rigAnimationLinks(packId),
   };
   await writePackSpineSam3PreviewCache(packId, preview, env).catch((error) => {
     console.warn("Spine SAM3 preview cache write failed", error);

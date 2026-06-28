@@ -1,12 +1,12 @@
-import { alphaBounds, alphaBoundsInRect, characterOpenPoseDataUrl, composePackSheetPng, composePackTransparentFrames, dataUrlToBlob, pngBytesFromDataUrl } from "./lib/image.js";
-export { alphaBounds, alphaBoundsInRect, characterOpenPoseDataUrl, composePackSheetPng, composePackTransparentFrames, dataUrlToBlob, pngBytesFromDataUrl };
+import { alphaBounds, alphaBoundsInRect, characterOpenPoseDataUrl, composePackSheetBundlePng, composePackSheetPng, composePackTransparentFrames, dataUrlToBlob, pngBytesFromDataUrl } from "./lib/image.js";
+export { alphaBounds, alphaBoundsInRect, characterOpenPoseDataUrl, composePackSheetBundlePng, composePackSheetPng, composePackTransparentFrames, dataUrlToBlob, pngBytesFromDataUrl };
 import { downloadPackZip, frameStatusCounts, packAnimations, packFrameAlphaZipName, packFrameRect, packFrameZipName, packGridMetrics, packItemBrief, packStatusFromCounts, packZipFrames, shouldPackUseTransparentFrames } from "./lib/pack-export.js";
 export { downloadPackZip, frameStatusCounts, packAnimations, packFrameAlphaZipName, packFrameRect, packFrameZipName, packGridMetrics, packItemBrief, packStatusFromCounts, packZipFrames, shouldPackUseTransparentFrames };
 import { buildComfyViewUrl, comfyFetchJson, ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, firstImageOutput, firstModelOutput, firstVideoOutput, getQueueStatus, imageBlobDimensions, layerIdFromFilename, layerSeparationOutput, listComfyModels, proxyComfyView, selectHunyuanModel, selectLayerSeparation, selectPoseControl, selectVideoToSprite, submitComfyWorkflow, uploadImageToComfy } from "./lib/comfy-client.js";
 export { buildComfyViewUrl, comfyFetchJson, ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, firstImageOutput, firstModelOutput, firstVideoOutput, getQueueStatus, imageBlobDimensions, layerIdFromFilename, layerSeparationOutput, listComfyModels, proxyComfyView, selectHunyuanModel, selectLayerSeparation, selectPoseControl, selectVideoToSprite, submitComfyWorkflow, uploadImageToComfy };
 import { archiveResult, archiveResultSet, getPack, invalidLibraryFileKey, latestPackLayerSeparationJob, libraryViewSecret, listJobs, listLibrary, listPacks, patchJobRecordQuietly, putPackRecord, readJobRecord, readLayerRequestIndex, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, readPackRequestIndex, refreshPackRecord, rememberJobRecord, rememberLayerRequestIndex, rememberPackFrameJobRecord, rememberPackRecord, rememberPackRequestIndex, safeLibrarySegment, signLibraryViewKey, signedLayerResultFiles, sourceImageForLayerJob, withSignedPackRecord } from "./lib/storage.js";
 export { archiveResult, archiveResultSet, getPack, invalidLibraryFileKey, latestPackLayerSeparationJob, libraryViewSecret, listJobs, listLibrary, listPacks, patchJobRecordQuietly, putPackRecord, readJobRecord, readLayerRequestIndex, readLayerSeparationMasks, readPackCompletedFrameFiles, readPackRecord, readPackRequestIndex, refreshPackRecord, rememberJobRecord, rememberLayerRequestIndex, rememberPackFrameJobRecord, rememberPackRecord, rememberPackRequestIndex, safeLibrarySegment, signLibraryViewKey, signedLayerResultFiles, sourceImageForLayerJob, withSignedPackRecord };
-import { SPINE_LAYER_PROMPTS, buildSpineRigTemplate, buildSpineSam3LayersTemplate, getPackSpineSam3Preview, normalizeSpineLayerPrompts, packSpineAtlas, packSpineReadme, packSpineSam3LayerSummary, packSpineSkeletonJson, servePackSpineSam3Part, shouldIncludeSpineExport, spineLayerLabel } from "./lib/spine-sam3.js";
+import { SPINE_LAYER_PROMPTS, buildSpineRigTemplate, buildSpineSam3LayersTemplate, getPackSpineSam3Preview, normalizeSpineLayerPrompts, packSpineAtlas, packSpineReadme, packSpineSam3LayerSummary, packSpineSkeletonJson, servePackSpineSam3Animation, servePackSpineSam3Part, shouldIncludeSpineExport, spineLayerLabel } from "./lib/spine-sam3.js";
 import { OFFICIAL_SAMPLE_MANIFEST_CACHE_SECONDS, downloadOfficialSampleZip, getOfficialSamplesDemo } from "./lib/official-samples.js";
 import { getVideoSpriteDemo } from "./lib/video-sprite-demo.js";
 import { handleAssets } from "./lib/static-assets.js";
@@ -479,6 +479,15 @@ async function handleApi(request, env, url, ctx = null) {
   const packSam3PreviewMatch = url.pathname.match(/^\/api\/packs\/([^/]+)\/spine-sam3\/preview\.json$/);
   if (packSam3PreviewMatch && request.method === "GET") {
     return jsonResponse(await getPackSpineSam3Preview(decodeURIComponent(packSam3PreviewMatch[1]), env));
+  }
+
+  const packSam3AnimMatch = url.pathname.match(/^\/api\/packs\/([^/]+)\/spine-sam3\/animation\/([a-z]+)\.gif$/);
+  if (packSam3AnimMatch && request.method === "GET") {
+    return await servePackSpineSam3Animation(
+      decodeURIComponent(packSam3AnimMatch[1]),
+      packSam3AnimMatch[2],
+      env,
+    );
   }
 
   const packSam3PartMatch = url.pathname.match(/^\/api\/packs\/([^/]+)\/spine-sam3\/(parts|cleaned-parts)\/([^/]+)\.png$/);

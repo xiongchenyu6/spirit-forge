@@ -20,6 +20,8 @@ const WALK_8DIR_DIRECTIONS = [
 ];
 const WALK_4DIR_FRAME_COUNT = 4;
 const WALK_4DIR_PHASE_LABELS = ["contact", "passing", "contact", "passing"];
+const ACTION_CLIP_FRAME_COUNT = 4;
+const MONSTER_ACTION_CLIP_FRAME_COUNT = 8;
 
 // 构建方向行走 items：行=朝向、列=帧（direction-major）；poseTag 区分 walk4 / walk8。
 function buildDirectionalWalkItems(directions, poseTag) {
@@ -48,6 +50,34 @@ function buildWalk4DirItems() {
 
 function buildWalk8DirItems() {
   return buildDirectionalWalkItems(WALK_8DIR_DIRECTIONS, "walk8");
+}
+
+function buildActionClipItems(actions, frameCount = ACTION_CLIP_FRAME_COUNT) {
+  const items = [];
+  for (const action of actions) {
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const phase = action.phases?.[frame] || `animation key pose ${frame + 1}`;
+      items.push({
+        id: `${action.id}_${frame}`,
+        label: `${action.label} ${frame + 1}`,
+        action: action.id,
+        clip: action.id,
+        actionFrame: frame,
+        frame,
+        loop: action.loop !== false,
+        fps: action.fps || 8,
+        pose: action.pose ? `action:${action.id}:${frame}` : null,
+        prompt: [
+          action.prompt,
+          phase,
+          `frame ${frame + 1} of a ${frameCount}-frame ${action.label.toLowerCase()} animation clip`,
+          "same silhouette size and camera as the other frames in this clip",
+        ].filter(Boolean).join(", "),
+        referenceDenoise: action.referenceDenoise,
+      });
+    }
+  }
+  return items;
 }
 
 export const PACK_PRESETS = {
@@ -81,35 +111,71 @@ export const PACK_PRESETS = {
     style: "pixel",
     camera: "front",
     cell: [512, 512],
-    columns: 4,
-    rows: 1,
-    shared: "same character identity, same costume and colors, one full-body sprite frame only, centered, plain solid background, no frame border",
-    items: [
+    columns: ACTION_CLIP_FRAME_COUNT,
+    rows: 4,
+    shared: "same character identity, same costume and colors, one full-body sprite frame only, centered, plain solid background, no frame border, action-major sprite sheet layout where each row is one animation clip and each column is a frame",
+    items: buildActionClipItems([
       {
         id: "idle",
         label: "Idle",
-        prompt: "idle standing pose, relaxed ready stance",
+        loop: true,
+        pose: true,
+        fps: 8,
+        prompt: "idle standing animation, relaxed ready stance, subtle breathing motion",
+        phases: [
+          "breathing low pose, shoulders relaxed",
+          "slight chest rise and cloak lift",
+          "settling pose, weight centered",
+          "return pose that loops cleanly to frame 1",
+        ],
         referenceDenoise: { stable: 0.38, balanced: 0.46, expressive: 0.54 },
       },
       {
         id: "walk",
         label: "Walk",
-        prompt: "walk cycle key pose, one foot forward, arms offset, visible stepping motion, not idle",
+        loop: true,
+        pose: true,
+        fps: 8,
+        prompt: "walk cycle animation, readable stepping motion, arms swinging in opposition, not idle",
+        phases: [
+          "left foot contact pose, right arm forward",
+          "passing pose with lifted trailing foot",
+          "right foot contact pose, left arm forward",
+          "passing pose that loops cleanly to frame 1",
+        ],
         referenceDenoise: { stable: 0.58, balanced: 0.7, expressive: 0.82 },
       },
       {
         id: "attack",
         label: "Attack",
-        prompt: "wide sword slash action pose, weapon extended, diagonal attack motion, dramatic torso turn, not idle",
+        loop: false,
+        pose: true,
+        fps: 10,
+        prompt: "attack animation, wide sword slash, weapon arc readable, dramatic torso turn, not idle",
+        phases: [
+          "anticipation wind-up, weapon pulled back",
+          "slash startup, torso twisting into the strike",
+          "impact frame, weapon fully extended with the clearest silhouette",
+          "recovery pose after the strike, returning toward ready stance",
+        ],
         referenceDenoise: { stable: 0.66, balanced: 0.78, expressive: 0.88 },
       },
       {
         id: "hurt",
         label: "Hurt",
-        prompt: "hurt reaction key pose, body recoiling backward, off-balance stance, defensive expression, not idle",
+        loop: false,
+        pose: true,
+        fps: 10,
+        prompt: "hurt reaction animation, body recoiling backward, off-balance stance, defensive expression, not idle",
+        phases: [
+          "first impact recoil, shoulders knocked back",
+          "deep stagger frame, body most off-balance",
+          "guarded recovery, knees bent and arms defensive",
+          "returning toward ready stance",
+        ],
         referenceDenoise: { stable: 0.62, balanced: 0.74, expressive: 0.84 },
       },
-    ],
+    ]),
   },
   "monster-actions": {
     kind: "sprite-actions",
@@ -117,35 +183,83 @@ export const PACK_PRESETS = {
     style: "pixel",
     camera: "front",
     cell: [512, 512],
-    columns: 4,
-    rows: 1,
-    shared: "same creature identity, same colors and body shape, one centered monster sprite frame only, plain solid background, no frame border",
-    items: [
+    columns: MONSTER_ACTION_CLIP_FRAME_COUNT,
+    rows: 4,
+    shared: "same creature identity, same colors and body shape, one centered monster sprite frame only, plain solid background, no frame border, action-major sprite sheet layout where each row is one animation clip and each column is one of eight frames",
+    items: buildActionClipItems([
       {
         id: "idle",
         label: "Idle",
-        prompt: "idle monster pose, neutral expression",
+        loop: true,
+        fps: 8,
+        prompt: "idle monster animation, neutral expression, subtle breathing or pulsing motion",
+        phases: [
+          "low breathing pose",
+          "breathing rise begins, chest and head lift slightly",
+          "slight body rise and mouth twitch",
+          "highest breathing pose, tiny tail or spine motion",
+          "settling pose",
+          "body lowers, limbs relax",
+          "near return pose with small mouth or eye change",
+          "return pose that loops cleanly to frame 1",
+        ],
         referenceDenoise: { stable: 0.38, balanced: 0.46, expressive: 0.54 },
       },
       {
         id: "move",
         label: "Move",
-        prompt: "movement key pose, body squashed forward or stepping forward, clear motion, not idle",
+        loop: true,
+        fps: 8,
+        prompt: "monster movement cycle animation, body squashing forward or stepping, clear locomotion, not idle",
+        phases: [
+          "first contact or squash pose",
+          "push-off begins, body leaning forward",
+          "forward passing pose",
+          "stretched stride pose, tail trailing",
+          "second contact or stretch pose",
+          "recovery step, weight crossing center",
+          "second passing pose with opposite limb emphasis",
+          "passing pose that loops cleanly to frame 1",
+        ],
         referenceDenoise: { stable: 0.58, balanced: 0.7, expressive: 0.82 },
       },
       {
         id: "attack",
         label: "Attack",
-        prompt: "attack key pose, open mouth or striking appendage, aggressive forward motion, not idle",
+        loop: false,
+        fps: 10,
+        prompt: "monster attack animation, open mouth or striking appendage, aggressive forward motion, not idle",
+        phases: [
+          "anticipation wind-up, body crouched",
+          "deeper wind-up with claws or mouth pulled back",
+          "attack startup, claws or mouth moving forward",
+          "fast lunge, body stretched forward",
+          "impact frame, largest aggressive silhouette",
+          "follow-through frame after impact",
+          "recoil from attack, body pulling back",
+          "recovery pose after the strike",
+        ],
         referenceDenoise: { stable: 0.66, balanced: 0.78, expressive: 0.88 },
       },
       {
         id: "death",
         label: "Death",
-        prompt: "defeated collapse key pose, flattened or fallen body, readable silhouette, not idle",
+        loop: false,
+        fps: 10,
+        prompt: "monster death animation, defeated collapse, flattened or fallen body, readable silhouette, not idle",
+        phases: [
+          "hit reaction, body starting to collapse",
+          "staggering backward, limbs losing balance",
+          "falling frame, limbs or tail losing support",
+          "half-collapsed frame, body rotated toward ground",
+          "impact on ground, body flattened",
+          "post-impact squash, tail and limbs settling",
+          "nearly still defeated pose",
+          "final defeated pose, no active motion",
+        ],
         referenceDenoise: { stable: 0.62, balanced: 0.74, expressive: 0.84 },
       },
-    ],
+    ], MONSTER_ACTION_CLIP_FRAME_COUNT),
   },
   "skill-vfx": {
     kind: "sprite-actions",

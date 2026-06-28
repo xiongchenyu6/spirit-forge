@@ -1,10 +1,10 @@
 // pack-export —— 从 worker.js 拆出的模块（纯机械抽取，逻辑不变）。
-import { PACK_ALPHA_CONFIG, composePackSheetPng, composePackTransparentFrames, jsonResponse, positiveNumber, safeString } from "../app.js";
+import { PACK_ALPHA_CONFIG, composePackSheetBundlePng, composePackTransparentFrames, jsonResponse, positiveNumber, safeString } from "../app.js";
 import { createZipBlob } from "./binary.js";
 import { readPackCompletedFrameFiles, readPackRecord, refreshPackRecord, withSignedPackRecord } from "./storage.js";
 import { buildSpineRigTemplate, buildSpineSam3LayersTemplate, packSpineAtlas, packSpineReadme, packSpineSkeletonJson, shouldIncludeSpineExport } from "./spine-sam3.js";
 
-const PACK_ZIP_CACHE_VERSION = "pack-zip-v8-sam3-final-cleanup-pass";
+const PACK_ZIP_CACHE_VERSION = "pack-zip-v11-action-sheets";
 const PACK_ZIP_CACHE_FALLBACK_VERSIONS = [
   "pack-zip-v7-sam3-semantic-diagnostics",
   "pack-zip-v6-sam3-monster-sideview-profile",
@@ -52,7 +52,8 @@ export async function downloadPackZip(packId, env) {
     return packZipResponse(fallbackZip.body, filename, "version-fallback");
   }
 
-  const shouldUseTransparentFrames = shouldPackUseTransparentFrames(signed);
+  const liteExport = shouldUseLitePackZip(signed, completedFrameFiles);
+  const shouldUseTransparentFrames = !liteExport && shouldPackUseTransparentFrames(signed);
   const transparentFrameFiles = shouldUseTransparentFrames
     ? await composePackTransparentFrames(completedFrameFiles).catch((error) => {
         console.warn("Pack transparent frames compose failed", error);
@@ -61,10 +62,17 @@ export async function downloadPackZip(packId, env) {
     : [];
   const hasTransparentFrameSet = shouldUseTransparentFrames && transparentFrameFiles.length === completedFrameFiles.length;
   const sheetSourceFiles = hasTransparentFrameSet ? transparentFrameFiles : completedFrameFiles;
-  const sheet = await composePackSheetPng(signed, sheetSourceFiles).catch((error) => {
-    console.warn("Pack sheet compose failed", error);
-    return null;
-  });
+  const sheetBundle = liteExport
+    ? null
+    : await composePackSheetBundlePng(signed, sheetSourceFiles, {
+        includeSheet: true,
+        includeClipSheets: signed.packKind === "sprite-actions",
+      }).catch((error) => {
+        console.warn("Pack sheet compose failed", error);
+        return null;
+      });
+  const sheet = sheetBundle?.sheet || null;
+  const actionSheets = sheetBundle?.clipSheets || [];
   const zipPack = {
     ...signed,
     zipSheet: sheet
@@ -79,17 +87,26 @@ export async function downloadPackZip(packId, env) {
           alpha: hasTransparentFrameSet ? PACK_ALPHA_CONFIG : null,
         }
       : null,
+    zipActionSheets: actionSheets.map((actionSheet) => packZipSheetMetadata(actionSheet)),
     zipTransparentFrames: hasTransparentFrameSet
       ? Object.fromEntries(transparentFrameFiles.map((file) => [file.frame.id, file.path]))
       : {},
+    zipLiteExport: liteExport
+      ? {
+          mode: "worker-lite",
+          reason: "sprite action packs above 8 frames skip synchronous alpha/sheet/Spine composition in the Worker to avoid Cloudflare CPU limits",
+          frames: completedFrameFiles.length,
+          skipped: ["transparent-frames", "sheet.png", "per-action-sheets", "spine-rig-template", "sam3-layer-zip-export"],
+        }
+      : null,
   };
-  const spineRigTemplate = shouldIncludeSpineExport(zipPack)
+  const spineRigTemplate = shouldIncludeZipSpineExport(zipPack)
     ? await buildSpineRigTemplate(zipPack, sheetSourceFiles).catch((error) => {
         console.warn("Spine rig-template export failed", error);
         return null;
       })
     : null;
-  const spineSam3Layers = shouldIncludeSpineExport(zipPack)
+  const spineSam3Layers = shouldIncludeZipSpineExport(zipPack)
     ? await buildSpineSam3LayersTemplate(env, zipPack, sheetSourceFiles).catch((error) => {
         console.warn("Spine SAM3 layer export failed", error);
         return null;
@@ -183,7 +200,7 @@ export async function downloadPackZip(packId, env) {
       },
     );
   }
-  if (shouldIncludeSpineExport(zipPack)) {
+  if (shouldIncludeZipSpineExport(zipPack)) {
     files.splice(
       5,
       0,
@@ -298,6 +315,9 @@ export async function downloadPackZip(packId, env) {
     );
   }
   if (sheet) files.push({ path: "sheet.png", bytes: sheet.bytes });
+  for (const actionSheet of actionSheets) {
+    files.push({ path: actionSheet.path, bytes: actionSheet.bytes });
+  }
   for (const frameFile of completedFrameFiles) {
     files.push({ path: frameFile.path, bytes: frameFile.bytes });
   }
@@ -405,6 +425,32 @@ function isUiAtlasPack(pack) {
   return pack?.packKind === "icon-pack" || pack?.packKind === "ui-pack";
 }
 
+function shouldIncludeZipSpineExport(pack) {
+  return shouldIncludeSpineExport(pack) && !pack?.zipLiteExport;
+}
+
+function shouldUseLitePackZip(pack, completedFrameFiles = []) {
+  const frameCount = completedFrameFiles.length || pack?.frames?.length || 0;
+  return pack?.packKind === "sprite-actions" && frameCount > 8;
+}
+
+function packZipSheetMetadata(sheet) {
+  if (!sheet) return null;
+  return {
+    key: sheet.key || null,
+    action: sheet.action || null,
+    direction: sheet.direction || null,
+    path: sheet.path,
+    width: sheet.width,
+    height: sheet.height,
+    cellWidth: sheet.cellWidth,
+    cellHeight: sheet.cellHeight,
+    columns: sheet.columns,
+    rows: sheet.rows,
+    frames: sheet.frames || [],
+  };
+}
+
 function packZipMetadata(pack) {
   return {
     packId: pack.packId,
@@ -419,6 +465,8 @@ function packZipMetadata(pack) {
     input: pack.input || null,
     metadata: pack.metadata || null,
     sheet: pack.zipSheet || null,
+    actionSheets: pack.zipActionSheets || [],
+    liteExport: pack.zipLiteExport || null,
     spineSam3Layers: pack.zipSpineSam3Layers || null,
     frames: (pack.frames || []).map((frame) => ({
       id: frame.id,
@@ -429,6 +477,12 @@ function packZipMetadata(pack) {
       index: frame.index,
       row: frame.row,
       column: frame.column,
+      direction: frame.direction ?? null,
+      action: frame.action ?? null,
+      actionFrame: frame.actionFrame ?? null,
+      clip: frame.clip ?? frame.action ?? null,
+      loop: frame.loop ?? null,
+      fps: frame.fps ?? null,
       dimensions: frame.dimensions || null,
       filename: frame.result?.filename || null,
       contentType: frame.result?.contentType || null,
@@ -458,12 +512,14 @@ function packEngineManifest(pack) {
       rows: pack.metadata?.rows || null,
     },
     sheet: pack.zipSheet || null,
+    actionSheets: pack.zipActionSheets || [],
+    exportMode: pack.zipLiteExport || null,
     frames,
     animations: packAnimations(pack, frames),
     tiledTileset: pack.packKind === "tile-pack" && pack.zipSheet ? "manifest/tiled-tileset.json" : null,
     uiAtlas: isUiAtlasPack(pack) && pack.zipSheet ? "manifest/ui-atlas.json" : null,
     phaserAtlas: isUiAtlasPack(pack) && pack.zipSheet ? "manifest/phaser-atlas.json" : null,
-    spine: shouldIncludeSpineExport(pack)
+    spine: shouldIncludeZipSpineExport(pack)
       ? {
           mode: "attachment-swap",
           skeleton: "spine/skeleton.json",
@@ -472,7 +528,7 @@ function packEngineManifest(pack) {
           frameRate: packAnimations(pack, frames)[0]?.frameRate || 8,
         }
       : null,
-    spineRigTemplate: shouldIncludeSpineExport(pack)
+    spineRigTemplate: shouldIncludeZipSpineExport(pack)
       ? {
           mode: "editable-template",
           skeleton: "spine/rig-template/skeleton.json",
@@ -486,6 +542,9 @@ function packEngineManifest(pack) {
       : null,
     spineSam3Layers: pack.zipSpineSam3Layers || null,
     notes: [
+      pack.zipLiteExport
+        ? "This cloud ZIP uses worker-lite mode: it includes original PNG frames, animation manifests, and import scripts, while sheet.png/transparent frames/Spine composition are intentionally skipped to avoid Cloudflare Worker CPU limits for large action packs."
+        : null,
       "Frame files are stored as individual PNG files; frame.path is the recommended import path.",
       isUiAtlasPack(pack)
         ? "UI and icon packs include atlas manifests for importing sheet.png as named UI sprites."
@@ -496,14 +555,14 @@ function packEngineManifest(pack) {
         ? "manifest/ui-atlas.json is engine-neutral; manifest/phaser-atlas.json follows the Phaser atlas JSON hash shape."
         : pack.packKind === "tile-pack" && pack.zipSheet
         ? "manifest/tiled-tileset.json is a Tiled-compatible external tileset that points to ../sheet.png."
-        : shouldIncludeSpineExport(pack)
+        : shouldIncludeZipSpineExport(pack)
         ? "spine/skeleton.json and spine/skeleton.atlas provide a Spine-compatible attachment-swap animation over sheet.png; spine/rig-template adds a first-frame editable bone template, and spine/sam3-layers appears when a completed SAM3 layer-separation job exists for this pack."
         : pack.zipSheet?.alpha
           ? "sheet.png is composed from deterministic transparent frames using the pack row/column metadata; untouched source files remain under frames/original/."
           : pack.zipSheet
             ? "sheet.png is composed from archived source frames using the pack row/column metadata."
             : "No composed sheet was generated for this ZIP.",
-    ],
+    ].filter(Boolean),
   };
 }
 
@@ -512,11 +571,15 @@ function packPhaserManifest(pack) {
   return {
     packId: pack.packId,
     texturePrefix: safeLibrarySegment(pack.preset || "asset-pack"),
+    sheet: pack.zipSheet || null,
+    actionSheets: pack.zipActionSheets || [],
     frames: frames.map((frame) => ({
       key: frame.key,
       url: frame.path,
       width: frame.width,
       height: frame.height,
+      sheetRect: frame.sheetRect,
+      actionSheetRect: frame.actionSheetRect,
     })),
     animations: packAnimations(pack, frames).map((animation) => ({
       key: animation.key,
@@ -529,46 +592,79 @@ function packPhaserManifest(pack) {
 
 function packUnityManifest(pack) {
   const frames = packZipFrames(pack);
-  const animation = packAnimations(pack, frames)[0] || null;
+  const animations = packAnimations(pack, frames);
+  const animationClips = animations.map((animation) => ({
+    name: animation.key,
+    action: animation.action || null,
+    direction: animation.direction || null,
+    sampleRate: animation.frameRate,
+    loopTime: animation.repeat === -1,
+    frames: animation.frames.map((frame) => frame.key),
+  }));
   return {
     schema: "lingji-forge.unity-sprites.v1",
     packId: pack.packId,
     preset: pack.preset,
     textureType: "Sprite",
-    spriteMode: "MultipleFiles",
+    spriteMode: pack.zipSheet ? "MultipleSheetAndFiles" : "MultipleFiles",
     pixelsPerUnit: 100,
     pivot: { x: 0.5, y: 0.5 },
     filterMode: pack.input?.style === "pixel" ? "Point" : "Bilinear",
+    sheet: pack.zipSheet
+      ? {
+          path: pack.zipSheet.path || "sheet.png",
+          width: pack.zipSheet.width,
+          height: pack.zipSheet.height,
+          columns: pack.zipSheet.columns,
+          rows: pack.zipSheet.rows,
+          cellWidth: pack.zipSheet.cellWidth,
+          cellHeight: pack.zipSheet.cellHeight,
+        }
+      : null,
+    actionSheets: pack.zipActionSheets || [],
     sprites: frames.filter((frame) => frame.path).map((frame) => ({
       name: frame.key,
       path: frame.path,
       width: frame.width,
       height: frame.height,
+      sheetRect: frame.sheetRect,
+      actionSheetRect: frame.actionSheetRect,
+      action: frame.action || null,
+      actionFrame: frame.actionFrame ?? null,
+      clip: frame.clip || null,
       seed: frame.seed,
       promptId: frame.promptId,
     })),
-    animationClip: animation
-      ? {
-          name: animation.key,
-          sampleRate: animation.frameRate,
-          loopTime: animation.repeat === -1,
-          frames: animation.frames.map((frame) => frame.key),
-        }
-      : null,
+    animationClips,
+    animationClip: animationClips[0] || null,
   };
 }
 
 function packGodotManifest(pack) {
   const frames = packZipFrames(pack);
-  const animation = packAnimations(pack, frames)[0] || null;
+  const animations = packAnimations(pack, frames);
+  const firstAnimation = animations[0] || null;
+  const animatedSpriteAnimations = animations.map((animation) => ({
+    animation: animation.key,
+    action: animation.action || null,
+    direction: animation.direction || null,
+    loop: animation.repeat === -1,
+    fps: animation.frameRate,
+    frames: animation.frames.map((frame) => ({
+      texture: frame.path,
+      duration: 1 / animation.frameRate,
+    })),
+  }));
   return {
     schema: "lingji-forge.godot-sprites.v1",
     packId: pack.packId,
     preset: pack.preset,
+    sheet: pack.zipSheet || null,
+    actionSheets: pack.zipActionSheets || [],
     import: {
       textureFilter: pack.input?.style === "pixel" ? "nearest" : "linear",
-      loop: animation ? animation.repeat === -1 : false,
-      fps: animation?.frameRate || 8,
+      loop: firstAnimation ? firstAnimation.repeat === -1 : false,
+      fps: firstAnimation?.frameRate || 8,
     },
     sprites: frames.filter((frame) => frame.path).map((frame) => ({
       name: frame.key,
@@ -577,15 +673,22 @@ function packGodotManifest(pack) {
         x: frame.width,
         y: frame.height,
       },
+      sheetRect: frame.sheetRect,
+      actionSheetRect: frame.actionSheetRect,
+      action: frame.action || null,
+      actionFrame: frame.actionFrame ?? null,
+      clip: frame.clip || null,
       seed: frame.seed,
       promptId: frame.promptId,
     })),
-    animatedSprite2D: animation
+    animations: animatedSpriteAnimations,
+    animatedSprite2D: firstAnimation
       ? {
-          animation: animation.key,
-          frames: animation.frames.map((frame) => ({
+          animation: firstAnimation.key,
+          animations: animatedSpriteAnimations,
+          frames: firstAnimation.frames.map((frame) => ({
             texture: frame.path,
-            duration: 1 / animation.frameRate,
+            duration: 1 / firstAnimation.frameRate,
           })),
         }
       : null,
@@ -751,8 +854,30 @@ function packUiSpriteRole(pack, frame) {
   return "ui-component";
 }
 
+function scriptString(value) {
+  return JSON.stringify(String(value ?? ""));
+}
+
 function packUnityImporterScript(pack) {
+  const frames = packZipFrames(pack);
+  const animations = packAnimations(pack, frames);
   const clipName = safeLibrarySegment(pack.preset || "sprite-actions");
+  const clipSpecs = (animations.length
+    ? animations
+    : [{
+        key: clipName,
+        frameRate: 8,
+        repeat: -1,
+        frames: frames.filter((frame) => frame.path),
+      }])
+    .filter((animation) => animation.frames?.length);
+  const clipSpecLines = clipSpecs.map((animation) => {
+    const paths = animation.frames
+      .map((frame) => scriptString(frame.path || frame.sourcePath || ""))
+      .filter((path) => path !== "\"\"")
+      .join(", ");
+    return `        new ClipSpec(${scriptString(animation.key)}, ${positiveNumber(animation.frameRate, 8)}f, ${animation.repeat === -1 ? "true" : "false"}, new string[] { ${paths} }),`;
+  });
   return [
     "// Lingji Forge Unity import helper.",
     "// Usage: extract this ZIP under Assets/, select the extracted pack folder, then run Tools > Lingji Forge > Import Selected Pack.",
@@ -764,6 +889,26 @@ function packUnityImporterScript(pack) {
     "",
     "public static class LingjiSpriteImporter",
     "{",
+    "    private sealed class ClipSpec",
+    "    {",
+    "        public readonly string Name;",
+    "        public readonly float FrameRate;",
+    "        public readonly bool Loop;",
+    "        public readonly string[] Paths;",
+    "        public ClipSpec(string name, float frameRate, bool loop, string[] paths)",
+    "        {",
+    "            Name = name;",
+    "            FrameRate = frameRate;",
+    "            Loop = loop;",
+    "            Paths = paths;",
+    "        }",
+    "    }",
+    "",
+    "    private static readonly ClipSpec[] ClipSpecs = new ClipSpec[]",
+    "    {",
+    ...(clipSpecLines.length ? clipSpecLines : [`        new ClipSpec(${scriptString(clipName)}, 8f, true, new string[0]),`]),
+    "    };",
+    "",
     "    [MenuItem(\"Tools/Lingji Forge/Import Selected Pack\")]",
     "    public static void ImportSelectedPack()",
     "    {",
@@ -794,27 +939,36 @@ function packUnityImporterScript(pack) {
     "            importer.spritePixelsPerUnit = 100;",
     "            importer.SaveAndReimport();",
     "        }",
-    "        var sprites = files.Select(path => AssetDatabase.LoadAssetAtPath<Sprite>(path)).Where(sprite => sprite).ToArray();",
-    "        var clip = new AnimationClip { frameRate = 8 };",
-    "        var binding = new EditorCurveBinding",
+    "        var fallbackSprites = files.Select(path => AssetDatabase.LoadAssetAtPath<Sprite>(path)).Where(sprite => sprite).ToArray();",
+    "        var created = 0;",
+    "        foreach (var spec in ClipSpecs)",
     "        {",
-    "            type = typeof(SpriteRenderer),",
-    "            path = \"\",",
-    "            propertyName = \"m_Sprite\"",
-    "        };",
-    "        var keyframes = sprites.Select((sprite, index) => new ObjectReferenceKeyframe",
-    "        {",
-    "            time = index / clip.frameRate,",
-    "            value = sprite",
-    "        }).ToArray();",
-    "        AnimationUtility.SetObjectReferenceCurve(clip, binding, keyframes);",
-    "        var settings = AnimationUtility.GetAnimationClipSettings(clip);",
-    "        settings.loopTime = true;",
-    "        AnimationUtility.SetAnimationClipSettings(clip, settings);",
-    `        var clipPath = Path.Combine(folder, "${clipName}.anim").Replace("\\\\", "/");`,
-    "        AssetDatabase.CreateAsset(clip, clipPath);",
+    "            var sprites = spec.Paths != null && spec.Paths.Length > 0",
+    "                ? spec.Paths.Select(path => AssetDatabase.LoadAssetAtPath<Sprite>(Path.Combine(folder, path).Replace(\"\\\\\", \"/\"))).Where(sprite => sprite).ToArray()",
+    "                : fallbackSprites;",
+    "            if (sprites.Length == 0) continue;",
+    "            var clip = new AnimationClip { frameRate = spec.FrameRate > 0 ? spec.FrameRate : 8f };",
+    "            var binding = new EditorCurveBinding",
+    "            {",
+    "                type = typeof(SpriteRenderer),",
+    "                path = \"\",",
+    "                propertyName = \"m_Sprite\"",
+    "            };",
+    "            var keyframes = sprites.Select((sprite, index) => new ObjectReferenceKeyframe",
+    "            {",
+    "                time = index / clip.frameRate,",
+    "                value = sprite",
+    "            }).ToArray();",
+    "            AnimationUtility.SetObjectReferenceCurve(clip, binding, keyframes);",
+    "            var settings = AnimationUtility.GetAnimationClipSettings(clip);",
+    "            settings.loopTime = spec.Loop;",
+    "            AnimationUtility.SetAnimationClipSettings(clip, settings);",
+    "            var clipPath = AssetDatabase.GenerateUniqueAssetPath(Path.Combine(folder, spec.Name + \".anim\").Replace(\"\\\\\", \"/\"));",
+    "            AssetDatabase.CreateAsset(clip, clipPath);",
+    "            created += 1;",
+    "        }",
     "        AssetDatabase.SaveAssets();",
-    "        Debug.Log($\"Imported {sprites.Length} Lingji sprites and created {clipPath}.\");",
+    "        Debug.Log($\"Imported {files.Length} Lingji sprite PNGs and created {created} animation clip(s).\");",
     "    }",
     "}",
     "#endif",
@@ -823,7 +977,26 @@ function packUnityImporterScript(pack) {
 }
 
 function packGodotImporterScript(pack) {
+  const frames = packZipFrames(pack);
+  const animations = packAnimations(pack, frames);
   const animationName = safeLibrarySegment(pack.preset || "sprite-actions");
+  const clipSpecs = (animations.length
+    ? animations
+    : [{
+        key: animationName,
+        frameRate: 8,
+        repeat: -1,
+        frames: frames.filter((frame) => frame.path),
+      }])
+    .filter((animation) => animation.frames?.length);
+  const clipSpecLines = clipSpecs.map((animation) => {
+    const paths = animation.frames
+      .map((frame) => scriptString(frame.path || frame.sourcePath || ""))
+      .filter((path) => path !== "\"\"")
+      .join(", ");
+    const fps = Number(positiveNumber(animation.frameRate, 8)).toFixed(2);
+    return `    {"name": ${scriptString(animation.key)}, "fps": ${fps}, "loop": ${animation.repeat === -1 ? "true" : "false"}, "frames": [${paths}]},`;
+  });
   return [
     "# Lingji Forge Godot import helper.",
     "# Usage: copy this script into the extracted pack folder, open it in Godot, set PACK_ROOT if needed, then run it as an editor tool script.",
@@ -831,40 +1004,28 @@ function packGodotImporterScript(pack) {
     "extends EditorScript",
     "",
     "const PACK_ROOT := \"res://\"",
-    `const ANIMATION_NAME := "${animationName}"`,
-    "const FRAME_RATE := 8.0",
+    "const CLIPS := [",
+    ...(clipSpecLines.length ? clipSpecLines : [`    {"name": ${scriptString(animationName)}, "fps": 8.0, "loop": true, "frames": []},`]),
+    "]",
     "",
     "func _run() -> void:",
-    "    var frame_dir := PACK_ROOT.path_join(\"frames/transparent\")",
-    "    var dir := DirAccess.open(frame_dir)",
-    "    if dir == null:",
-    "        frame_dir = PACK_ROOT.path_join(\"frames/original\")",
-    "        dir = DirAccess.open(frame_dir)",
-    "    if dir == null:",
-    "        push_error(\"No frames/transparent or frames/original folder found under %s\" % PACK_ROOT)",
-    "        return",
-    "    var files: Array[String] = []",
-    "    dir.list_dir_begin()",
-    "    var file_name := dir.get_next()",
-    "    while file_name != \"\":",
-    "        if !dir.current_is_dir() and file_name.get_extension().to_lower() == \"png\":",
-    "            files.append(file_name)",
-    "        file_name = dir.get_next()",
-    "    dir.list_dir_end()",
-    "    files.sort()",
-    "    if files.is_empty():",
-    "        push_error(\"No PNG frames found under %s\" % frame_dir)",
-    "        return",
     "    var sprite_frames := SpriteFrames.new()",
-    "    sprite_frames.add_animation(ANIMATION_NAME)",
-    "    sprite_frames.set_animation_speed(ANIMATION_NAME, FRAME_RATE)",
-    "    sprite_frames.set_animation_loop(ANIMATION_NAME, true)",
-    "    for file in files:",
-    "        var texture_path := frame_dir.path_join(file)",
-    "        var texture := load(texture_path)",
-    "        if texture:",
-    "            sprite_frames.add_frame(ANIMATION_NAME, texture)",
-    "    var output_path := PACK_ROOT.path_join(\"%s.tres\" % ANIMATION_NAME)",
+    "    var added := 0",
+    "    for clip in CLIPS:",
+    "        var animation_name := String(clip.get(\"name\", \"animation\"))",
+    "        if !sprite_frames.has_animation(animation_name):",
+    "            sprite_frames.add_animation(animation_name)",
+    "        sprite_frames.set_animation_speed(animation_name, float(clip.get(\"fps\", 8.0)))",
+    "        sprite_frames.set_animation_loop(animation_name, bool(clip.get(\"loop\", true)))",
+    "        for relative_path in clip.get(\"frames\", []):",
+    "            var texture := load(PACK_ROOT.path_join(String(relative_path)))",
+    "            if texture:",
+    "                sprite_frames.add_frame(animation_name, texture)",
+    "                added += 1",
+    "    if added == 0:",
+    "        push_error(\"No PNG frames could be loaded from scripted clip paths under %s\" % PACK_ROOT)",
+    "        return",
+    `    var output_path := PACK_ROOT.path_join("${animationName}.tres")`,
     "    ResourceSaver.save(sprite_frames, output_path)",
     "    print(\"Created Lingji SpriteFrames: %s\" % output_path)",
     "",
@@ -1083,8 +1244,10 @@ function packBrowserPreviewHtml(pack) {
 function packZipReadme(pack) {
   const hasTransparentFrames = Object.keys(pack.zipTransparentFrames || {}).length > 0;
   const hasUiAtlas = isUiAtlasPack(pack) && pack.zipSheet;
-  const hasSpineExport = shouldIncludeSpineExport(pack);
+  const hasSpineExport = shouldIncludeZipSpineExport(pack);
   const hasSam3Layers = Boolean(pack.zipSpineSam3Layers);
+  const isLiteExport = Boolean(pack.zipLiteExport);
+  const actionSheetCount = (pack.zipActionSheets || []).length;
   const sheetDescription = pack.zipSheet?.alpha
     ? "- sheet.png: composed transparent sheet from processed frame PNG files."
     : pack.zipSheet
@@ -1116,10 +1279,12 @@ function packZipReadme(pack) {
     ...(hasSpineExport ? ["- spine/skeleton.json and spine/skeleton.atlas: Spine-compatible attachment-swap export over sheet.png."] : []),
     ...(hasSpineExport ? ["- spine/rig-template/: editable rig scaffold with heuristic part PNGs, parts atlas, quality report, named slots, bones, and transform keyframes."] : []),
     ...(hasSam3Layers ? ["- spine/sam3-layers/: SAM3-generated body-part masks, source cutouts, parts atlas, quality report, and matching Spine skeleton."] : []),
+    ...(actionSheetCount ? [`- sheets/*.png: ${actionSheetCount} per-action horizontal sprite sheets, one animation clip per file.`] : []),
     "- scripts/unity/LingjiSpriteImporter.cs: Unity Editor helper for selected extracted pack folders.",
     "- scripts/godot/import_lingji_pack.gd: Godot EditorScript helper for SpriteFrames resources.",
     "- scripts/phaser/loadLingjiPack.js: browser helper for Phaser frame loading and animation creation.",
     "- examples/browser-preview/index.html: dependency-free browser preview for frame order and playback.",
+    ...(isLiteExport ? ["- This ZIP uses worker-lite mode: original frame PNGs and animation manifests are included; sheet.png, per-action sheets, transparent alpha frames, and Spine/SAM3 ZIP composition are skipped for large action packs."] : []),
     ...(sheetDescription ? [sheetDescription] : []),
     "- frames/original/*.png: archived generated frame images.",
     ...(hasTransparentFrames ? ["- frames/transparent/*_alpha.png: deterministic edge-connected background removal outputs."] : []),
@@ -1130,7 +1295,10 @@ function packZipReadme(pack) {
     "- The preview reads manifest/engine-import.json and follows each frame.path, preferring transparent frames when available.",
     "",
     "Import notes:",
-    "- Sprite action packs are ordered by the original pack frame index.",
+    "- Sprite action packs expose animation clips in manifest/engine-import.json, manifest/unity-sprites.json, manifest/godot-sprites.json, and manifest/phaser-animations.json.",
+    pack.zipSheet
+      ? "- Character and monster action packs use row = action clip and column = frame inside sheet.png."
+      : "- Character and monster action packs expose clip order through the animation manifests; large worker-lite packs may omit sheet.png.",
     "- Map and icon packs use the same frame list; treat each PNG as one importable asset.",
     ...(hasUiAtlas ? ["- UI and icon packs can be imported from sheet.png using manifest/ui-atlas.json, or in Phaser using this.load.atlas with manifest/phaser-atlas.json."] : []),
     ...(hasSpineExport ? ["- Spine export is an attachment-swap runtime bridge; spine/rig-template adds an editable scaffold and quality.json, but its part layers are heuristic and need precise replacement for production rigs."] : []),
@@ -1142,17 +1310,40 @@ function packZipReadme(pack) {
 }
 
 export function packZipFrames(pack) {
+  const sheetColumns = Math.max(1, Math.round(positiveNumber(pack.zipSheet?.columns, pack.metadata?.columns || 1)));
+  const cellWidth = positiveNumber(pack.zipSheet?.cellWidth, pack.metadata?.cellWidth || 512);
+  const cellHeight = positiveNumber(pack.zipSheet?.cellHeight, pack.metadata?.cellHeight || 512);
+  const actionSheetByFrameId = new Map();
+  for (const sheet of pack.zipActionSheets || []) {
+    for (const frame of sheet.frames || []) {
+      if (!frame.id) continue;
+      actionSheetByFrameId.set(frame.id, {
+        sheet: sheet.path,
+        x: positiveNumber(frame.column, 0) * positiveNumber(sheet.cellWidth, cellWidth),
+        y: positiveNumber(frame.row, 0) * positiveNumber(sheet.cellHeight, cellHeight),
+        width: positiveNumber(sheet.cellWidth, cellWidth),
+        height: positiveNumber(sheet.cellHeight, cellHeight),
+      });
+    }
+  }
   return (pack.frames || []).map((frame, index) => {
     const result = frame.result || {};
     const dimensions = frame.dimensions || {};
+    const row = Number.isFinite(Number(frame.row)) ? Number(frame.row) : Math.floor(index / sheetColumns);
+    const column = Number.isFinite(Number(frame.column)) ? Number(frame.column) : index % sheetColumns;
     return {
       id: frame.id,
       key: safeLibrarySegment(frame.id || frame.label || `frame-${index + 1}`),
       label: frame.label || frame.id || `Frame ${index + 1}`,
       index: Number.isFinite(Number(frame.index)) ? Number(frame.index) : index,
-      row: frame.row ?? null,
-      column: frame.column ?? null,
+      row,
+      column,
       direction: frame.direction ?? null,
+      action: frame.action ?? null,
+      actionFrame: frame.actionFrame ?? null,
+      clip: frame.clip ?? frame.action ?? null,
+      loop: frame.loop ?? null,
+      fps: frame.fps ?? null,
       sourcePath: result.fileKey ? `frames/original/${packFrameZipName(frame, index)}` : null,
       transparentPath: pack.zipTransparentFrames?.[frame.id] || null,
       path: pack.zipTransparentFrames?.[frame.id] || (result.fileKey ? `frames/original/${packFrameZipName(frame, index)}` : null),
@@ -1162,6 +1353,16 @@ export function packZipFrames(pack) {
       status: frame.status,
       width: dimensions.width || null,
       height: dimensions.height || null,
+      sheetRect: pack.zipSheet
+        ? {
+            sheet: pack.zipSheet.path || "sheet.png",
+            x: column * cellWidth,
+            y: row * cellHeight,
+            width: cellWidth,
+            height: cellHeight,
+          }
+        : null,
+      actionSheetRect: actionSheetByFrameId.get(frame.id) || null,
       contentType: result.contentType || null,
     };
   });
@@ -1191,6 +1392,36 @@ export function packAnimations(pack, frames) {
       repeat: -1,
       frames: groups.get(direction).slice().sort((a, b) => (Number(a.index) || 0) - (Number(b.index) || 0)),
     }));
+  }
+  const actionClip = usable.length > 0 && usable.some((frame) => frame.action || frame.clip);
+  if (actionClip) {
+    const order = [];
+    const groups = new Map();
+    for (const frame of usable) {
+      const action = frame.action || frame.clip || "default";
+      if (!groups.has(action)) {
+        groups.set(action, []);
+        order.push(action);
+      }
+      groups.get(action).push(frame);
+    }
+    return order.map((action) => {
+      const actionFrames = groups.get(action).slice().sort((a, b) => {
+        const aFrame = Number.isFinite(Number(a.actionFrame)) ? Number(a.actionFrame) : Number(a.column);
+        const bFrame = Number.isFinite(Number(b.actionFrame)) ? Number(b.actionFrame) : Number(b.column);
+        if (Number.isFinite(aFrame) && Number.isFinite(bFrame) && aFrame !== bFrame) return aFrame - bFrame;
+        return (Number(a.index) || 0) - (Number(b.index) || 0);
+      });
+      const first = actionFrames[0] || {};
+      const frameRate = positiveNumber(first.fps, 8);
+      return {
+        key: `${baseKey}-${safeLibrarySegment(action)}`,
+        action,
+        frameRate,
+        repeat: first.loop === false ? 0 : -1,
+        frames: actionFrames,
+      };
+    });
   }
   return [
     {

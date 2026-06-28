@@ -1,4 +1,6 @@
 const ACCESS_TOKEN_KEY = "lingji-forge.generator-access-token.v1";
+const LIBRARY_ITEM_PAGE_SIZE = 24;
+const PACK_PAGE_SIZE = 12;
 
 const state = {
   items: [],
@@ -6,6 +8,13 @@ const state = {
   samples: [],
   filter: "all",
   query: "",
+  pagination: {
+    itemCursor: null,
+    packCursor: null,
+    itemHasMore: false,
+    packHasMore: false,
+    loadingMore: false,
+  },
   preview: {
     packId: "",
     frames: [],
@@ -29,28 +38,29 @@ const els = {
   accessToken: $("#accessToken"),
   saveAccessTokenBtn: $("#saveAccessTokenBtn"),
   packDetailPanel: $("#packDetailPanel"),
+  paginationBar: $("#paginationBar"),
 };
 
 const OFFICIAL_SAMPLE_BASE = "../../assets/generated/official/";
+const OFFICIAL_MONSTER_ACTIONS_PACK_ID = "db8c0fff-918e-4e76-baef-9064e9b47052";
+const OFFICIAL_MONSTER_ACTIONS_FRAME_COUNT = 8;
+const OFFICIAL_MONSTER_ACTIONS_BRIEF = "同一只红黑色甲壳怪物，橙红背刺，深色腹甲，弯尾，尖牙大嘴，完整身体居中，纯色背景；生成 idle、move、attack、death 四个动作 clip，每个动作 8 帧；每一帧必须是不同关键姿势，保持同一怪物身份和比例";
+const OFFICIAL_MONSTER_ACTION_FILES = monsterActionFiles(OFFICIAL_MONSTER_ACTIONS_FRAME_COUNT);
 const OFFICIAL_SAMPLES = [
   {
     id: "sample-monster-actions",
-    title: "怪物动作四帧",
+    title: "怪物动作 4×8 帧",
     kind: "sample",
     assetKind: "pack",
     preset: "monster-actions",
     assetType: "creature",
     style: "pixel",
     camera: "front",
-    brief: "一只深色甲壳怪物，清楚头部、身体、前爪、腿和尾部；像素风，正面游戏精灵，完整身体居中，纯色背景，需要 idle、move、attack、death 四帧动作",
-    summary: "Idle / Move / Attack / Death 真实输出样本，用作当前 2D 怪物动作和 SAM3 Spine 回归基线",
+    brief: OFFICIAL_MONSTER_ACTIONS_BRIEF,
+    summary: "Idle / Move / Attack / Death 四个动作 clip，每个动作 8 帧；用于当前 2D 怪物动作、Sprite Sheet、Godot/Unity 导入和 SAM3 Spine 回归基线",
     tags: ["monster", "sprite", "sam3"],
-    files: [
-      ["monster-idle.png", "Idle"],
-      ["monster-move.png", "Move"],
-      ["monster-attack.png", "Attack"],
-      ["monster-death.png", "Death"],
-    ],
+    demoPackId: OFFICIAL_MONSTER_ACTIONS_PACK_ID,
+    files: OFFICIAL_MONSTER_ACTION_FILES,
   },
   {
     id: "sample-skill-vfx",
@@ -127,6 +137,15 @@ const OFFICIAL_SAMPLES = [
   },
 ];
 
+function monsterActionFiles(frameCount) {
+  return ["idle", "move", "attack", "death"].flatMap((action) => (
+    Array.from({ length: frameCount }, (_, index) => [
+      `monster-actions/${action}-${index + 1}.png`,
+      `${action[0].toUpperCase()}${action.slice(1)} ${index + 1}`,
+    ])
+  ));
+}
+
 function accessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY) || "";
 }
@@ -150,6 +169,7 @@ async function loadLibrary() {
   state.rerunRequest += 1;
   stopPackPreview();
   revokeSam3PreviewUrls();
+  resetPagination();
   state.samples = await loadOfficialSamples();
   els.packDetailPanel.hidden = true;
   els.packDetailPanel.innerHTML = "";
@@ -165,8 +185,8 @@ async function loadLibrary() {
   els.grid.innerHTML = renderLoading();
   try {
     const [libraryResult, packResult] = await Promise.allSettled([
-      api("/api/library?limit=96"),
-      api("/api/packs?limit=48"),
+      api(`/api/library?limit=${LIBRARY_ITEM_PAGE_SIZE}`),
+      api(`/api/packs?limit=${PACK_PAGE_SIZE}`),
     ]);
     const libraryData = libraryResult.status === "fulfilled" ? libraryResult.value : null;
     const packData = packResult.status === "fulfilled" ? packResult.value : null;
@@ -175,13 +195,17 @@ async function loadLibrary() {
     }
     state.items = Array.isArray(libraryData?.items) ? libraryData.items : [];
     state.packs = Array.isArray(packData?.packs) ? packData.packs : [];
+    applyPagination(libraryData, packData);
     els.authPanel.hidden = true;
     const configured = Boolean(libraryData?.configured || packData?.configured);
     const total = state.items.length + state.packs.length + state.samples.length;
+    const hasMore = state.pagination.itemHasMore || state.pagination.packHasMore;
     const partial = !libraryData || !packData;
     setStatus(
       configured
-        ? partial ? `${total} 个云端条目 · 部分刷新` : `${total} 个云端条目`
+        ? partial
+          ? `${total} 个已加载 · 部分刷新${hasMore ? " · 可继续加载" : ""}`
+          : `${total} 个已加载${hasMore ? " · 可继续加载" : ""}`
         : "未配置存储",
       configured && !partial ? "ready" : "warn",
     );
@@ -192,6 +216,74 @@ async function loadLibrary() {
     showAuth();
     setStatus(`${state.samples.length} 个官方样本 · 云端读取失败`, "warn");
     render();
+  }
+}
+
+function resetPagination() {
+  state.pagination = {
+    itemCursor: null,
+    packCursor: null,
+    itemHasMore: false,
+    packHasMore: false,
+    loadingMore: false,
+  };
+}
+
+function applyPagination(libraryData, packData) {
+  if (libraryData) {
+    state.pagination.itemCursor = libraryData.nextCursor || null;
+    state.pagination.itemHasMore = Boolean(libraryData.nextCursor || libraryData.page?.hasMore);
+  }
+  if (packData) {
+    state.pagination.packCursor = packData.nextCursor || null;
+    state.pagination.packHasMore = Boolean(packData.nextCursor || packData.page?.hasMore);
+  }
+}
+
+async function loadMoreLibrary() {
+  if (state.pagination.loadingMore) return;
+  const canLoadItems = state.pagination.itemHasMore && state.pagination.itemCursor !== null;
+  const canLoadPacks = state.pagination.packHasMore && state.pagination.packCursor !== null;
+  if (!canLoadItems && !canLoadPacks) return;
+
+  state.pagination.loadingMore = true;
+  renderPagination();
+  setStatus("加载下一页", "loading");
+  try {
+    const [libraryResult, packResult] = await Promise.allSettled([
+      canLoadItems
+        ? api(`/api/library?limit=${LIBRARY_ITEM_PAGE_SIZE}&cursor=${encodeURIComponent(state.pagination.itemCursor)}`)
+        : Promise.resolve(null),
+      canLoadPacks
+        ? api(`/api/packs?limit=${PACK_PAGE_SIZE}&cursor=${encodeURIComponent(state.pagination.packCursor)}`)
+        : Promise.resolve(null),
+    ]);
+    const libraryData = libraryResult.status === "fulfilled" ? libraryResult.value : null;
+    const packData = packResult.status === "fulfilled" ? packResult.value : null;
+    if (libraryData?.items?.length) appendUniqueBy(state.items, libraryData.items, "id");
+    if (packData?.packs?.length) appendUniqueBy(state.packs, packData.packs, "packId");
+    applyPagination(libraryData, packData);
+    const failed = (canLoadItems && libraryResult.status === "rejected") || (canLoadPacks && packResult.status === "rejected");
+    const total = state.items.length + state.packs.length + state.samples.length;
+    const hasMore = state.pagination.itemHasMore || state.pagination.packHasMore;
+    setStatus(`${total} 个已加载${hasMore ? " · 可继续加载" : ""}`, failed ? "warn" : "ready");
+    render();
+  } catch (error) {
+    setStatus("分页加载失败", "warn");
+    console.warn("Library pagination failed", error);
+  } finally {
+    state.pagination.loadingMore = false;
+    renderPagination();
+  }
+}
+
+function appendUniqueBy(target, items, key) {
+  const seen = new Set(target.map((item) => item?.[key]).filter(Boolean));
+  for (const item of items) {
+    const id = item?.[key];
+    if (!id || seen.has(id)) continue;
+    target.push(item);
+    seen.add(id);
   }
 }
 
@@ -224,6 +316,7 @@ function normalizeOfficialSample(sample) {
     brief: sample.brief || input.brief || "",
     summary: sample.summary || "",
     tags: Array.isArray(sample.tags) ? sample.tags : [],
+    demoPackId: sample.demoPackId || "",
     generatorUrl: sample.generatorUrl || "",
     zipUrl: sample.zipUrl || "",
     files: normalizeOfficialSampleFiles(sample.files),
@@ -269,6 +362,31 @@ function render() {
   } else {
     els.grid.innerHTML = entries.map(renderEntryCard).join("");
   }
+  renderPagination();
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function renderPagination() {
+  if (!els.paginationBar) return;
+  const cloudCount = state.items.length + state.packs.length;
+  const hasMore = state.pagination.itemHasMore || state.pagination.packHasMore;
+  const loading = state.pagination.loadingMore;
+  if (!accessToken() || (cloudCount === 0 && !hasMore)) {
+    els.paginationBar.hidden = true;
+    els.paginationBar.innerHTML = "";
+    return;
+  }
+  els.paginationBar.hidden = false;
+  els.paginationBar.innerHTML = `
+    <div>
+      <strong>已加载 ${cloudCount} 个云端素材</strong>
+      <span>${hasMore ? "继续分页加载，避免首屏拉取过重" : "已到当前列表末尾"}</span>
+    </div>
+    <button type="button" data-library-page-action="more" ${!hasMore || loading ? "disabled" : ""}>
+      ${loading ? '<span class="spinner"></span>' : '<i data-lucide="chevrons-down"></i>'}
+      <span>${loading ? "加载中" : hasMore ? "加载更多" : "没有更多"}</span>
+    </button>
+  `;
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -408,6 +526,7 @@ function sampleGeneratorHref(sample) {
   if (sample.style) params.set("style", sample.style);
   if (sample.camera) params.set("camera", sample.camera);
   if (sample.brief) params.set("brief", sample.brief);
+  if (sample.demoPackId) params.set("demoPackId", sample.demoPackId);
   return `/generator/?${params.toString()}`;
 }
 
@@ -510,6 +629,7 @@ function sampleManifestDataHref(sample) {
     },
     summary: sample.summary,
     tags: sample.tags || [],
+    demoPackId: sample.demoPackId || "",
     files: (sample.files || []).map((file, index) => ({
       index: file.index ?? index,
       label: file.label,
@@ -896,6 +1016,17 @@ function renderSam3PartComparison(pack) {
         <span class="sam3-quality-pill info">读取质量摘要</span>
       </div>
       <p class="sam3-diagnostics" data-sam3-diagnostics>正在载入 SAM3 semantic diagnostics</p>
+      <div class="sam3-anim-row" data-sam3-anim-row>
+        <div class="sam3-anim-head"><strong>骨骼驱动动画</strong><span>Spine 绑骨 · 关节驱动循环</span></div>
+        <div class="sam3-anim-clips">
+          ${["idle", "walk", "attack"].map((clip) => `
+            <figure class="sam3-anim-clip loading" data-rig-clip="${clip}">
+              <img alt="${escapeHtml(`${clip} 骨骼动画`)}" loading="lazy" />
+              <figcaption>${clip}</figcaption>
+            </figure>
+          `).join("")}
+        </div>
+      </div>
       <div class="sam3-part-grid">
         ${parts.map((part) => `
           <article class="sam3-part-row">
@@ -1040,6 +1171,7 @@ async function loadSam3PartComparisons(pack) {
     }
     if (qualityStrip) qualityStrip.innerHTML = sam3QualityPillsHtml(data);
     if (diagnostics) diagnostics.textContent = sam3DiagnosticsText(data);
+    await loadSam3RigAnimations(pack, data);
   } catch (error) {
     for (const slot of slots) {
       slot.classList.remove("loading");
@@ -1049,6 +1181,38 @@ async function loadSam3PartComparisons(pack) {
     if (diagnostics) diagnostics.textContent = "SAM3 preview 读取失败，请稍后重试";
     console.warn("SAM3 part comparison failed", error);
   }
+}
+
+// 骨骼驱动动画:GIF 端点需鉴权头,<img> 无法直接带;故用 token 拉成 blob → objectURL。
+// 未烘焙(404 not_baked)的 clip 静默隐藏,前端不报错。
+async function loadSam3RigAnimations(pack, data) {
+  const row = els.packDetailPanel.querySelector("[data-sam3-anim-row]");
+  if (!row) return;
+  const animations = Array.isArray(data?.animations) ? data.animations : [];
+  const byClip = new Map(animations.map((a) => [a.clip, a.url]));
+  const figures = [...row.querySelectorAll("[data-rig-clip]")];
+  let anyReady = false;
+  await Promise.all(figures.map(async (fig) => {
+    const clip = fig.dataset.rigClip;
+    const url = byClip.get(clip);
+    const img = fig.querySelector("img");
+    try {
+      if (!url) throw new Error("no clip");
+      const res = await fetch(url, { headers: accessToken() ? { "x-lingji-access-token": accessToken() } : {} });
+      if (!res.ok) throw new Error(String(res.status));
+      const blobUrl = URL.createObjectURL(await res.blob());
+      state.sam3PreviewUrls.push(blobUrl);
+      img.src = blobUrl;
+      fig.classList.remove("loading");
+      fig.classList.add("ready");
+      anyReady = true;
+    } catch {
+      fig.classList.remove("loading");
+      fig.classList.add("missing");
+    }
+  }));
+  // 全部未烘焙则整行隐藏,避免空占位。
+  if (!anyReady) row.hidden = true;
 }
 
 function revokeSam3PreviewUrls() {
@@ -1378,6 +1542,12 @@ els.filterTabs.forEach((tab) => {
 });
 
 els.refreshBtn.addEventListener("click", loadLibrary);
+els.paginationBar?.addEventListener("click", (event) => {
+  const action = event.target.closest("[data-library-page-action]");
+  if (action?.dataset.libraryPageAction === "more") {
+    loadMoreLibrary();
+  }
+});
 els.grid.addEventListener("click", (event) => {
   const sampleAction = event.target.closest("[data-sample-action]");
   if (sampleAction?.dataset.sampleAction === "detail") {

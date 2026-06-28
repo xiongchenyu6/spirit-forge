@@ -840,7 +840,7 @@ async function checkOfficialSampleZip({ id, path, expectedEntries }) {
     if (response.status !== 200) failures.push(`status ${response.status}`);
     if (!contentType.includes("application/zip")) failures.push(`content-type ${contentType || "missing"}`);
     if (sampleHeader && sampleHeader !== id) failures.push(`sample header ${sampleHeader}`);
-    if (!["hit", "miss"].includes(cacheHeader)) failures.push(`cache ${cacheHeader || "missing"}`);
+    if (!["hit", "miss", "static"].includes(cacheHeader)) failures.push(`cache ${cacheHeader || "missing"}`);
     if (!cacheControl.includes("max-age=")) failures.push(`cache-control ${cacheControl || "missing"}`);
     if (body.length < 1024) failures.push(`small zip ${body.length}`);
     for (const entry of expectedEntries) {

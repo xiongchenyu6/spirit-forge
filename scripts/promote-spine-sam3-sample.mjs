@@ -39,19 +39,21 @@ if (!sample) failFast("No pending SAM3 sample found. Pass --pack <packId> or add
 const workerUrl = normalizeWorkerUrl(options.workerUrl || process.env.LINGJI_WORKER_URL || DEFAULT_WORKER_URL);
 const token = options.token || process.env.GENERATOR_ACCESS_TOKEN || readTokenFromEnvFile(options.envFile || ".dev.vars");
 const outputDir = resolve(options.outputDir || DEFAULT_OUTPUT_DIR);
-const frameId = options.frameId || "idle";
-const requestId = options.requestId || defaultLayerRequestId(sample.packId, frameId);
+let frameId = options.frameId || "idle_0";
 
 if (!token) failFast("Missing access token. Set GENERATOR_ACCESS_TOKEN or keep it in .dev.vars.");
+
+const packPayload = await apiGet(`/api/packs/${encodeURIComponent(sample.packId)}`);
+const pack = packPayload.pack || packPayload;
+if (!pack?.packId) failFast(`Pack not found: ${sample.packId}`);
+frameId = resolveLayerFrameId(pack, frameId);
+const requestId = options.requestId || defaultLayerRequestId(sample.packId, frameId);
 
 console.log(`SAM3 sample promotion: ${sample.packId} (${sample.label || "unlabeled"})`);
 console.log(`Worker: ${workerUrl}`);
 console.log(`Frame: ${frameId}`);
 console.log(`Request: ${requestId}`);
 
-const packPayload = await apiGet(`/api/packs/${encodeURIComponent(sample.packId)}`);
-const pack = packPayload.pack || packPayload;
-if (!pack?.packId) failFast(`Pack not found: ${sample.packId}`);
 if (pack.spineSam3Layers && !options.force) {
   console.log("Pack already has SAM3 layers; skipping layer submission.");
 } else {
@@ -379,6 +381,19 @@ function requiredValue(argv, index, flag) {
 
 function normalizeWorkerUrl(url) {
   return String(url || "").replace(/\/+$/, "");
+}
+
+function resolveLayerFrameId(pack, requestedFrameId) {
+  const frames = pack?.metadata?.items || pack?.frames || [];
+  const requested = String(requestedFrameId || "").trim();
+  const exact = frames.find((frame) => frame.id === requested || frame.promptId === requested);
+  if (exact?.id) return exact.id;
+  const idle = frames.find((frame) => frame.id === "idle_0")
+    || frames.find((frame) => frame.id === "idle")
+    || frames.find((frame) => frame.action === "idle" && Number(frame.actionFrame || 0) === 0)
+    || frames.find((frame) => String(frame.id || "").startsWith("idle_"))
+    || frames.find((frame) => frame.id);
+  return idle?.id || requested || "idle_0";
 }
 
 function defaultLayerRequestId(packId, frameId) {

@@ -956,6 +956,48 @@
   gap: var(--space-2);
 }
 
+.sam3-anim-row {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid rgba(224, 176, 74, 0.32);
+  border-radius: var(--radius-md);
+  background: rgba(224, 176, 74, 0.06);
+}
+
+.sam3-anim-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.sam3-anim-head strong { font-size: 0.96rem; color: var(--gold-200); }
+.sam3-anim-head span { color: var(--text-muted); font-size: 0.8rem; }
+
+.sam3-anim-clips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.sam3-anim-clip {
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.045) 25%, transparent 25%),
+    rgba(2, 6, 10, 0.78);
+  background-position: 0 0, 0 8px;
+  background-size: 16px 16px;
+}
+
+.sam3-anim-clip img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
+.sam3-anim-clip figcaption { padding: 4px 8px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--jade-200); text-transform: capitalize; }
+.sam3-anim-clip.loading { min-height: 120px; }
+.sam3-anim-clip.missing { display: none; }
+
 .sam3-part-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
