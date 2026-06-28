@@ -25,13 +25,15 @@ import {
 } from "./storage.js";
 
 // 动作表跨帧身份一致性约束（英文，进 FLUX prompt）：减少颜色/服装/体型漂移。
+// 身份一致性约束:必须强调"单个角色/单帧",否则 "model sheet"/"turnaround"/
+// "across frames" 之类会让模型画出多视图角色设定图(一排多个角色拼图)。
 const SPRITE_IDENTITY_PROMPT =
-  "same character as reference, consistent outfit, consistent colors, consistent proportions, identical character design across frames, model sheet, turnaround consistency";
+  "same single character identity as the reference, identical outfit, colors and proportions, exactly one full-body figure, centered single character, no character sheet, no multiple poses, no multiple views, no duplicate characters, no collage";
 
 // 给 sprite-actions 帧的 prompt 追加身份一致性约束（去重，避免重复堆叠）。
 function withIdentityConsistencyPrompt(prompt) {
   const base = typeof prompt === "string" ? prompt.trim() : "";
-  if (base.toLowerCase().includes("turnaround consistency")) return base.slice(0, 1600);
+  if (base.includes("no duplicate characters")) return base.slice(0, 1600);
   return [base, SPRITE_IDENTITY_PROMPT].filter(Boolean).join(", ").slice(0, 1600);
 }
 
