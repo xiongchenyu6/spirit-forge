@@ -3,7 +3,10 @@ import { archiveResult, archiveResultSet, patchJobRecordQuietly, readJobRecord, 
 import { contentTypeForResult } from "./result-utils.js";
 
 export async function getJob(promptId, env, url) {
-  const kind = url.searchParams.get("kind") || "2d";
+  // 优先用任务记录里固化的 kind（创建时写入，如 layer-separation）。否则缺省 ?kind
+  // 的轮询会按 2d 单图抽取结果，损坏多文件的 layer-separation result.files → 预览“未就绪”。
+  const existingRecord = await readJobRecord(env, promptId).catch(() => null);
+  const kind = existingRecord?.kind || url.searchParams.get("kind") || "2d";
   const history = await comfyFetchJson(env, `/history/${encodeURIComponent(promptId)}`);
   const entry = history?.[promptId];
   if (!entry) {
@@ -15,7 +18,7 @@ export async function getJob(promptId, env, url) {
     if (queueState === "running" || queueState === "pending") {
       return { ok: true, status: "running", promptId, queue: queue.current };
     }
-    if (await readJobRecord(env, promptId)) {
+    if (existingRecord) {
       await patchJobRecordQuietly(env, promptId, {
         kind,
         status: "not_in_queue",
