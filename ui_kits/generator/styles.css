@@ -1,3 +1,10 @@
+/* hidden 属性必须始终生效:.stage-overlay/.result-image 等带 display 的类选择器
+   优先级高于 UA 的 [hidden]{display:none},会导致 hidden 失效(遮罩一直显示=开屏
+   就"生成中")。这条让 hidden 权威化,JS 的 els.X.hidden=true/false 才真正控制显隐。 */
+[hidden] {
+  display: none !important;
+}
+
 .generator-shell {
   min-height: 100vh;
   color: var(--text-primary);
