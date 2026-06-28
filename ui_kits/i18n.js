@@ -155,7 +155,7 @@
           blurb: "面向中国创作者的 AI 游戏素材生成平台。一念成图，万象皆可生成",
           cols: [
             ["产品", ["万象生成", "万象模板", "我的素材库", "定价"]],
-            ["资源", ["新手引导", "导出格式", "引擎集成", "API 文档"]],
+            ["资源", ["万象造物展", "新手引导", "导出格式", "引擎集成"]],
             ["关于", ["关于灵机阁", "商用授权", "联系我们", "加入我们"]],
           ],
           copyright: "© 2026 灵机阁 Spirit Forge",
@@ -590,7 +590,7 @@
           blurb: "Spirit Forge is an AI game-asset generator for creators. One thought creates everything across genres.",
           cols: [
             ["Product", ["Generate", "Templates", "Library", "Pricing"]],
-            ["Resources", ["Onboarding", "Export Formats", "Engine Integration", "API Docs"]],
+            ["Resources", ["Showcase", "Onboarding", "Export Formats", "Engine Integration"]],
             ["Company", ["About", "Commercial Terms", "Contact Us", "Careers"]],
           ],
           copyright: "© 2026 Spirit Forge",

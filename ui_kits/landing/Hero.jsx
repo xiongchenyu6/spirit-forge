@@ -24,6 +24,8 @@ function Hero() {
   });
   const [demo, setDemo] = React.useState(null);
   const [demoError, setDemoError] = React.useState(null);
+  const [activeFrame, setActiveFrame] = React.useState(0);
+  const [autoPlay, setAutoPlay] = React.useState(true);
   const chipIcons = ["image", "film", "layout-grid", "braces"];
   const outputFrames = [
     ["monster-idle.png", "Idle"],
@@ -55,6 +57,16 @@ function Hero() {
       cancelled = true;
     };
   }, []);
+
+  // 没有真实视频样本时,大图循环播放 4 帧动作(idle→move→attack→death);
+  // 点击缩略图会暂停循环并定格到该帧,点击大图可恢复循环。
+  React.useEffect(() => {
+    if (demoUrl || !autoPlay) return undefined;
+    const timer = setInterval(() => {
+      setActiveFrame((prev) => (prev + 1) % outputFrames.length);
+    }, 320);
+    return () => clearInterval(timer);
+  }, [demoUrl, autoPlay, outputFrames.length]);
 
   return (
     <section className="lf-bg-deep" style={{ position: "relative", overflow: "hidden", padding: "84px 40px 72px" }}>
@@ -112,20 +124,25 @@ function Hero() {
           backgroundPosition: "0 0, 0 8px",
           display: "grid",
           placeItems: "center",
-        }}>
+          cursor: demoUrl ? "default" : "pointer",
+        }}
+        onClick={demoUrl ? undefined : () => setAutoPlay(true)}
+        title={demoUrl ? undefined : (autoPlay ? "循环播放中" : "点击恢复循环播放")}>
           {demoUrl ? (
             <video src={demoUrl} controls loop muted playsInline autoPlay style={{ width: "100%", height: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(96px, 1fr))", gap: 10, width: "100%", padding: 18 }}>
-              {outputFrames.map(([file, label]) => (
-                <img key={file} src={window.generatedAssetPath(file)} alt={label} loading="lazy" style={{ width: "100%", aspectRatio: "1", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))" }} />
-              ))}
-            </div>
+            <img key={outputFrames[activeFrame][0]} src={window.generatedAssetPath(outputFrames[activeFrame][0])} alt={outputFrames[activeFrame][1]} style={{ width: "78%", height: "100%", maxHeight: 248, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))" }} />
           )}
           <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <Badge tone={demoUrl ? "jade" : "gold"}>{demoUrl ? videoDemo.badge : "PNG"}</Badge>
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{videoDemo.title}</span>
           </div>
+          {!demoUrl && (
+            <span style={{ position: "absolute", right: 12, bottom: 12, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.85)", background: "rgba(7,9,11,0.66)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-pill)", padding: "3px 10px" }}>
+              <i data-lucide={autoPlay ? "play" : "pause"} style={{ width: 11, height: 11, color: "var(--jade-300)" }} />
+              {outputFrames[activeFrame][1]}
+            </span>
+          )}
         </div>
         {(demoError || (demo && !demoUrl)) && (
           <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--gold-200)", margin: "8px 0 0" }}>{videoDemo.unavailable}</p>
@@ -146,23 +163,32 @@ function Hero() {
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>alpha-bounds-bottom-anchor-v1</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-          {outputFrames.map(([file, label]) => (
-            <div key={file} title={label} style={{
+          {outputFrames.map(([file, label], i) => {
+            const selected = !demoUrl && i === activeFrame;
+            return (
+            <button key={file} type="button" title={label}
+              onClick={() => { setAutoPlay(false); setActiveFrame(i); }}
+              style={{
               position: "relative",
               aspectRatio: "1",
               borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-subtle)",
+              border: selected ? "1px solid var(--gold-400)" : "1px solid var(--border-subtle)",
+              boxShadow: selected ? "0 0 0 1px var(--gold-400), var(--glow-gold)" : "none",
+              padding: 0,
+              cursor: "pointer",
               display: "grid",
               placeItems: "center",
               overflow: "hidden",
+              transition: "border-color .15s ease, box-shadow .15s ease",
               background: "linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.05) 25%, transparent 25%), rgba(2,6,10,0.82)",
               backgroundSize: "14px 14px",
               backgroundPosition: "0 0, 0 7px",
             }}>
               <img src={window.generatedAssetPath(file)} alt={label} loading="lazy" style={{ width: "92%", height: "92%", objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 8px 12px rgba(0,0,0,0.35))" }} />
-              <span style={{ position: "absolute", left: 5, bottom: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: "rgba(244,241,232,0.72)", background: "rgba(7,9,11,0.68)", borderRadius: "var(--radius-sm)", padding: "1px 4px" }}>{label}</span>
-            </div>
-          ))}
+              <span style={{ position: "absolute", left: 5, bottom: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: selected ? "var(--gold-200)" : "rgba(244,241,232,0.72)", background: "rgba(7,9,11,0.68)", borderRadius: "var(--radius-sm)", padding: "1px 4px" }}>{label}</span>
+            </button>
+            );
+          })}
         </div>
         <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--text-muted)", margin: "12px 0 0", textAlign: "center" }}>{hero.promptMeta}</p>
       </div>

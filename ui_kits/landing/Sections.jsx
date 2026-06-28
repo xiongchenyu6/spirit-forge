@@ -91,6 +91,8 @@ function footerHref(item) {
     ["Library", "/library/"],
     ["定价", "/pricing/"],
     ["Pricing", "/pricing/"],
+    ["万象造物展", "/assets/generated/official/showcase"],
+    ["Showcase", "/assets/generated/official/showcase"],
     ["新手引导", "/onboarding/"],
     ["Guide", "/onboarding/"],
     ["导出格式", "/generator/"],
