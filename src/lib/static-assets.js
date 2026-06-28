@@ -74,11 +74,19 @@ export async function handleAssets(request, env, url) {
   const matched = await tryFetchAsset(request, env, candidates);
   if (matched) {
     const headers = new Headers(matched.headers);
-    const isHtml = pathname.endsWith(".html") || headers.get("content-type")?.includes("text/html");
-    if (!isHtml) {
-      headers.set("cache-control", "public, max-age=31536000, immutable");
-    } else {
+    const ct = headers.get("content-type") || "";
+    const isHtml = pathname.endsWith(".html") || ct.includes("text/html");
+    const isCode = /\.(m?js|css|json)$/i.test(pathname) || ct.includes("javascript") || ct.includes("css");
+    if (isHtml) {
       headers.set("cache-control", "no-store");
+    } else if (isCode) {
+      // 代码文件名无内容哈希、每次部署内容会变;用 immutable 会让浏览器长期缓存旧
+      // app.js/gif-encoder.js,部署更新后仍加载旧文件 → 页面卡死/MIME 错。改为
+      // no-cache(每次带 ETag 校验,未变则 304),始终拿到最新代码。
+      headers.set("cache-control", "no-cache");
+    } else {
+      // 图片/字体等(未哈希)用适度缓存,不用一年 immutable。
+      headers.set("cache-control", "public, max-age=3600");
     }
     return new Response(matched.body, {
       status: matched.status,
