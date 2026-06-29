@@ -3,7 +3,7 @@ function TopNav() {
   const { Button, SpiritStone } = window.LingjiForgeDesignSystem_e6d384;
   const t = window.__lf.t.bind(window.__lf);
   const links = t("landing.nav.links");
-  const navHrefs = ["/generator/", "/templates/", "/pricing/", "/library/"];
+  const navHrefs = ["/generator/", "/assets/generated/official/showcase", "/templates/", "/pricing/", "/library/"];
   const currentLang = window.__lf.lang || "zh";
 
   const switchLang = (nextLang) => {

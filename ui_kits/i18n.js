@@ -54,7 +54,7 @@
       landing: {
           title: "灵机阁 · 一念成图，万象皆可生成",
         nav: {
-          links: ["万象生成", "万象模板", "定价", "开发者"],
+          links: ["万象生成", "造物展", "万象模板", "定价", "开发者"],
           login: "登录",
           start: "开始生成",
         },
@@ -489,7 +489,7 @@
       landing: {
         title: "Spirit Forge · Game Asset Generator",
         nav: {
-          links: ["Generate", "Templates", "Pricing", "Developers"],
+          links: ["Generate", "Showcase", "Templates", "Pricing", "Developers"],
           login: "Sign in",
           start: "Start Generating",
         },
