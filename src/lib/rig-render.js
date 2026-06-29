@@ -132,21 +132,35 @@ const CLIPS = {
   } },
 };
 
-// 由全幅 mask × 源帧重建 7 个全幅部件,并按解剖推断关节枢轴。
+// 部件归属优先级:四肢/头比躯干/胯更"具体",重叠像素归更具体的部件。
+// SAM3 的 torso mask 常把整只生物都圈进去(含腿),若不互斥,腿一摆动躯干里那份
+// 静态腿就露出来 → "4 只脚"。互斥后躯干只保留躯干本体,腿只在腿层 → 根治。
+const PART_PRIORITY = ["head", "arm_l", "arm_r", "leg_l", "leg_r", "hips", "torso"];
+const MASK_OWN_THRESHOLD = 110;
+
+// 由全幅 mask × 源帧重建 7 个"互斥"全幅部件,并按解剖推断关节枢轴。
 export function buildRigParts(image, masks) {
-  const W = image.width, H = image.height;
+  const W = image.width, H = image.height, N = W * H;
   const maskByName = new Map(masks.map((m) => [m.layerId, m]));
+  const md = {};
+  for (const p of PARTS) { const m = maskByName.get(p); if (!m) return null; md[p] = m.image.data; }
   const parts = {};
-  for (const p of PARTS) {
-    const m = maskByName.get(p);
-    if (!m) return null;
-    const md = m.image.data, buf = new Uint8ClampedArray(W * H * 4);
-    for (let i = 0; i < W * H; i++) {
-      const mg = md[i * 4];
-      buf[i * 4] = image.data[i * 4]; buf[i * 4 + 1] = image.data[i * 4 + 1]; buf[i * 4 + 2] = image.data[i * 4 + 2];
-      buf[i * 4 + 3] = Math.round(image.data[i * 4 + 3] * (mg / 255));
+  for (const p of PARTS) parts[p] = new Uint8ClampedArray(N * 4);
+  for (let i = 0; i < N; i++) {
+    const a0 = image.data[i * 4 + 3];
+    if (!a0) continue;
+    // 选归属:按优先级取首个 mask 超阈值的部件;都不超则取最大值者。
+    let owner = null;
+    for (const p of PART_PRIORITY) { if (md[p][i * 4] > MASK_OWN_THRESHOLD) { owner = p; break; } }
+    if (!owner) {
+      let best = null, bv = 40;
+      for (const p of PARTS) { const v = md[p][i * 4]; if (v > bv) { bv = v; best = p; } }
+      owner = best;
     }
-    parts[p] = buf;
+    if (!owner) continue;
+    const buf = parts[owner];
+    buf[i * 4] = image.data[i * 4]; buf[i * 4 + 1] = image.data[i * 4 + 1]; buf[i * 4 + 2] = image.data[i * 4 + 2];
+    buf[i * 4 + 3] = Math.round(a0 * (md[owner][i * 4] / 255));
   }
   const bb = {};
   for (const p of PARTS) { bb[p] = contentBBox(parts[p], W, H); if (!bb[p]) return null; }
