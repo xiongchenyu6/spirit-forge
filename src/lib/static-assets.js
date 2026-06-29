@@ -81,8 +81,12 @@ export async function handleAssets(request, env, url) {
       // app.js/gif-encoder.js,部署更新后仍加载旧文件 → 页面卡死/MIME 错。改为
       // no-cache(每次带 ETag 校验,未变则 304),始终拿到最新代码。
       headers.set("cache-control", "no-cache");
+    } else if (/\/assets\/generated\//.test(pathname)) {
+      // 生成类素材(展示页 GIF/PNG/sheet 等)会被同名覆盖更新;用 no-cache 走 ETag 校验,
+      // 改了就拿新的(未变 304),根治"删/换了素材浏览器还显示旧图"。
+      headers.set("cache-control", "no-cache");
     } else {
-      // 图片/字体等(未哈希)用适度缓存,不用一年 immutable。
+      // 真正静态的图片/字体(logo 等)用适度缓存。
       headers.set("cache-control", "public, max-age=3600");
     }
     return new Response(matched.body, {

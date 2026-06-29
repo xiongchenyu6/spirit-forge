@@ -91,7 +91,7 @@
   <section class="pipeline">
     <h2>2D 骨骼动画流水线</h2>
     <p class="pipeline-lead">SAM3 语义分层 → 关节绑骨 → 5 动作关节驱动 → 离线烘焙。下图各阶段均由真实生成资产驱动,非示意。</p>
-    <img src="spine-pipeline-poster.png" alt="灵机阁 2D 骨骼动画流水线:SAM3 分层 → 关节绑骨 → 5 动作关节驱动 → 离线烘焙" loading="lazy" />
+    <img src="spine-pipeline-poster.png?v=g3" alt="灵机阁 2D 骨骼动画流水线:SAM3 分层 → 关节绑骨 → 5 动作关节驱动 → 离线烘焙" loading="lazy" />
   </section>
 
   <footer>单帧为单次文生图真实输出 · 标注「帧动画」者为多帧动作包合成的循环预览 · 点开查看提示词与每一帧 · 可经动作包、SAM3 分层、Spine 绑骨继续生产</footer>
@@ -148,6 +148,9 @@
         prompt:"元素技能图标组，火/水/雷/风，圆形符文徽记，发光，UI 图标" },
     ];
 
+    // 缓存击穿:生成类素材常被同名覆盖,给图片 URL 追加版本号强制取新(配合后端 no-cache)。
+    const AV = "g3";
+    const bv = (u) => u + (u.indexOf("?") < 0 ? "?" : "&") + "v=" + AV;
     const genres = [...new Set(ITEMS.map(i => i.type.split(" · ")[1]).filter(Boolean))];
     document.getElementById("chips").innerHTML =
       [`${ITEMS.length} 件真实输出`, ...genres].map(t => `<span class="chip">${t}</span>`).join("");
@@ -158,7 +161,7 @@
         : it.clips ? `<span class="anim-badge rig">Spine 骨骼</span>`
         : it.frames ? `<span class="anim-badge">${it.frames.length} 帧动画</span>` : "";
       return `<div class="card" data-idx="${idx}">
-        <div class="thumb">${badge}<span class="view-hint">点开看提示词与每一帧</span><img src="${cover}" alt="${it.type}" loading="lazy" /></div>
+        <div class="thumb">${badge}<span class="view-hint">点开看提示词与每一帧</span><img src="${bv(cover)}" alt="${it.type}" loading="lazy" /></div>
         <div class="meta"><div class="type">${it.type}</div><p class="brief">${it.brief}</p></div>
       </div>`;
     }).join("");
@@ -183,10 +186,10 @@
         <div class="modal-body">
           <div>
             <div class="stage" id="stage" title="${multi ? '点击恢复循环播放' : ''}">
-              <img id="stageImg" src="${frames[0][0]}.png" alt="${frames[0][1]}" />
+              <img id="stageImg" src="${bv(frames[0][0]+'.png')}" alt="${frames[0][1]}" />
               ${multi ? `<span class="stage-tag"><span id="playState">▶</span> <span id="stageLabel">${frames[0][1]}</span></span>` : ''}
             </div>
-            ${multi ? `<div class="frames" id="frames">${frames.map((fr,i)=>`<button class="frame${i===0?' sel':''}" data-fi="${i}"><img src="${fr[0]}.png" alt="${fr[1]}"/><span>${fr[1].split(" ")[0]}</span></button>`).join("")}</div>` : ''}
+            ${multi ? `<div class="frames" id="frames">${frames.map((fr,i)=>`<button class="frame${i===0?' sel':''}" data-fi="${i}"><img src="${bv(fr[0]+'.png')}" alt="${fr[1]}"/><span>${fr[1].split(" ")[0]}</span></button>`).join("")}</div>` : ''}
           </div>
           <div class="side">
             <h3>提示词 PROMPT</h3>
@@ -242,9 +245,9 @@
               <button class="cmode sel" data-mode="anim">动画</button>
               <button class="cmode" data-mode="frames">逐帧</button>
             </div>
-            <div class="stage"><img id="clipImg" src="${clips[1] ? clips[1][0] : clips[0][0]}.gif" alt="rig" />
+            <div class="stage"><img id="clipImg" src="${bv((clips[1] ? clips[1][0] : clips[0][0])+'.gif')}" alt="rig" />
               <span class="stage-tag"><span id="clipState">▶</span> <span id="clipLabel">${(clips[1]||clips[0])[1]}</span></span></div>
-            <div class="frames" id="clipRow">${clips.map((c,i)=>`<button class="frame${i===1?' sel':''}" data-ci="${i}"><img src="${c[0]}.gif" alt="${c[1]}"/><span>${c[1].split(" ")[0]}</span></button>`).join("")}</div>
+            <div class="frames" id="clipRow">${clips.map((c,i)=>`<button class="frame${i===1?' sel':''}" data-ci="${i}"><img src="${bv(c[0]+'.gif')}" alt="${c[1]}"/><span>${c[1].split(" ")[0]}</span></button>`).join("")}</div>
           </div>
           <div class="side">
             <h3>提示词 / 流程</h3>
@@ -267,8 +270,8 @@
       let cur = clips.length > 1 ? 1 : 0, mode = "anim";
       const render = () => {
         const c = clips[cur];
-        if (mode === "frames") { clipImg.src = `${c[0]}-sheet.png`; clipImg.classList.add("sheet"); clipState.textContent = "▦"; clipLabel.textContent = `${c[1]} · ${c[2]||""} 帧`; }
-        else { clipImg.src = `${c[0]}.gif`; clipImg.classList.remove("sheet"); clipState.textContent = "▶"; clipLabel.textContent = c[1]; }
+        if (mode === "frames") { clipImg.src = bv(`${c[0]}-sheet.png`); clipImg.classList.add("sheet"); clipState.textContent = "▦"; clipLabel.textContent = `${c[1]} · ${c[2]||""} 帧`; }
+        else { clipImg.src = bv(`${c[0]}.gif`); clipImg.classList.remove("sheet"); clipState.textContent = "▶"; clipLabel.textContent = c[1]; }
         btns.forEach((x,xi)=>x.classList.toggle("sel",xi===cur));
         modeBtns.forEach((x)=>x.classList.toggle("sel",x.dataset.mode===mode));
       };
