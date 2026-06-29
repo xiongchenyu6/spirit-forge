@@ -12,13 +12,17 @@ const TOKEN = (readFileSync(join(ROOT, ".dev.vars"), "utf8").match(/^GENERATOR_A
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const H = () => ({ "content-type": "application/json", "x-lingji-access-token": TOKEN });
 
-const BASE_BRIEF = "仙侠青衫剑客，御剑而立，鎏金衣纹流光，长发飘逸，全身像，纯色背景";
+// 基图:纯绿幕 + 直立站姿(不要御剑/飞行),便于 i2v 保持纯色背景与地面动作、便于扣像。
+const BASE_BRIEF = "仙侠青衫剑客，全身直立站姿，双脚踩地，双臂自然下垂，手持长剑，鎏金衣纹，纯绿色背景 chroma key green screen，游戏角色立绘，平涂无阴影";
+// 每个动作强约束:固定镜头 + 纯绿幕 + 双脚踩地原地 + 明确动作 + 禁飞行御剑云海。
+const CONSTRAINT = "固定镜头不移动，纯绿色背景 chroma green，角色双脚踩地、原地做动作，全身入镜，2D 游戏精灵动画";
+const NEG = "飞行，御剑飞行，腾空，云海，天空，云朵，飘逸长镜头，电影运镜，背景场景，渐变背景，阴影，地面，文字水印，多角色，镜头推拉";
 const ACTIONS = [
-  { id: "idle", brief: "仙侠青衫剑客全身，原地待机,轻微呼吸起伏、衣摆飘动,纯色背景" },
-  { id: "walk", brief: "仙侠青衫剑客全身,向前行走,迈步摆臂,纯色背景" },
-  { id: "attack", brief: "仙侠青衫剑客全身,挥剑向前劈砍攻击,纯色背景" },
-  { id: "hurt", brief: "仙侠青衫剑客全身,受击身体后仰踉跄,纯色背景" },
-  { id: "death", brief: "仙侠青衫剑客全身,中招倒地不起,纯色背景" },
+  { id: "idle", brief: `仙侠剑客原地待机站立，轻微呼吸起伏，${CONSTRAINT}` },
+  { id: "walk", brief: `仙侠剑客原地踏步行走循环，双腿交替迈步、双臂前后摆动，${CONSTRAINT}` },
+  { id: "attack", brief: `仙侠剑客挥剑横劈攻击，持剑手臂大幅向前挥砍，身体前倾发力，${CONSTRAINT}` },
+  { id: "hurt", brief: `仙侠剑客被击中，身体猛地后仰踉跄、单脚后退，${CONSTRAINT}` },
+  { id: "death", brief: `仙侠剑客中招倒下，身体向后倒地、瘫倒在地，${CONSTRAINT}` },
 ];
 
 async function api(path, opts = {}) {
@@ -59,7 +63,7 @@ console.log("基图:", img.filename);
 
 for (const a of ACTIONS) {
   console.log(`\n=== video ${a.id} ===`);
-  const vid = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: a.brief, assetType: "character", style: "production", camera: "front", preset: "single", submit: true, comfyImage: img }) });
+  const vid = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: a.brief, negativePrompt: NEG, assetType: "character", style: "production", camera: "front", preset: "single", submit: true, comfyImage: img }) });
   const vjob = vid?.promptId ? await poll(vid.promptId, "video") : vid;
   if (vjob?.result?.filename) await download(vjob.result, `vsprite-sword-${a.id}.webm`);
   else console.log("  视频失败");
