@@ -1868,6 +1868,18 @@ function acceptSubmittedPack(pack) {
   pollPack(pack);
 }
 
+// 阻塞式轮询某个 job 直到完成,返回 result(用于自动 FLF 串联尾帧生成)。
+async function awaitJobResult(promptId, kind, maxTries = 100) {
+  for (let i = 0; i < maxTries; i++) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const job = await api(`/api/jobs/${promptId}?kind=${kind}`).catch(() => null);
+    const st = job?.status;
+    if (st === "complete" || st === "completed" || job?.result) return job?.result || null;
+    if (st === "failed" || st === "error" || job?.error) throw new Error(job?.message || job?.error || "任务失败");
+  }
+  throw new Error("任务超时");
+}
+
 async function generateVideoSprite() {
   clearPoll();
   const source = state.last2d?.result;
@@ -1878,18 +1890,40 @@ async function generateVideoSprite() {
     showError("先生成或从历史恢复一张 2D 角色/怪物源帧，再生成视频精灵图");
     return;
   }
-  setBusy(true, "视频精灵提交中");
+  const srcRef = { filename: source.filename, subfolder: source.subfolder, type: source.type };
+  setBusy(true, "① 自动生成目标姿势尾帧…");
   try {
+    // 自动 FLF:先用 img2img 从源帧推导一张「动作姿势」尾帧,再用首尾帧插值生成可控视频。
+    // 全自动、零上传;img2img 失败则安全退回普通图生视频。
+    let endRef = null;
+    try {
+      const motionBrief = `${input.brief || "同一角色"}，动作姿势，动态 pose，肢体明显变化，纯色背景`;
+      const endJob = await api("/api/generate/2d", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: "2d", brief: motionBrief, assetType: input.assetType, style: input.style,
+          camera: input.camera, preset: "single", denoise: 0.62, comfyImage: srcRef,
+        }),
+      });
+      if (endJob?.promptId) {
+        const endResult = await awaitJobResult(endJob.promptId, "2d");
+        if (endResult?.filename) {
+          endRef = { filename: endResult.filename, subfolder: endResult.subfolder, type: endResult.type };
+        }
+      }
+    } catch (e) {
+      console.warn("自动尾帧生成失败,退回普通图生视频", e);
+    }
+
+    setBusy(true, endRef ? "② 首尾帧视频提交中…" : "视频精灵提交中…");
     const job = await api("/api/generate/video-sprite", {
       method: "POST",
       body: JSON.stringify({
         ...input,
         submit: true,
-        comfyImage: {
-          filename: source.filename,
-          subfolder: source.subfolder,
-          type: source.type,
-        },
+        comfyImage: srcRef,
+        // 自动推导出尾帧 → 走 Wan 首尾帧插值(FLF2V),单角色更稳、动作更可控。
+        ...(endRef ? { endComfyImage: endRef } : {}),
       }),
     });
     state.plan = job.plan || job;
