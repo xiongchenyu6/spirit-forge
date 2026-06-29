@@ -1,5 +1,5 @@
-import { listComfyModels, submitComfyWorkflow } from "./comfy-client.js";
-import { buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
+import { ensureComfyInputImage, listComfyModels, submitComfyWorkflow } from "./comfy-client.js";
+import { buildFlux1Img2ImgWorkflow, buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
 import { DEFAULT_NEGATIVE, localPromptPlan, normalizeDimensions, normalizeGenerationInput, randomSeed } from "./generation-utils.js";
 import { rememberJobRecord } from "./storage.js";
 
@@ -25,7 +25,18 @@ export async function submit2DJob(input, env, options = {}) {
   // 真 CFG），默认启用；可设 env.DISABLE_PIXEL_KLEIN="true" 临时关闭。
   // 模型缺失/清单异常等任一环节失败都安全回退 flux1-dev + 强化像素文本提示。
   let workflow = null;
+  // 图生图:给了参考图(comfyImage / imageDataUrl / imageUrl / referenceImage)就走 img2img,
+  // denoise 控制改动幅度(默认 0.6,越高越偏离原图)。否则继续文生图。
+  const refSource = (input.comfyImage?.filename || input.imageDataUrl || input.imageUrl)
+    ? input
+    : (input.referenceImage?.filename ? { comfyImage: input.referenceImage } : null);
+  if (refSource) {
+    const filename = await ensureComfyInputImage(refSource, env, "lingji_2d_img2img_source.png");
+    const denoise = Number.isFinite(Number(input.denoise)) ? Math.max(0.1, Math.min(1, Number(input.denoise))) : 0.6;
+    workflow = buildFlux1Img2ImgWorkflow({ ...flux1Args, filename, denoise });
+  }
   if (
+    !workflow &&
     (normalized.style === "pixel" || normalized.style === "pixel-art") &&
     env.DISABLE_PIXEL_KLEIN !== "true"
   ) {
