@@ -242,6 +242,21 @@
           <span class="auth-status" id="motionControlDetail">-</span>
         </section>
 
+        <section class="inspector-section flf-section" id="flfSection">
+          <div class="section-heading-row">
+            <h2>首尾帧引导 (FLF)</h2>
+            <span class="route-badge video">可控视频</span>
+          </div>
+          <span class="auth-status">首帧 = 当前 2D 源帧;可选上传一张「尾帧 / 目标姿势」。设了尾帧则用 Wan 首尾帧插值生成——单角色更稳、动作更可控。留空则普通图生视频。</span>
+          <div class="flf-end-row">
+            <label class="flf-upload-btn" for="flfEndInput">上传尾帧</label>
+            <input id="flfEndInput" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+            <button type="button" class="flf-clear-btn" id="flfEndClear" hidden>清除尾帧</button>
+            <span class="auth-status" id="flfEndState">未设尾帧</span>
+          </div>
+          <img id="flfEndPreview" class="flf-end-preview" alt="尾帧预览" hidden />
+        </section>
+
         <section class="inspector-section route-ab-section" id="routeAbSection" hidden>
           <div class="section-heading-row">
             <h2>A/B 样本</h2>

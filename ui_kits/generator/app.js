@@ -68,6 +68,10 @@ const els = {
   routeAbSection: $("#routeAbSection"),
   routeAbComparison: $("#routeAbComparison"),
   routeAbStatus: $("#routeAbStatus"),
+  flfEndInput: $("#flfEndInput"),
+  flfEndClear: $("#flfEndClear"),
+  flfEndPreview: $("#flfEndPreview"),
+  flfEndState: $("#flfEndState"),
   promptPlan: $("#promptPlan"),
   warningList: $("#warningList"),
   authSection: $("#authSection"),
@@ -1890,6 +1894,8 @@ async function generateVideoSprite() {
           subfolder: source.subfolder,
           type: source.type,
         },
+        // 设了尾帧 → 走 Wan 首尾帧插值(FLF2V),提高可控性;留空则普通图生视频。
+        ...(state.flfEndImage ? { endImageDataUrl: state.flfEndImage } : {}),
       }),
     });
     state.plan = job.plan || job;
@@ -5276,6 +5282,27 @@ els.generate2dBtn.addEventListener("click", generate2D);
 els.generatePackBtn.addEventListener("click", generatePack);
 els.generate3dBtn.addEventListener("click", generate3D);
 els.generateLayersBtn?.addEventListener("click", generatePackLayers);
+
+// 首尾帧引导(FLF):上传尾帧 → 读成 data URL 存入 state,视频生成时作 end_image。
+els.flfEndInput?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.flfEndImage = reader.result;
+    if (els.flfEndPreview) { els.flfEndPreview.src = reader.result; els.flfEndPreview.hidden = false; }
+    if (els.flfEndClear) els.flfEndClear.hidden = false;
+    if (els.flfEndState) els.flfEndState.textContent = `已设尾帧:${file.name} · 视频将走首尾帧插值`;
+  };
+  reader.readAsDataURL(file);
+});
+els.flfEndClear?.addEventListener("click", () => {
+  state.flfEndImage = null;
+  if (els.flfEndInput) els.flfEndInput.value = "";
+  if (els.flfEndPreview) { els.flfEndPreview.hidden = true; els.flfEndPreview.removeAttribute("src"); }
+  els.flfEndClear.hidden = true;
+  if (els.flfEndState) els.flfEndState.textContent = "未设尾帧";
+});
 els.saveAccessTokenBtn.addEventListener("click", () => {
   const token = els.accessToken.value.trim();
   if (token) {
