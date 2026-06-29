@@ -385,6 +385,28 @@ async function handleApi(request, env, url, ctx = null) {
   const authFailure = authorizeApiRequest(request, env);
   if (authFailure) return authFailure;
 
+  // 管理:清空 R2 素材库(token 已鉴权 + 显式 confirm 防误触)。无现成删除 API,
+  // 用 R2 list()+delete() 批量清掉 library/ 前缀的全部 jobs/packs/文件。
+  if (url.pathname === "/api/admin/library/wipe" && request.method === "POST") {
+    if (!env.ASSET_BUCKET) return jsonResponse({ error: "storage_not_configured" }, 503);
+    if (url.searchParams.get("confirm") !== "wipe-all") {
+      return jsonResponse({ error: "confirm_required", message: "Append ?confirm=wipe-all to wipe the entire library." }, 400);
+    }
+    const prefix = safeString(url.searchParams.get("prefix")) || "library/";
+    let cursor;
+    let deleted = 0;
+    do {
+      const listing = await env.ASSET_BUCKET.list({ prefix, cursor, limit: 1000 });
+      const keys = (listing.objects || []).map((o) => o.key);
+      if (keys.length) {
+        await env.ASSET_BUCKET.delete(keys);
+        deleted += keys.length;
+      }
+      cursor = listing.truncated ? listing.cursor : undefined;
+    } while (cursor);
+    return jsonResponse({ ok: true, prefix, deleted });
+  }
+
   if (url.pathname === "/api/usage" && request.method === "GET") {
     return jsonResponse(await usageStatus(request, env));
   }
