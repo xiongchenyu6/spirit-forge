@@ -14,10 +14,10 @@ const GENRE_ART = {
 
 const GENERATED_ASSET_BASE = "../../assets/generated/official/";
 const GENERATED_PREVIEWS = [
-  { action: "Idle", image: "monster-idle.png" },
-  { action: "Move", image: "monster-move.png" },
-  { action: "Attack", image: "monster-attack.png" },
-  { action: "Death", image: "monster-death.png" },
+  { action: "Idle", image: "rig-monster-idle.gif" },
+  { action: "Walk", image: "rig-monster-walk.gif" },
+  { action: "Attack", image: "rig-monster-attack.gif" },
+  { action: "Death", image: "rig-monster-death.gif" },
 ];
 function generatedAssetSrc(file) {
   return file && file.includes("/") ? file : GENERATED_ASSET_BASE + file;

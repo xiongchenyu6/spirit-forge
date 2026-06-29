@@ -157,7 +157,7 @@ function TplCard({ tpl }) {
 
 function Market() {
   const [cat, setCat] = React.useState(t.filters[0]);
-  const heroFrames = t.heroFrames || ["monster-idle.png", "monster-move.png", "monster-attack.png", "monster-death.png"];
+  const heroFrames = t.heroFrames || ["rig-monster-idle.gif", "rig-monster-walk.gif", "rig-monster-attack.gif", "rig-monster-death.gif"];
   React.useEffect(() => { setTimeout(() => window.lucide && window.lucide.createIcons(), 40); });
   return (
     <div>

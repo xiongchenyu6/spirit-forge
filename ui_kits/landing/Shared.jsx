@@ -8,10 +8,10 @@ const generatedAssetPath = (file) => `../../assets/generated/official/${file}`;
 const OFFICIAL_MONSTER_ACTIONS_PACK_ID = "db8c0fff-918e-4e76-baef-9064e9b47052";
 const OFFICIAL_MONSTER_ACTIONS_BRIEF = "同一只红黑色甲壳怪物，橙红背刺，深色腹甲，弯尾，尖牙大嘴，完整身体居中，纯色背景；生成 idle、move、attack、death 四个动作 clip，每个动作 8 帧；每一帧必须是不同关键姿势，保持同一怪物身份和比例";
 const OFFICIAL_SAMPLE_BY_IMAGE = {
-  "monster-idle.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
-  "monster-move.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
-  "monster-attack.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
-  "monster-death.png": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "rig-monster-idle.gif": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "rig-monster-walk.gif": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "rig-monster-attack.gif": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
+  "rig-monster-death.gif": sampleInfo("sample-monster-actions", "monster-actions", "creature", "pixel", "front", OFFICIAL_MONSTER_ACTIONS_BRIEF, OFFICIAL_MONSTER_ACTIONS_PACK_ID),
   "skill-vfx-charge.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),
   "skill-vfx-burst.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),
   "skill-vfx-impact.png": sampleInfo("sample-skill-vfx", "skill-vfx", "vfx", "pixel", "front", "像素风雷火技能特效，蓝紫闪电缠绕金色火花；需要 charge、burst、impact、fade 四帧循环，居中，纯色背景，轮廓清晰"),

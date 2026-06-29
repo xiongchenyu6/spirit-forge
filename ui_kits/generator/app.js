@@ -192,10 +192,10 @@ const MOTION_ACTION_LABELS = {
 };
 
 const MONSTER_ACTIONS_DEMO_FRAMES = [
-  { id: "idle", label: "Idle", src: "../../assets/generated/official/monster-idle.png" },
-  { id: "move", label: "Move", src: "../../assets/generated/official/monster-move.png" },
-  { id: "attack", label: "Attack", src: "../../assets/generated/official/monster-attack.png" },
-  { id: "death", label: "Death", src: "../../assets/generated/official/monster-death.png" },
+  { id: "idle", label: "Idle", src: "../../assets/generated/official/rig-monster-idle.gif" },
+  { id: "move", label: "Walk", src: "../../assets/generated/official/rig-monster-walk.gif" },
+  { id: "attack", label: "Attack", src: "../../assets/generated/official/rig-monster-attack.gif" },
+  { id: "death", label: "Death", src: "../../assets/generated/official/rig-monster-death.gif" },
 ];
 
 const PRESET_CONFIG = {
@@ -272,15 +272,15 @@ const PACK_BLUEPRINTS = {
   "monster-actions": {
     icon: "ghost",
     title: "怪物动作包",
-    summary: "Idle / Move / Attack / Death 四帧，是当前 2D 主线和 SAM3 Spine 分层的重点样本",
-    format: "4 x 512",
-    qa: ["轮廓清楚", "动作差异", "SAM3 部件"],
+    summary: "Idle / Walk / Attack / Death,SAM3 分层 + Spine 绑骨后由关节驱动的真实骨骼动画",
+    format: "Spine rig",
+    qa: ["轮廓清楚", "关节驱动", "SAM3 部件"],
     exports: ["PNG", "Alpha", "Sheet", "JSON", "ZIP", "Spine"],
     samples: [
-      { label: "Idle", file: "monster-idle.png", action: "idle" },
-      { label: "Move", file: "monster-move.png", action: "move" },
-      { label: "Attack", file: "monster-attack.png", action: "attack" },
-      { label: "Death", file: "monster-death.png", action: "death" },
+      { label: "Idle", file: "rig-monster-idle.gif", action: "idle" },
+      { label: "Walk", file: "rig-monster-walk.gif", action: "move" },
+      { label: "Attack", file: "rig-monster-attack.gif", action: "attack" },
+      { label: "Death", file: "rig-monster-death.gif", action: "death" },
     ],
   },
   "skill-vfx": {

@@ -3,18 +3,6 @@
   "updatedAt": "2026-06-27",
   "packs": [
     {
-      "packId": "914ef7b8-13ef-4c9b-a78e-0a1b1cd548cd",
-      "label": "original character baseline",
-      "preset": "character-actions",
-      "status": "active",
-      "hasSam3": true,
-      "enabled": true,
-      "tags": [
-        "character",
-        "baseline"
-      ]
-    },
-    {
       "packId": "06e7fd78-f60d-4a7b-983a-4a16678d2815",
       "label": "original monster baseline",
       "preset": "monster-actions",
