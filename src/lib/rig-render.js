@@ -106,12 +106,12 @@ const CLIPS = {
     torso: [{ t: 0, rot: -3 }, { t: 0.25, rot: 3 }, { t: 0.5, rot: -3 }, { t: 0.75, rot: 3 }, { t: 1, rot: -3 }],
     head: [{ t: 0, rot: 2 }, { t: 0.5, rot: -2 }, { t: 1, rot: 2 }],
   } },
-  attack: { dur: 0.9, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.4, dx: -7 }, { t: 0.58, dx: 16 }, { t: 1, dx: 0 }], pose: {
-    arm_r: [{ t: 0, rot: 0 }, { t: 0.4, rot: -85 }, { t: 0.58, rot: 72 }, { t: 0.8, rot: 46 }, { t: 1, rot: 0 }],
-    arm_l: [{ t: 0, rot: 0 }, { t: 0.4, rot: 28 }, { t: 0.58, rot: -18 }, { t: 1, rot: 0 }],
-    torso: [{ t: 0, rot: 0 }, { t: 0.4, rot: -16 }, { t: 0.58, rot: 20 }, { t: 1, rot: 0 }],
-    head: [{ t: 0, rot: 0 }, { t: 0.4, rot: -8 }, { t: 0.58, rot: 12 }, { t: 1, rot: 0 }],
-    leg_r: [{ t: 0, rot: 0 }, { t: 0.58, rot: -16 }, { t: 1, rot: 0 }],
+  attack: { dur: 0.9, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.4, dx: -6 }, { t: 0.58, dx: 14 }, { t: 1, dx: 0 }], pose: {
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.4, rot: -42 }, { t: 0.58, rot: 50 }, { t: 0.8, rot: 26 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.4, rot: 18 }, { t: 0.58, rot: -12 }, { t: 1, rot: 0 }],
+    torso: [{ t: 0, rot: 0 }, { t: 0.4, rot: -14 }, { t: 0.58, rot: 18 }, { t: 1, rot: 0 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.4, rot: -7 }, { t: 0.58, rot: 11 }, { t: 1, rot: 0 }],
+    leg_r: [{ t: 0, rot: 0 }, { t: 0.58, rot: -14 }, { t: 1, rot: 0 }],
   } },
   // 受击:快速后仰回弹(knockback)。
   hurt: { dur: 0.6, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.18, dx: -14 }, { t: 0.5, dx: -4 }, { t: 1, dx: 0 }], pose: {
@@ -164,12 +164,16 @@ export function buildRigParts(image, masks) {
   }
   const bb = {};
   for (const p of PARTS) { bb[p] = contentBBox(parts[p], W, H); if (!bb[p]) return null; }
+  // 手臂枢轴放在"肩关节"(顶部 + 靠近躯干一侧的内缘),而非手臂中心——否则大幅旋转时
+  // 肩端会甩离身体,看着"胳膊离体"。腿枢轴放髋(顶部,略偏内)。
+  const torsoCx = bb.torso.cx;
+  const innerX = (b) => (Math.abs(b.maxX - torsoCx) <= Math.abs(b.minX - torsoCx) ? b.maxX : b.minX);
   const pivots = {
     head: { x: bb.head.cx, y: bb.head.maxY },
     torso: { x: bb.torso.cx, y: bb.torso.maxY },
     hips: { x: bb.hips.cx, y: bb.hips.cy },
-    arm_l: { x: bb.arm_l.cx, y: bb.arm_l.minY + (bb.arm_l.maxY - bb.arm_l.minY) * 0.15 },
-    arm_r: { x: bb.arm_r.cx, y: bb.arm_r.minY + (bb.arm_r.maxY - bb.arm_r.minY) * 0.15 },
+    arm_l: { x: innerX(bb.arm_l), y: bb.arm_l.minY + (bb.arm_l.maxY - bb.arm_l.minY) * 0.08 },
+    arm_r: { x: innerX(bb.arm_r), y: bb.arm_r.minY + (bb.arm_r.maxY - bb.arm_r.minY) * 0.08 },
     leg_l: { x: bb.leg_l.cx, y: bb.leg_l.minY + (bb.leg_l.maxY - bb.leg_l.minY) * 0.1 },
     leg_r: { x: bb.leg_r.cx, y: bb.leg_r.minY + (bb.leg_r.maxY - bb.leg_r.minY) * 0.1 },
   };

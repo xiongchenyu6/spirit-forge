@@ -26,6 +26,8 @@
   .anim-badge::before { content:"▶ "; font-size:9px; }
   .anim-badge.rig { background:linear-gradient(135deg,#8fe0cf,#4aceB2); }
   .anim-badge.rig::before { content:"⛓ "; }
+  .anim-badge.vid { background:linear-gradient(135deg,#b89cff,#8b6cf0); color:#0a0b0e; }
+  .anim-badge.vid::before { content:"🎞 "; }
   .view-hint { position:absolute; right:10px; bottom:10px; z-index:1; font-size:11px; color:var(--paper); background:rgba(7,9,11,.66); border:1px solid rgba(255,255,255,.1); border-radius:99px; padding:3px 10px; opacity:0; transition:opacity .15s; }
   .card:hover .view-hint { opacity:1; }
   .meta { padding:12px 14px 14px; }
@@ -55,6 +57,10 @@
     background:linear-gradient(45deg, rgba(255,255,255,.045) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,.045) 25%, transparent 25%), rgba(2,6,10,.86);
     background-size:18px 18px; background-position:0 0,0 9px; display:grid; place-items:center; border:1px solid rgba(111,182,168,.28); }
   .stage img { width:88%; height:88%; object-fit:contain; filter:drop-shadow(0 10px 18px rgba(0,0,0,.5)); }
+  .stage img.sheet { width:98%; height:98%; filter:none; image-rendering:auto; }
+  .clip-modes { display:flex; gap:8px; margin-bottom:8px; }
+  .cmode { font-size:12px; padding:5px 13px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--paper); cursor:pointer; }
+  .cmode.sel { background:linear-gradient(135deg,#e8c97a,#d4af6a); color:#0a0b0e; font-weight:600; border-color:transparent; }
   .stage-tag { position:absolute; right:12px; bottom:12px; font-size:11px; color:var(--paper); background:rgba(7,9,11,.66); border:1px solid rgba(255,255,255,.1); border-radius:99px; padding:3px 11px; display:inline-flex; gap:6px; align-items:center; }
   .frames { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
   .frame { position:relative; width:64px; height:64px; border-radius:9px; overflow:hidden; cursor:pointer; padding:0; border:1px solid var(--line);
@@ -111,7 +117,11 @@
       { file:"rig-swordmaster-walk", type:"角色 · Spine 骨骼绑定", brief:"仙侠剑客:SAM3 分层 → Spine 绑骨 → 关节驱动 5 动作循环",
         prompt:"以单帧仙侠剑客为种子,SAM3 按语义分出头/躯干/胯/四肢图层,自动绑定骨骼并推断关节枢轴,再用关节旋转驱动 idle/walk/attack/hurt/death 循环——真正的 2D 骨骼动画,而非逐帧换图。人形骨架干净,可导出 Spine skeleton.json + atlas 进引擎二次编辑。",
         cover:"rig-swordmaster-walk.gif",
-        clips:[ ["rig-swordmaster-idle","Idle 待机"],["rig-swordmaster-walk","Walk 行走"],["rig-swordmaster-attack","Attack 攻击"],["rig-swordmaster-hurt","Hurt 受击"],["rig-swordmaster-death","Death 倒地"] ] },
+        clips:[ ["rig-swordmaster-idle","Idle 待机",19],["rig-swordmaster-walk","Walk 行走",11],["rig-swordmaster-attack","Attack 攻击",13],["rig-swordmaster-hurt","Hurt 受击",8],["rig-swordmaster-death","Death 倒地",12] ] },
+      { file:"vsprite-steampunk", type:"对比 · 视频抽帧", brief:"另一条路线:AI 图生视频 → 自动抽帧成 Sprite",
+        prompt:"对照组:以单帧为种子,用 Wan2.2 图生视频生成一小段运动,再自动抽帧成 Sprite Sheet。优点——运动自然(微动/呼吸/光影);局限——不如骨骼可控、动作幅度小、帧多体积大。可与上面的 Spine 骨骼绑定方案对比:骨骼=可控可导出引擎,视频抽帧=自然但难精修。",
+        cover:"vsprite-steampunk.gif", vsprite:true,
+        clips:[ ["vsprite-steampunk","视频抽帧",22] ] },
       { file:"nb-frost-dragon", type:"怪物 · 西幻", brief:"冰霜巨龙，冰晶鳞甲，展翅吐寒",
         prompt:"西幻冰霜巨龙，冰晶鳞甲，展翅，口吐寒气，战斗姿态，魔幻写实，透明背景" },
       { file:"nb-mecha-scorpion-boss", type:"怪物 · 科幻", brief:"机械蝎 BOSS，钢铁尾刺，等离子炮",
@@ -144,7 +154,8 @@
 
     document.getElementById("grid").innerHTML = ITEMS.map((it, idx) => {
       const cover = it.cover || (it.anim ? it.anim : `${it.file}.png`);
-      const badge = it.clips ? `<span class="anim-badge rig">Spine 骨骼</span>`
+      const badge = it.vsprite ? `<span class="anim-badge vid">视频抽帧</span>`
+        : it.clips ? `<span class="anim-badge rig">Spine 骨骼</span>`
         : it.frames ? `<span class="anim-badge">${it.frames.length} 帧动画</span>` : "";
       return `<div class="card" data-idx="${idx}">
         <div class="thumb">${badge}<span class="view-hint">点开看提示词与每一帧</span><img src="${cover}" alt="${it.type}" loading="lazy" /></div>
@@ -227,8 +238,12 @@
         </div>
         <div class="modal-body">
           <div>
+            <div class="clip-modes">
+              <button class="cmode sel" data-mode="anim">动画</button>
+              <button class="cmode" data-mode="frames">逐帧</button>
+            </div>
             <div class="stage"><img id="clipImg" src="${clips[1] ? clips[1][0] : clips[0][0]}.gif" alt="rig" />
-              <span class="stage-tag">▶ <span id="clipLabel">${(clips[1]||clips[0])[1]}</span></span></div>
+              <span class="stage-tag"><span id="clipState">▶</span> <span id="clipLabel">${(clips[1]||clips[0])[1]}</span></span></div>
             <div class="frames" id="clipRow">${clips.map((c,i)=>`<button class="frame${i===1?' sel':''}" data-ci="${i}"><img src="${c[0]}.gif" alt="${c[1]}"/><span>${c[1].split(" ")[0]}</span></button>`).join("")}</div>
           </div>
           <div class="side">
@@ -238,16 +253,28 @@
               <button class="btn gold" id="copyBtn">复制说明</button>
               <a class="btn" href="/generator/">去生成台造物 →</a>
             </div>
-            <p class="note">每个动作都是 Spine 骨骼关节驱动的循环动画(非逐帧换图)。可在素材库对任意动作包做 SAM3 分层 + 绑骨,导出 skeleton.json 进引擎二次编辑。</p>
+            <p class="note">「动画」是 Spine 骨骼关节驱动的循环;「逐帧」可查看该动作的每一帧关键姿势。可在素材库对任意动作包做 SAM3 分层 + 绑骨,导出 skeleton.json 进引擎二次编辑。</p>
           </div>
         </div>`;
       overlay.classList.add("open");
       document.body.style.overflow = "hidden";
       modal.querySelector(".modal-close").onclick = closeModal;
       modal.querySelector("#copyBtn").onclick = (e) => { navigator.clipboard?.writeText(it.prompt).then(()=>{ e.target.textContent="已复制 ✓"; setTimeout(()=>{e.target.textContent="复制说明";},1600); }); };
-      const clipImg = modal.querySelector("#clipImg"), clipLabel = modal.querySelector("#clipLabel");
+      const clipImg = modal.querySelector("#clipImg"), clipLabel = modal.querySelector("#clipLabel"), clipState = modal.querySelector("#clipState");
+      const stage = modal.querySelector(".stage");
       const btns = [...modal.querySelectorAll("#clipRow .frame")];
-      btns.forEach((b,i)=> b.onclick = () => { clipImg.src = `${clips[i][0]}.gif`; clipLabel.textContent = clips[i][1]; btns.forEach((x,xi)=>x.classList.toggle("sel",xi===i)); });
+      const modeBtns = [...modal.querySelectorAll(".cmode")];
+      let cur = clips.length > 1 ? 1 : 0, mode = "anim";
+      const render = () => {
+        const c = clips[cur];
+        if (mode === "frames") { clipImg.src = `${c[0]}-sheet.png`; clipImg.classList.add("sheet"); clipState.textContent = "▦"; clipLabel.textContent = `${c[1]} · ${c[2]||""} 帧`; }
+        else { clipImg.src = `${c[0]}.gif`; clipImg.classList.remove("sheet"); clipState.textContent = "▶"; clipLabel.textContent = c[1]; }
+        btns.forEach((x,xi)=>x.classList.toggle("sel",xi===cur));
+        modeBtns.forEach((x)=>x.classList.toggle("sel",x.dataset.mode===mode));
+      };
+      btns.forEach((b,i)=> b.onclick = () => { cur = i; render(); });
+      modeBtns.forEach((b)=> b.onclick = () => { mode = b.dataset.mode; render(); });
+      render();
     }
 
     function closeModal(){ clearTimer(); overlay.classList.remove("open"); document.body.style.overflow = ""; }
