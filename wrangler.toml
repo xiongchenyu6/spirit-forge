@@ -28,9 +28,9 @@ new_sqlite_classes = ["UsageLimiter"]
 
 [vars]
 COMFY_ACCOUNT = "worldsmith"
-# 时段额度上限：需 ≥ 最大单个资产包成本（8 方向行走 = 32 帧 × 12 = 384），
-# 否则该包的预扣费会超过时段上限、永远无法提交。设 600 留足余量。
-USAGE_HOURLY_CREDITS = "600"
+# 额度上限：自有显卡,不限速。设为极大值 ≈ 不限(限速逻辑保留,便于将来对外开放时再收紧)。
+USAGE_HOURLY_CREDITS = "100000000"
+USAGE_DAILY_CREDITS = "100000000"
 MISTRAL_MODEL = "mistral-small-latest"
 MISTRAL_BASE_URL = "https://api.mistral.ai/v1"
 COMFY_UPSTREAM_BASE = "https://comfy.101.78.126.6.sslip.io"
