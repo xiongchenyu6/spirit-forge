@@ -26,6 +26,8 @@ function Hero() {
   const [demoError, setDemoError] = React.useState(null);
   // 默认展示 walk(index 1)。各 clip 本身是循环 GIF(自播放),无需 flipbook 定时器。
   const [activeFrame, setActiveFrame] = React.useState(1);
+  // 有真实视频样本时默认显示视频;点击骨骼 clip 缩略图则切到骨骼动画(picked=true)。
+  const [picked, setPicked] = React.useState(false);
   const chipIcons = ["image", "film", "layout-grid", "braces"];
   // Spine 骨骼绑定真实输出(SAM3 分层→绑骨→关节驱动循环),非逐帧换图。
   const outputFrames = [
@@ -38,6 +40,7 @@ function Hero() {
   const videoDemo = hero.videoDemo || {};
   const quality = demo?.quality || {};
   const demoUrl = demo?.url || "";
+  const showRig = !demoUrl || picked; // 显示骨骼动画(而非视频)时
   const metricValues = [
     quality.score != null ? String(quality.score) : "--",
     demo?.frames != null ? String(demo.frames) : "--",
@@ -117,16 +120,16 @@ function Hero() {
           display: "grid",
           placeItems: "center",
         }}>
-          {demoUrl ? (
+          {!showRig ? (
             <video src={demoUrl} controls loop muted playsInline autoPlay style={{ width: "100%", height: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
           ) : (
             <img key={outputFrames[activeFrame][0]} src={window.generatedAssetPath(outputFrames[activeFrame][0])} alt={outputFrames[activeFrame][1]} style={{ width: "78%", height: "100%", maxHeight: 248, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))" }} />
           )}
           <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <Badge tone="jade">{demoUrl ? videoDemo.badge : "Spine 骨骼"}</Badge>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{demoUrl ? videoDemo.title : "SAM3 分层 · 关节驱动循环"}</span>
+            <Badge tone="jade">{showRig ? "Spine 骨骼" : videoDemo.badge}</Badge>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{showRig ? "SAM3 分层 · 关节驱动循环" : videoDemo.title}</span>
           </div>
-          {!demoUrl && (
+          {showRig && (
             <span style={{ position: "absolute", right: 12, bottom: 12, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.85)", background: "rgba(7,9,11,0.66)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-pill)", padding: "3px 10px" }}>
               <i data-lucide="play" style={{ width: 11, height: 11, color: "var(--jade-300)" }} />
               {outputFrames[activeFrame][1]}
@@ -139,6 +142,7 @@ function Hero() {
         {!demo && !demoError && (
           <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--text-muted)", margin: "8px 0 0" }}>{videoDemo.loading}</p>
         )}
+        {!showRig && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 10 }}>
           {metricValues.map((value, index) => (
             <div key={videoDemo.metrics[index]} style={{ minHeight: 48, padding: "7px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "rgba(255,255,255,0.035)" }}>
@@ -147,16 +151,17 @@ function Hero() {
             </div>
           ))}
         </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "12px 0 8px" }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)" }}>{demoUrl ? videoDemo.frameLabel : "骨骼动画 · 点击切换"}</span>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>{demoUrl ? "alpha-bounds-bottom-anchor-v1" : "sam3-spine-rig-v1"}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)" }}>{showRig ? "骨骼动画 · 点击切换动作" : videoDemo.frameLabel}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>{showRig ? "sam3-spine-rig-v1" : "alpha-bounds-bottom-anchor-v1"}</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
           {outputFrames.map(([file, label], i) => {
-            const selected = !demoUrl && i === activeFrame;
+            const selected = showRig && i === activeFrame;
             return (
             <button key={file} type="button" title={label}
-              onClick={() => setActiveFrame(i)}
+              onClick={() => { setActiveFrame(i); setPicked(true); }}
               style={{
               position: "relative",
               aspectRatio: "1",

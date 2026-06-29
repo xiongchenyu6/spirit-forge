@@ -35,6 +35,10 @@
   .topbar { max-width:1200px; margin:0 auto 18px; display:flex; gap:18px; }
   .back { color:var(--jade); font-size:13px; text-decoration:none; opacity:.85; transition:opacity .15s; }
   .back:hover { opacity:1; }
+  .pipeline { max-width:1000px; margin:48px auto 0; }
+  .pipeline h2 { font-size:22px; font-weight:800; margin:0 0 6px; background:linear-gradient(90deg,var(--gold2),var(--gold)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .pipeline-lead { color:var(--dim); font-size:13px; line-height:1.7; margin:0 0 16px; }
+  .pipeline img { width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:14px; }
 
   /* 详情弹窗:提示词 + 每一帧 + 循环动画 */
   .overlay { position:fixed; inset:0; z-index:50; background:rgba(5,7,10,.82); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:32px 20px; }
@@ -77,6 +81,13 @@
     <div class="meta-row" id="chips"></div>
   </header>
   <div class="grid" id="grid"></div>
+
+  <section class="pipeline">
+    <h2>2D 骨骼动画流水线</h2>
+    <p class="pipeline-lead">SAM3 语义分层 → 关节绑骨 → 5 动作关节驱动 → 离线烘焙。下图各阶段均由真实生成资产驱动,非示意。</p>
+    <img src="spine-pipeline-poster.png" alt="灵机阁 2D 骨骼动画流水线:SAM3 分层 → 关节绑骨 → 5 动作关节驱动 → 离线烘焙" loading="lazy" />
+  </section>
+
   <footer>单帧为单次文生图真实输出 · 标注「帧动画」者为多帧动作包合成的循环预览 · 点开查看提示词与每一帧 · 可经动作包、SAM3 分层、Spine 绑骨继续生产</footer>
 
   <div class="overlay" id="overlay">
