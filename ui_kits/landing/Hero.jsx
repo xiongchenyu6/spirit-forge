@@ -29,13 +29,13 @@ function Hero() {
   // 有真实视频样本时默认显示视频;点击骨骼 clip 缩略图则切到骨骼动画(picked=true)。
   const [picked, setPicked] = React.useState(false);
   const chipIcons = ["image", "film", "layout-grid", "braces"];
-  // Spine 骨骼绑定真实输出(SAM3 分层→绑骨→关节驱动循环),非逐帧换图。
+  // Spine 骨骼绑定真实输出(仙侠剑客:SAM3 分层→绑骨→关节驱动循环),非逐帧换图。
   const outputFrames = [
-    ["rig-monster-idle.gif", "Idle"],
-    ["rig-monster-walk.gif", "Walk"],
-    ["rig-monster-attack.gif", "Attack"],
-    ["rig-monster-hurt.gif", "Hurt"],
-    ["rig-monster-death.gif", "Death"],
+    ["rig-swordmaster-idle.gif", "Idle"],
+    ["rig-swordmaster-walk.gif", "Walk"],
+    ["rig-swordmaster-attack.gif", "Attack"],
+    ["rig-swordmaster-hurt.gif", "Hurt"],
+    ["rig-swordmaster-death.gif", "Death"],
   ];
   const videoDemo = hero.videoDemo || {};
   const quality = demo?.quality || {};
