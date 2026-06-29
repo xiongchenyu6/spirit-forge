@@ -1891,37 +1891,43 @@ async function generateVideoSprite() {
     return;
   }
   const srcRef = { filename: source.filename, subfolder: source.subfolder, type: source.type };
-  setBusy(true, "① 自动生成目标姿势尾帧…");
+  // 自动 img2img 一帧:把源帧放到纯绿幕(便于抠像)+ 指定动作姿势。helper 复用。
+  const GREEN = "纯绿色背景 chroma key green screen，干净纯色背景，全身入镜";
+  const autoImg2img = async (label, prompt, denoise, ref) => {
+    setBusy(true, label);
+    const j = await api("/api/generate/2d", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "2d", brief: prompt, assetType: input.assetType, style: input.style,
+        camera: input.camera, preset: "single", denoise, comfyImage: ref,
+      }),
+    });
+    if (!j?.promptId) return null;
+    const r = await awaitJobResult(j.promptId, "2d");
+    return r?.filename ? { filename: r.filename, subfolder: r.subfolder, type: r.type } : null;
+  };
   try {
-    // 自动 FLF:先用 img2img 从源帧推导一张「动作姿势」尾帧,再用首尾帧插值生成可控视频。
-    // 全自动、零上传;img2img 失败则安全退回普通图生视频。
-    let endRef = null;
+    // 自动 FLF + 绿幕:① 源帧→绿幕中性首帧(低 denoise 保身份、换绿幕背景);
+    // ② 绿幕动作尾帧(denoise 0.7 动作更大);③ 首尾帧插值 → 绿幕视频。
+    // 完成后内置「边缘洪填抠像」自动扣成透明 Sprite。任一步失败安全退回普通图生视频。
+    let startRef = srcRef, endRef = null;
     try {
-      const motionBrief = `${input.brief || "同一角色"}，动作姿势，动态 pose，肢体明显变化，纯色背景`;
-      const endJob = await api("/api/generate/2d", {
-        method: "POST",
-        body: JSON.stringify({
-          mode: "2d", brief: motionBrief, assetType: input.assetType, style: input.style,
-          camera: input.camera, preset: "single", denoise: 0.62, comfyImage: srcRef,
-        }),
-      });
-      if (endJob?.promptId) {
-        const endResult = await awaitJobResult(endJob.promptId, "2d");
-        if (endResult?.filename) {
-          endRef = { filename: endResult.filename, subfolder: endResult.subfolder, type: endResult.type };
-        }
-      }
+      const base = input.brief || "同一角色";
+      const greenStart = await autoImg2img("① 生成绿幕首帧…", `${base}，原地直立站姿，${GREEN}`, 0.5, srcRef);
+      if (greenStart) startRef = greenStart;
+      endRef = await autoImg2img("② 生成绿幕动作尾帧…", `${base}，明显动作姿势，动态 pose，肢体大幅变化，${GREEN}`, 0.7, startRef);
     } catch (e) {
-      console.warn("自动尾帧生成失败,退回普通图生视频", e);
+      console.warn("自动绿幕首尾帧失败,退回普通图生视频", e);
     }
 
-    setBusy(true, endRef ? "② 首尾帧视频提交中…" : "视频精灵提交中…");
+    setBusy(true, endRef ? "③ 首尾帧视频提交中…" : "视频精灵提交中…");
     const job = await api("/api/generate/video-sprite", {
       method: "POST",
       body: JSON.stringify({
         ...input,
+        brief: `${input.brief || "同一角色"}，${GREEN}`,
         submit: true,
-        comfyImage: srcRef,
+        comfyImage: startRef,
         // 自动推导出尾帧 → 走 Wan 首尾帧插值(FLF2V),单角色更稳、动作更可控。
         ...(endRef ? { endComfyImage: endRef } : {}),
       }),
