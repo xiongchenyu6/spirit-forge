@@ -24,14 +24,16 @@ function Hero() {
   });
   const [demo, setDemo] = React.useState(null);
   const [demoError, setDemoError] = React.useState(null);
-  const [activeFrame, setActiveFrame] = React.useState(0);
-  const [autoPlay, setAutoPlay] = React.useState(true);
+  // 默认展示 walk(index 1)。各 clip 本身是循环 GIF(自播放),无需 flipbook 定时器。
+  const [activeFrame, setActiveFrame] = React.useState(1);
   const chipIcons = ["image", "film", "layout-grid", "braces"];
+  // Spine 骨骼绑定真实输出(SAM3 分层→绑骨→关节驱动循环),非逐帧换图。
   const outputFrames = [
-    ["monster-idle.png", "Idle"],
-    ["monster-move.png", "Move"],
-    ["monster-attack.png", "Attack"],
-    ["monster-death.png", "Death"],
+    ["rig-monster-idle.gif", "Idle"],
+    ["rig-monster-walk.gif", "Walk"],
+    ["rig-monster-attack.gif", "Attack"],
+    ["rig-monster-hurt.gif", "Hurt"],
+    ["rig-monster-death.gif", "Death"],
   ];
   const videoDemo = hero.videoDemo || {};
   const quality = demo?.quality || {};
@@ -57,16 +59,6 @@ function Hero() {
       cancelled = true;
     };
   }, []);
-
-  // 没有真实视频样本时,大图循环播放 4 帧动作(idle→move→attack→death);
-  // 点击缩略图会暂停循环并定格到该帧,点击大图可恢复循环。
-  React.useEffect(() => {
-    if (demoUrl || !autoPlay) return undefined;
-    const timer = setInterval(() => {
-      setActiveFrame((prev) => (prev + 1) % outputFrames.length);
-    }, 320);
-    return () => clearInterval(timer);
-  }, [demoUrl, autoPlay, outputFrames.length]);
 
   return (
     <section className="lf-bg-deep" style={{ position: "relative", overflow: "hidden", padding: "84px 40px 72px" }}>
@@ -124,22 +116,19 @@ function Hero() {
           backgroundPosition: "0 0, 0 8px",
           display: "grid",
           placeItems: "center",
-          cursor: demoUrl ? "default" : "pointer",
-        }}
-        onClick={demoUrl ? undefined : () => setAutoPlay(true)}
-        title={demoUrl ? undefined : (autoPlay ? "循环播放中" : "点击恢复循环播放")}>
+        }}>
           {demoUrl ? (
             <video src={demoUrl} controls loop muted playsInline autoPlay style={{ width: "100%", height: "100%", maxHeight: 280, objectFit: "contain", display: "block" }} />
           ) : (
             <img key={outputFrames[activeFrame][0]} src={window.generatedAssetPath(outputFrames[activeFrame][0])} alt={outputFrames[activeFrame][1]} style={{ width: "78%", height: "100%", maxHeight: 248, objectFit: "contain", imageRendering: "pixelated", filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.45))" }} />
           )}
           <div style={{ position: "absolute", left: 12, top: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <Badge tone={demoUrl ? "jade" : "gold"}>{demoUrl ? videoDemo.badge : "PNG"}</Badge>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{videoDemo.title}</span>
+            <Badge tone="jade">{demoUrl ? videoDemo.badge : "Spine 骨骼"}</Badge>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.78)", background: "rgba(7,9,11,0.62)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "var(--radius-sm)", padding: "3px 7px" }}>{demoUrl ? videoDemo.title : "SAM3 分层 · 关节驱动循环"}</span>
           </div>
           {!demoUrl && (
             <span style={{ position: "absolute", right: 12, bottom: 12, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--font-mono)", fontSize: 11, color: "rgba(244,241,232,0.85)", background: "rgba(7,9,11,0.66)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "var(--radius-pill)", padding: "3px 10px" }}>
-              <i data-lucide={autoPlay ? "play" : "pause"} style={{ width: 11, height: 11, color: "var(--jade-300)" }} />
+              <i data-lucide="play" style={{ width: 11, height: 11, color: "var(--jade-300)" }} />
               {outputFrames[activeFrame][1]}
             </span>
           )}
@@ -159,15 +148,15 @@ function Hero() {
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "12px 0 8px" }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)" }}>{videoDemo.frameLabel}</span>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>alpha-bounds-bottom-anchor-v1</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--jade-300)" }}>{demoUrl ? videoDemo.frameLabel : "骨骼动画 · 点击切换"}</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-muted)" }}>{demoUrl ? "alpha-bounds-bottom-anchor-v1" : "sam3-spine-rig-v1"}</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 6 }}>
           {outputFrames.map(([file, label], i) => {
             const selected = !demoUrl && i === activeFrame;
             return (
             <button key={file} type="button" title={label}
-              onClick={() => { setAutoPlay(false); setActiveFrame(i); }}
+              onClick={() => setActiveFrame(i)}
               style={{
               position: "relative",
               aspectRatio: "1",

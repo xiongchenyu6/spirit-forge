@@ -82,6 +82,11 @@ runQa(sample.packId);
 if (options.promote) {
   promoteManifestSample(manifest, sample.packId);
   console.log(`Promoted manifest sample: ${sample.packId}`);
+  // 绑骨动画离线烘焙:把 idle/walk/attack/hurt/death 渲染好上传 R2,使前端骨骼预览
+  // 与造物展直接命中缓存(Worker 内联渲染受 Free plan CPU 限制无法实时跑)。
+  if (!options.noBakeRig && !options.dryRunCommands) {
+    bakeRigAnimations(sample.packId);
+  }
 } else {
   console.log("Manifest not changed. Re-run with --promote after reviewing QA output.");
 }
@@ -92,6 +97,16 @@ if (options.fullDefaultQa) {
 
 if (options.pushR2Baseline) {
   pushR2Baseline();
+}
+
+function bakeRigAnimations(packId) {
+  const args = [join(root, "scripts/bake-rig-animations.mjs"), packId];
+  if (options.workerUrl) args.push("--worker-url", options.workerUrl);
+  console.log("");
+  console.log(`Baking rig animations: ${[process.execPath, ...args].map(shellQuote).join(" ")}`);
+  const result = spawnSync(process.execPath, args, { cwd: root, env: process.env, stdio: "inherit" });
+  if (result.error) console.warn(`Rig bake failed (non-fatal): ${result.error.message}`);
+  else if (result.status !== 0) console.warn(`Rig bake exited ${result.status} (non-fatal).`);
 }
 
 function runQa(packId) {

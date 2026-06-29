@@ -9,7 +9,7 @@ const PARTS = ["head", "torso", "hips", "arm_l", "arm_r", "leg_l", "leg_r"];
 const DRAW_ORDER = ["leg_l", "leg_r", "hips", "torso", "arm_l", "arm_r", "head"];
 const PARENT = { hips: "root", torso: "hips", head: "torso", arm_l: "torso", arm_r: "torso", leg_l: "hips", leg_r: "hips" };
 
-export const RIG_CLIPS = ["idle", "walk", "attack"];
+export const RIG_CLIPS = ["idle", "walk", "attack", "hurt", "death"];
 
 // 仿射 [a,b,c,d,tx,ty]: x'=a*x+c*y+tx, y'=b*x+d*y+ty
 const T = (x, y) => [1, 0, 0, 1, x, y];
@@ -100,18 +100,35 @@ const CLIPS = {
     torso: breathe(0.025), head: [{ t: 0, rot: 0 }, { t: 0.5, rot: -1.5 }, { t: 1, rot: 0 }],
     arm_l: [{ t: 0, rot: 0 }, { t: 0.5, rot: 3 }, { t: 1, rot: 0 }], arm_r: [{ t: 0, rot: 0 }, { t: 0.5, rot: -3 }, { t: 1, rot: 0 }],
   } },
-  walk: { dur: 0.8, fps: 14, root: [{ t: 0, dy: 0 }, { t: 0.25, dy: -4 }, { t: 0.5, dy: 0 }, { t: 0.75, dy: -4 }, { t: 1, dy: 0 }], pose: {
-    leg_l: [{ t: 0, rot: 22 }, { t: 0.5, rot: -22 }, { t: 1, rot: 22 }], leg_r: [{ t: 0, rot: -22 }, { t: 0.5, rot: 22 }, { t: 1, rot: -22 }],
-    arm_l: [{ t: 0, rot: -18 }, { t: 0.5, rot: 18 }, { t: 1, rot: -18 }], arm_r: [{ t: 0, rot: 18 }, { t: 0.5, rot: -18 }, { t: 1, rot: 18 }],
-    torso: [{ t: 0, rot: -2 }, { t: 0.25, rot: 2 }, { t: 0.5, rot: -2 }, { t: 0.75, rot: 2 }, { t: 1, rot: -2 }],
-    head: [{ t: 0, rot: 1 }, { t: 0.5, rot: -1 }, { t: 1, rot: 1 }],
+  walk: { dur: 0.8, fps: 14, root: [{ t: 0, dy: 0 }, { t: 0.25, dy: -6 }, { t: 0.5, dy: 0 }, { t: 0.75, dy: -6 }, { t: 1, dy: 0 }], pose: {
+    leg_l: [{ t: 0, rot: 28 }, { t: 0.5, rot: -28 }, { t: 1, rot: 28 }], leg_r: [{ t: 0, rot: -28 }, { t: 0.5, rot: 28 }, { t: 1, rot: -28 }],
+    arm_l: [{ t: 0, rot: -24 }, { t: 0.5, rot: 24 }, { t: 1, rot: -24 }], arm_r: [{ t: 0, rot: 24 }, { t: 0.5, rot: -24 }, { t: 1, rot: 24 }],
+    torso: [{ t: 0, rot: -3 }, { t: 0.25, rot: 3 }, { t: 0.5, rot: -3 }, { t: 0.75, rot: 3 }, { t: 1, rot: -3 }],
+    head: [{ t: 0, rot: 2 }, { t: 0.5, rot: -2 }, { t: 1, rot: 2 }],
   } },
-  attack: { dur: 0.9, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.45, dx: -4 }, { t: 0.6, dx: 10 }, { t: 1, dx: 0 }], pose: {
-    arm_r: [{ t: 0, rot: 0 }, { t: 0.4, rot: -70 }, { t: 0.6, rot: 60 }, { t: 0.8, rot: 40 }, { t: 1, rot: 0 }],
-    arm_l: [{ t: 0, rot: 0 }, { t: 0.4, rot: 20 }, { t: 0.6, rot: -14 }, { t: 1, rot: 0 }],
-    torso: [{ t: 0, rot: 0 }, { t: 0.4, rot: -10 }, { t: 0.6, rot: 14 }, { t: 1, rot: 0 }],
-    head: [{ t: 0, rot: 0 }, { t: 0.4, rot: -6 }, { t: 0.6, rot: 8 }, { t: 1, rot: 0 }],
-    leg_r: [{ t: 0, rot: 0 }, { t: 0.6, rot: -12 }, { t: 1, rot: 0 }],
+  attack: { dur: 0.9, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.4, dx: -7 }, { t: 0.58, dx: 16 }, { t: 1, dx: 0 }], pose: {
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.4, rot: -85 }, { t: 0.58, rot: 72 }, { t: 0.8, rot: 46 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.4, rot: 28 }, { t: 0.58, rot: -18 }, { t: 1, rot: 0 }],
+    torso: [{ t: 0, rot: 0 }, { t: 0.4, rot: -16 }, { t: 0.58, rot: 20 }, { t: 1, rot: 0 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.4, rot: -8 }, { t: 0.58, rot: 12 }, { t: 1, rot: 0 }],
+    leg_r: [{ t: 0, rot: 0 }, { t: 0.58, rot: -16 }, { t: 1, rot: 0 }],
+  } },
+  // 受击:快速后仰回弹(knockback)。
+  hurt: { dur: 0.6, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.18, dx: -14 }, { t: 0.5, dx: -4 }, { t: 1, dx: 0 }], pose: {
+    torso: [{ t: 0, rot: 0 }, { t: 0.18, rot: 22 }, { t: 0.5, rot: 8 }, { t: 1, rot: 0 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.18, rot: 26 }, { t: 0.5, rot: 10 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.18, rot: 40 }, { t: 1, rot: 0 }],
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.18, rot: -40 }, { t: 1, rot: 0 }],
+    leg_l: [{ t: 0, rot: 0 }, { t: 0.18, rot: -10 }, { t: 1, rot: 0 }],
+  } },
+  // 倒地:躯干前倾下沉、四肢瘫软,整体下移(GIF 循环,作预览足够)。
+  death: { dur: 1.0, fps: 12, root: [{ t: 0, dy: 0 }, { t: 0.7, dy: 26 }, { t: 1, dy: 26 }], pose: {
+    torso: [{ t: 0, rot: 0 }, { t: 0.7, rot: 58 }, { t: 1, rot: 58 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.7, rot: 40 }, { t: 1, rot: 40 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.7, rot: -38 }, { t: 1, rot: -38 }],
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.7, rot: 34 }, { t: 1, rot: 34 }],
+    leg_l: [{ t: 0, rot: 0 }, { t: 0.7, rot: 30 }, { t: 1, rot: 30 }],
+    leg_r: [{ t: 0, rot: 0 }, { t: 0.7, rot: -26 }, { t: 1, rot: -26 }],
   } },
 };
 
