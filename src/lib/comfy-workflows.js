@@ -9,14 +9,14 @@ function safeLibrarySegment(value) {
     .slice(0, 120) || "asset";
 }
 
-export function buildWan22I2VWorkflow({ sourceImage, prompt, negativePrompt, seed, width, height, length, fps, models }) {
+export function buildWan22I2VWorkflow({ sourceImage, endImage, prompt, negativePrompt, seed, width, height, length, fps, models }) {
   const highModel = pickFirst(models?.wanI2v, /high/i);
   const lowModel = pickFirst(models?.wanI2v, /low/i);
   const highLora = pickFirst(models?.loras, /high/i);
   const lowLora = pickFirst(models?.loras, /low/i);
   const vae = pickFirst(models?.vae, /wan/i);
   const textEncoder = pickFirst(models?.textEncoders, /umt5/i) || pickFirst(models?.textEncoders, /qwen/i);
-  return {
+  const wf = {
     "1": {
       class_type: "UNETLoader",
       inputs: { unet_name: highModel, weight_dtype: "default" },
@@ -119,6 +119,14 @@ export function buildWan22I2VWorkflow({ sourceImage, prompt, negativePrompt, see
       inputs: { images: ["15", 0], filename_prefix: "lingji_video_sprite", codec: "vp9", fps, crf: 32 },
     },
   };
+  // 首尾帧引导(FLF2V):提供 end_image 时,改用专用节点 WanFirstLastFrameToVideo,在首帧与
+  // 尾帧之间插补——动作更可控、单角色更稳。该节点与 WanImageToVideo 输入/输出同构,可直接替换。
+  if (endImage) {
+    wf["21"] = { class_type: "LoadImage", inputs: { image: endImage } };
+    wf["12"].class_type = "WanFirstLastFrameToVideo";
+    wf["12"].inputs.end_image = ["21", 0];
+  }
+  return wf;
 }
 
 export function buildFlux1Workflow({ prompt, negativePrompt, width, height, seed }) {

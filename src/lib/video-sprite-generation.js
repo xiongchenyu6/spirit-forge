@@ -86,8 +86,18 @@ export async function submitVideoSpriteExperiment(input, env, prepared = null, o
   const length = clampVideoLength(input.length || 33);
   const fps = clampVideoFps(input.fps || 12);
   const prompt = videoSpritePrompt(input);
+  // 可选尾帧(FLF2V):传 endImageDataUrl / endComfyImage 即用首尾帧引导插补,提高可控性、稳住单角色。
+  let endImage = null;
+  if (input.endComfyImage?.filename || input.endImageDataUrl || input.endImageUrl) {
+    endImage = await ensureComfyInputImage(
+      { comfyImage: input.endComfyImage, imageDataUrl: input.endImageDataUrl, imageUrl: input.endImageUrl },
+      env,
+      "lingji_video_sprite_end.png",
+    ).catch(() => null);
+  }
   const workflow = buildWan22I2VWorkflow({
     sourceImage: prepared.sourceImage,
+    endImage,
     prompt,
     negativePrompt: videoSpriteNegativePrompt(input),
     seed,

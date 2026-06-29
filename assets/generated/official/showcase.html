@@ -118,8 +118,8 @@
         prompt:"以单帧仙侠剑客为种子,SAM3 按语义分出头/躯干/胯/四肢图层,自动绑定骨骼并推断关节枢轴,再用关节旋转驱动 idle/walk/attack/hurt/death 循环——真正的 2D 骨骼动画,而非逐帧换图。人形骨架干净,可导出 Spine skeleton.json + atlas 进引擎二次编辑。",
         cover:"rig-swordmaster-walk.gif",
         clips:[ ["rig-swordmaster-idle","Idle 待机",19],["rig-swordmaster-walk","Walk 行走",11],["rig-swordmaster-attack","Attack 攻击",13],["rig-swordmaster-hurt","Hurt 受击",8],["rig-swordmaster-death","Death 倒地",12] ] },
-      { file:"vsprite-sword-walk", type:"对比 · 视频抽帧", brief:"同一剑客 · 纯绿幕 AI 图生视频 5 动作(对照上方骨骼绑定)",
-        prompt:"对照组:同一剑客基图 + 5 个动作运动提示词,跑 Wan2.2 图生视频(纯绿幕、固定镜头)再自动抽帧成 Sprite。纯色背景便于一键扣像。可直接对比上面的 Spine 骨骼方案——\n· 视频抽帧:运动自然、光影好,绿幕可扣像;但每帧是位图(不可改骨骼/换装)、帧多体积大,动作幅度与一致性依赖采样。\n· Spine 骨骼:动作精确可控、矢量关节、可导出 skeleton.json 进引擎二次编辑/换装/复用。\n两条路线各有取舍,骨骼绑定更适合做规范、可维护的游戏动作集。",
+      { file:"vsprite-sword-walk", type:"对比 · 视频抽帧", brief:"同一剑客 · 首尾帧引导视频 5 动作(已算法扣像,对照骨骼)",
+        prompt:"对照组流程:用 Spine rig 的关键帧作「首帧(中性站姿)+尾帧(动作峰值)」,喂 Wan2.2 首尾帧插值(WanFirstLastFrameToVideo)生成纯绿幕短视频→ 算法 chromakey 扣绿成透明 → 抽帧成 Sprite。首尾帧引导显著提升可控性:单角色稳定、动作明确(idle/walk/attack/hurt/death)。\n对比上面的 Spine 骨骼——\n· 视频抽帧:运动自然、光影好、已扣像透明;但每帧是位图(不可改骨骼/换装)、帧多体积大。\n· Spine 骨骼:矢量关节、动作精确可控、可导出 skeleton.json 进引擎二次编辑/换装/复用。\n两条路线互补:视频负责惊艳,骨骼负责可维护。",
         cover:"vsprite-sword-walk.gif", vsprite:true,
         clips:[ ["vsprite-sword-idle","Idle 待机",22],["vsprite-sword-walk","Walk 行走",22],["vsprite-sword-attack","Attack 攻击",22],["vsprite-sword-hurt","Hurt 受击",22],["vsprite-sword-death","Death 倒地",22] ] },
       { file:"nb-frost-dragon", type:"怪物 · 西幻", brief:"冰霜巨龙，冰晶鳞甲，展翅吐寒",
@@ -149,7 +149,7 @@
     ];
 
     // 缓存击穿:生成类素材常被同名覆盖,给图片 URL 追加版本号强制取新(配合后端 no-cache)。
-    const AV = "g3";
+    const AV = "g5";
     const bv = (u) => u + (u.indexOf("?") < 0 ? "?" : "&") + "v=" + AV;
     const genres = [...new Set(ITEMS.map(i => i.type.split(" · ")[1]).filter(Boolean))];
     document.getElementById("chips").innerHTML =

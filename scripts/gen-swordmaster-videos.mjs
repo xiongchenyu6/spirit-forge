@@ -15,8 +15,9 @@ const H = () => ({ "content-type": "application/json", "x-lingji-access-token": 
 // 基图:纯绿幕 + 直立站姿(不要御剑/飞行),便于 i2v 保持纯色背景与地面动作、便于扣像。
 const BASE_BRIEF = "仙侠青衫剑客，全身直立站姿，双脚踩地，双臂自然下垂，手持长剑，鎏金衣纹，纯绿色背景 chroma key green screen，游戏角色立绘，平涂无阴影";
 // 每个动作强约束:固定镜头 + 纯绿幕 + 双脚踩地原地 + 明确动作 + 禁飞行御剑云海。
-const CONSTRAINT = "固定镜头不移动，纯绿色背景 chroma green，角色双脚踩地、原地做动作，全身入镜，2D 游戏精灵动画";
-const NEG = "飞行，御剑飞行，腾空，云海，天空，云朵，飘逸长镜头，电影运镜，背景场景，渐变背景，阴影，地面，文字水印，多角色，镜头推拉";
+const CONSTRAINT = "单个角色,固定镜头不移动,纯绿色背景 chroma green,角色双脚踩地、原地做动作,全身入镜,2D 游戏精灵动画";
+// 强力屏蔽多角色/分身(i2v 最常见问题)+ 飞行御剑云海。
+const NEG = "多个角色,两个人,双人,三人,分身,复制人,克隆人,群像,人群,额外的人,镜像,飞行,御剑飞行,腾空,云海,天空,云朵,飘逸长镜头,电影运镜,背景场景,渐变背景,文字水印,镜头推拉";
 const ACTIONS = [
   { id: "idle", brief: `仙侠剑客原地待机站立，轻微呼吸起伏，${CONSTRAINT}` },
   { id: "walk", brief: `仙侠剑客原地踏步行走循环，双腿交替迈步、双臂前后摆动，${CONSTRAINT}` },
@@ -63,7 +64,7 @@ console.log("基图:", img.filename);
 
 for (const a of ACTIONS) {
   console.log(`\n=== video ${a.id} ===`);
-  const vid = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: a.brief, negativePrompt: NEG, assetType: "character", style: "production", camera: "front", preset: "single", submit: true, comfyImage: img }) });
+  const vid = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: a.brief, negativePrompt: NEG, assetType: "character", style: "production", camera: "front", preset: "single", length: 25, submit: true, comfyImage: img }) });
   const vjob = vid?.promptId ? await poll(vid.promptId, "video") : vid;
   if (vjob?.result?.filename) await download(vjob.result, `vsprite-sword-${a.id}.webm`);
   else console.log("  视频失败");
