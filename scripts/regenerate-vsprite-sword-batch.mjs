@@ -15,6 +15,8 @@ const OUT_SHOWCASE = join(ROOT, "assets/generated/showcase");
 const POSITIONAL_ARGS = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
 const REVIEW_ROOT = POSITIONAL_ARGS[0] || join(ROOT, "assets/generated/review/vsprite-sword-regenerated");
 const FORCE = process.argv.includes("--force") || process.env.FORCE === "1";
+const ONLY = (process.argv.find((a) => a.startsWith("--only="))?.split("=")[1] || "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 const TOKEN = readToken();
 const FRAME_COUNT = 22;
 const GIF_SIZE = 300;
@@ -46,7 +48,13 @@ const ACTIONS = [
   },
   {
     id: "attack",
-    prompt: "挥剑横劈攻击,持剑手臂大幅向前挥砍,身体前倾发力,剑刃轨迹清楚,双脚踩地",
+    // 尾帧要的是「正在向前下方劈砍的瞬间」——长剑已挥到身体前下方、剑尖朝前下方的地面,
+    // 弓步深屈前冲、上身大幅前倾压低。这样 Wan 首尾帧插值(中性站姿→劈砍落点)才演出完整挥砍,
+    // 而不是 FLUX 偏爱的「举剑格挡亮相」。负向词专门压掉举剑过顶/剑朝天/站立摆拍。
+    // (两段式拼接试过:FLUX img2img 无法稳定画出全身+扁平2D+剑劈到低位,会变半身举剑帅照,故弃。)
+    prompt: "正在向斜前下方猛力劈砍的动作瞬间,长剑已经挥落到身体前下方,剑身朝向前下方、剑尖指向前方地面,持剑手臂向前下方完全伸直下压,弓步前冲、前腿深屈、上半身大幅前倾几乎压到大腿,动作迅猛有力,绝非站立",
+    endNegExtra: "举剑过顶,长剑朝上,剑尖朝天,剑竖直,格挡防御姿势,直立站姿,静止站立,英雄摆拍亮相,收剑入鞘,3D渲染,写实,半身特写,大头照,镜头拉近,主体超出画面",
+    endDenoise: 0.78,
   },
   {
     id: "hurt",
@@ -70,7 +78,8 @@ const sourceGreenPath = join(REVIEW_ROOT, "source-green.png");
 const sourceGreenDataUrl = await createGreenSourceDataUrl(SOURCE_IMAGE, sourceGreenPath);
 const reports = [];
 
-for (const action of ACTIONS) {
+const selectedActions = ONLY.length ? ACTIONS.filter((a) => ONLY.includes(a.id)) : ACTIONS;
+for (const action of selectedActions) {
   reports.push(await regenerateAction(action, sourceGreenDataUrl));
 }
 
@@ -105,6 +114,50 @@ async function regenerateAction(action, sourceGreenDataUrl) {
 
   if (hasLocalVideo) {
     console.log("  复用已下载的本地 start/end/webm");
+  } else if (action.twoSegment) {
+    const seg = action.twoSegment;
+    // ① 举刀过顶关键帧(K1):从绿幕源帧 img2img。
+    const raise = await submit2DAndWait("① K1 举刀过顶", {
+      mode: "2d",
+      brief: `${SUBJECT},${seg.raisePrompt},${GREEN}`,
+      negativePrompt: seg.raiseNegExtra ? `${NEG},${seg.raiseNegExtra}` : NEG,
+      assetType: "character", style: "production", camera: "front", preset: "single",
+      denoise: seg.raiseDenoise || 0.8,
+      imageDataUrl: sourceGreenDataUrl,
+    });
+    const raiseRef = ref(raise);
+    // ② 劈到最低点关键帧(K2):从 K1 img2img,衔接造型。
+    const chop = await submit2DAndWait("② K2 劈到最低", {
+      mode: "2d",
+      brief: `${SUBJECT},${seg.chopPrompt},${GREEN}`,
+      negativePrompt: seg.chopNegExtra ? `${NEG},${seg.chopNegExtra}` : NEG,
+      assetType: "character", style: "production", camera: "front", preset: "single",
+      denoise: seg.chopDenoise || 0.68,
+      comfyImage: raiseRef,
+    });
+    const chopRef = ref(chop);
+    // ③ 段1:中性站姿 → 举刀过顶。
+    const seg1 = await submitVideoAndWait("③ 段1 中性→举刀", {
+      mode: "2d", brief: `${SUBJECT},${seg.raiseVideoPrompt},${GREEN}`, negativePrompt: NEG,
+      assetType: "character", style: "production", camera: "front", preset: "single",
+      length: 25, fps: 12, submit: true,
+      imageDataUrl: sourceGreenDataUrl, endComfyImage: raiseRef,
+    });
+    // ④ 段2:举刀过顶 → 劈到最低。
+    const seg2 = await submitVideoAndWait("④ 段2 举刀→劈下", {
+      mode: "2d", brief: `${SUBJECT},${seg.chopVideoPrompt},${GREEN}`, negativePrompt: NEG,
+      assetType: "character", style: "production", camera: "front", preset: "single",
+      length: 25, fps: 12, submit: true,
+      comfyImage: raiseRef, endComfyImage: chopRef,
+    });
+    const seg1Path = join(actionDir, "seg1.webm");
+    const seg2Path = join(actionDir, "seg2.webm");
+    await downloadResult(seg1, seg1Path);
+    await downloadResult(seg2, seg2Path);
+    await downloadResult(raise, startPath);
+    await downloadResult(chop, endPath);
+    console.log("  ⑤ 拼接两段 → 完整劈砍");
+    concatWebm([seg1Path, seg2Path], webmPath);
   } else if (action.directEndGif) {
     console.log("  ① 使用本地 rig 首帧/尾帧");
     writeFileSync(startPath, readFileSync(sourceGreenPath));
@@ -142,12 +195,12 @@ async function regenerateAction(action, sourceGreenDataUrl) {
     const end = await submit2DAndWait("② 动作尾帧", {
       mode: "2d",
       brief: endPrompt,
-      negativePrompt: NEG,
+      negativePrompt: action.endNegExtra ? `${NEG},${action.endNegExtra}` : NEG,
       assetType: "character",
       style: "production",
       camera: "front",
       preset: "single",
-      denoise: GREEN_CONFIG.endDenoise,
+      denoise: action.endDenoise || GREEN_CONFIG.endDenoise,
       comfyImage: startRef,
     });
     const endRef = ref(end);
@@ -392,6 +445,19 @@ function extractVideoFrame(webmPath, outputPath, time, size) {
       outputPath,
     ]);
   }
+}
+
+function concatWebm(inputs, outputPath) {
+  // 两段 Wan 输出同分辨率/帧率,用 concat filter 重编码为一条 VP9(规避不同流参数无法 -c copy)。
+  const args = ["-y", "-loglevel", "error"];
+  for (const input of inputs) args.push("-i", input);
+  const streams = inputs.map((_, i) => `[${i}:v:0]`).join("");
+  args.push(
+    "-filter_complex", `${streams}concat=n=${inputs.length}:v=1:a=0[v]`,
+    "-map", "[v]", "-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-b:v", "0", "-crf", "30",
+    outputPath,
+  );
+  execFileSync("ffmpeg", args);
 }
 
 function safeFrameTime(duration, index) {
