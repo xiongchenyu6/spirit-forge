@@ -469,9 +469,9 @@ function packGenerationAvailable() {
   if (isDirectionalWalkPreset() && !state.capabilities?.canDirectionalWalk) {
     return false;
   }
-  // 参考图可选:没有也能纯文生整包(后端锚点),所以不再要求 spriteReferenceState().ok。
-  // 仅当参考图正在测尺寸(pending)时短暂禁用,避免半路用到未知尺寸。
-  if (spriteReferenceState().state === "pending") return false;
+  // 动作预设走单图整套→切片,不依赖参考图,随时可点。
+  // 非动作整包(地图/图标…)仍在测参考图尺寸(pending)时短暂禁用,避免用到未知尺寸。
+  if (!isSpriteActionPreset() && spriteReferenceState().state === "pending") return false;
   return Boolean(state.capabilities?.twoD?.available && isPackPreset());
 }
 
@@ -668,18 +668,17 @@ function updateRouteControls() {
     return;
   }
   const frameCount = presetFrameCount();
-  const referenceState = spriteReferenceState();
-  // 参考图是可选的:有合适的单帧就 img2img 锁身份;没有/不合适则纯文生(后端自动锚点+统一种子)。
-  const usableRef = referenceState.state === "single-frame";
+  // 动作预设一律走单图整套→切片(身份一致),按钮固定为"一句话生成动作包"。
+  const sheetMode = isSpriteActionPreset();
   label.textContent = frameCount
-    ? usableRef ? "生成资产包" : "一句话生成动作包"
+    ? sheetMode ? "一句话生成动作包" : "生成资产包"
     : "整包不可用";
   els.generatePackBtn.disabled = !packGenerationAvailable();
   els.generatePackBtn.title = !frameCount
     ? "当前预设只支持单张 2D 生成；请使用“生成 2D”或选择动作、地图、UI、VFX 整包预设"
-    : usableRef
-    ? `${frameCount} 帧云端资产包（以当前 2D 为参考锁身份）`
-    : `${frameCount} 帧云端资产包（无需参考图，直接按提示词生成一套动作）`;
+    : sheetMode
+    ? "一句话直接生成一套动作:单图整套生成后切片,同一角色,无需先生成 2D 或参考图"
+    : `${frameCount} 帧云端资产包`;
 }
 
 function renderVideoRoutePlan() {
@@ -1827,13 +1826,16 @@ async function generatePack() {
     return;
   }
   clearPoll();
-  const reference = referenceImageForPack(); // 无合适参考则为 null
-  // 无参考(一句话整套):走单图 model sheet → 切片,身份天然一致。有参考仍逐帧 img2img 锁身份。
+  // 动作预设(character/monster-actions…)一律走「单图整套→切片」:身份天然一致、严格对题。
+  // 逐帧 img2img 即使有合格 2D 参考也锁不住身份(投资人实测崩坏),故不再因"先生成过2D"
+  // 把用户甩进逐帧路线。非动作预设(地图/图标/VFX 等)维持原逐帧/参考行为。
+  const useSheet = isSpriteActionPreset();
+  const reference = useSheet ? null : referenceImageForPack();
   const input = {
     ...currentInput(),
     referenceImage: reference,
     poseImages: reference ? poseImagesForPack() : null,
-    sheet: !reference,
+    sheet: useSheet,
     requestId: createClientRequestId("2d-pack"),
   };
   state.activeInput = input;
