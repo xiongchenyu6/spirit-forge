@@ -475,12 +475,17 @@ function packGenerationAvailable() {
   return Boolean(state.capabilities?.twoD?.available && isPackPreset());
 }
 
+// 公开模式(capabilities.auth.required=false)下无需令牌即可调 API。
+function authReady() {
+  return Boolean(accessToken()) || state.capabilities?.auth?.required === false;
+}
+
 function layerGenerationAvailable() {
   return Boolean(
     state.pack?.packId
       && packHasSpineExport(state.pack)
       && state.capabilities?.layerSeparation?.available
-      && accessToken()
+      && authReady()
       && Object.keys(state.packResults || {}).length > 0,
   );
 }
@@ -1761,10 +1766,13 @@ function updateLayerButton(busy = false) {
   const available = layerGenerationAvailable();
   els.generateLayersBtn.disabled = busy || !available;
   els.generateLayersBtn.classList.toggle("disabled", busy || !available);
+  // 动作包完成、尚未分层时高亮此按钮,引导小白点它出骨骼动画(下一步)。
+  const hasLayers = Boolean(state.pack?.spineSam3Layers || state.lastLayerSeparation);
+  els.generateLayersBtn.classList.toggle("is-next-step", available && !busy && !hasLayers);
   els.generateLayersBtn.title = state.capabilities?.layerSeparation?.available
     ? available
-      ? "用当前动作包首帧提交 SAM3 Spine 分层预览"
-      : "需要完成的角色/怪物动作包和访问令牌"
+      ? "下一步:用动作包首帧生成可播放的骨骼动画(idle/walk/attack/hurt)"
+      : "先用上方「一句话生成动作包」做出一套角色动作"
     : "需要在 Comfy 安装 SAM3 checkpoint";
 }
 
@@ -3818,7 +3826,7 @@ async function fetchCloudPackZip(pack) {
 }
 
 async function generatePackLayers() {
-  if (!accessToken()) {
+  if (!authReady()) {
     showAuthRequired("生成 Spine 分层需要访问令牌");
     return;
   }
@@ -3939,18 +3947,25 @@ function renderLayerSeparationCard(status, payload = {}) {
     const files = payload.result?.files || [];
     card.innerHTML = `
       <div class="quality-heading">
-        <strong>Spine 分层预览</strong>
-        <span>${files.length} 张 SAM3 mask</span>
+        <strong>骨骼动画</strong>
+        <span>SAM3 分层 + 关节驱动 · 浏览器实时渲染</span>
       </div>
-      <div class="layer-preview-grid">
-        ${files.map((file) => `
-          <figure>
-            <img src="${escapeHtml(file.url || file.comfyUrl)}" alt="${escapeHtml(file.label || file.layerId || file.filename)}" />
-            <figcaption>${escapeHtml(file.label || file.layerId || file.filename)}</figcaption>
-          </figure>
-        `).join("")}
-      </div>
+      <div class="rig-anim-mount"></div>
+      <details class="layer-mask-details">
+        <summary>查看 SAM3 分层 mask(${files.length} 张)</summary>
+        <div class="layer-preview-grid">
+          ${files.map((file) => `
+            <figure>
+              <img src="${escapeHtml(file.url || file.comfyUrl)}" alt="${escapeHtml(file.label || file.layerId || file.filename)}" />
+              <figcaption>${escapeHtml(file.label || file.layerId || file.filename)}</figcaption>
+            </figure>
+          `).join("")}
+        </div>
+      </details>
     `;
+    const mount = card.querySelector(".rig-anim-mount");
+    const packId = payload.job?.packId || state.pack?.packId;
+    if (mount && packId) mountRigAnimation(mount, packId);
     return;
   }
   card.innerHTML = `
@@ -3960,6 +3975,158 @@ function renderLayerSeparationCard(status, payload = {}) {
     </div>
     <p>${escapeHtml(payload.message || "等待 SAM3 返回分层 mask")}</p>
   `;
+}
+
+// ── 客户端骨骼动画 ──────────────────────────────────────────────
+// rig 动画在 Free-plan Worker 上纯 JS 合成会超 CPU(1102),故端点只服务离线烘焙缓存。
+// 这里把 src/lib/rig-render.js 的骨骼数学搬到浏览器:用 SAM3 部件(dataUrl + sourceRect)
+// 在 canvas 上以仿射变换逐帧驱动,小白点完「生成 Spine 分层」即可在网页里看到动起来。
+const RIG_PARTS = ["head", "torso", "hips", "arm_l", "arm_r", "leg_l", "leg_r"];
+const RIG_DRAW_ORDER = ["leg_l", "leg_r", "hips", "torso", "arm_l", "arm_r", "head"];
+const RIG_PARENT = { hips: "root", torso: "hips", head: "torso", arm_l: "torso", arm_r: "torso", leg_l: "hips", leg_r: "hips" };
+const rigT = (x, y) => [1, 0, 0, 1, x, y];
+const rigR = (deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [c, s, -s, c, 0, 0]; };
+const rigS = (x, y) => [x, 0, 0, y, 0, 0];
+function rigMul(m, n) {
+  return [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
+}
+const rigAround = (px, py, deg, sx = 1, sy = 1, dx = 0, dy = 0) => rigMul(rigT(px + dx, py + dy), rigMul(rigR(deg), rigMul(rigS(sx, sy), rigT(-px, -py))));
+const rigBreathe = (amp) => [{ t: 0, sy: 1 }, { t: 0.5, sy: 1 + amp }, { t: 1, sy: 1 }];
+const RIG_CLIP_DEFS = {
+  idle: { dur: 1.6, fps: 12, root: [{ t: 0, dy: 0 }, { t: 0.5, dy: -2 }, { t: 1, dy: 0 }], pose: {
+    torso: rigBreathe(0.025), head: [{ t: 0, rot: 0 }, { t: 0.5, rot: -1.5 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.5, rot: 3 }, { t: 1, rot: 0 }], arm_r: [{ t: 0, rot: 0 }, { t: 0.5, rot: -3 }, { t: 1, rot: 0 }],
+  } },
+  walk: { dur: 0.8, fps: 14, root: [{ t: 0, dy: 0 }, { t: 0.25, dy: -6 }, { t: 0.5, dy: 0 }, { t: 0.75, dy: -6 }, { t: 1, dy: 0 }], pose: {
+    leg_l: [{ t: 0, rot: 28 }, { t: 0.5, rot: -28 }, { t: 1, rot: 28 }], leg_r: [{ t: 0, rot: -28 }, { t: 0.5, rot: 28 }, { t: 1, rot: -28 }],
+    arm_l: [{ t: 0, rot: -24 }, { t: 0.5, rot: 24 }, { t: 1, rot: -24 }], arm_r: [{ t: 0, rot: 24 }, { t: 0.5, rot: -24 }, { t: 1, rot: 24 }],
+    torso: [{ t: 0, rot: -3 }, { t: 0.25, rot: 3 }, { t: 0.5, rot: -3 }, { t: 0.75, rot: 3 }, { t: 1, rot: -3 }],
+    head: [{ t: 0, rot: 2 }, { t: 0.5, rot: -2 }, { t: 1, rot: 2 }],
+  } },
+  attack: { dur: 0.9, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.4, dx: -6 }, { t: 0.58, dx: 14 }, { t: 1, dx: 0 }], pose: {
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.4, rot: -42 }, { t: 0.58, rot: 50 }, { t: 0.8, rot: 26 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.4, rot: 18 }, { t: 0.58, rot: -12 }, { t: 1, rot: 0 }],
+    torso: [{ t: 0, rot: 0 }, { t: 0.4, rot: -14 }, { t: 0.58, rot: 18 }, { t: 1, rot: 0 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.4, rot: -7 }, { t: 0.58, rot: 11 }, { t: 1, rot: 0 }],
+    leg_r: [{ t: 0, rot: 0 }, { t: 0.58, rot: -14 }, { t: 1, rot: 0 }],
+  } },
+  hurt: { dur: 0.6, fps: 14, root: [{ t: 0, dx: 0 }, { t: 0.18, dx: -14 }, { t: 0.5, dx: -4 }, { t: 1, dx: 0 }], pose: {
+    torso: [{ t: 0, rot: 0 }, { t: 0.18, rot: 22 }, { t: 0.5, rot: 8 }, { t: 1, rot: 0 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.18, rot: 26 }, { t: 0.5, rot: 10 }, { t: 1, rot: 0 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.18, rot: 40 }, { t: 1, rot: 0 }],
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.18, rot: -40 }, { t: 1, rot: 0 }],
+    leg_l: [{ t: 0, rot: 0 }, { t: 0.18, rot: -10 }, { t: 1, rot: 0 }],
+  } },
+};
+const RIG_CLIP_TABS = [{ id: "idle", label: "Idle" }, { id: "walk", label: "Walk" }, { id: "attack", label: "Attack" }, { id: "hurt", label: "Hurt" }];
+function rigSample(track, t) {
+  const d = { rot: 0, dx: 0, dy: 0, sx: 1, sy: 1 };
+  if (!track || !track.length) return d;
+  if (t <= track[0].t) return { ...d, ...track[0] };
+  const last = track[track.length - 1];
+  if (t >= last.t) return { ...d, ...last };
+  for (let i = 0; i < track.length - 1; i++) {
+    const a = track[i], b = track[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const u = (t - a.t) / (b.t - a.t || 1);
+      const lp = (x, y) => x + (y - x) * u;
+      return { rot: lp(a.rot ?? 0, b.rot ?? 0), dx: lp(a.dx ?? 0, b.dx ?? 0), dy: lp(a.dy ?? 0, b.dy ?? 0), sx: lp(a.sx ?? 1, b.sx ?? 1), sy: lp(a.sy ?? 1, b.sy ?? 1) };
+    }
+  }
+  return d;
+}
+function rigWorld(pivots, poseByPart, rootDx, rootDy) {
+  const world = { root: rigT(rootDx, rootDy) };
+  const compute = (name) => {
+    if (world[name]) return world[name];
+    const parent = RIG_PARENT[name] || "root";
+    const pw = world[parent] || compute(parent);
+    const p = pivots[name], po = poseByPart[name] || {};
+    if (!p) { world[name] = pw; return pw; }
+    world[name] = rigMul(pw, rigAround(p.x, p.y, po.rot || 0, po.sx || 1, po.sy || 1, po.dx || 0, po.dy || 0));
+    return world[name];
+  };
+  for (const n of RIG_PARTS) compute(n);
+  return world;
+}
+function rigPivots(rects) {
+  const bb = {};
+  for (const p of RIG_PARTS) {
+    const r = rects[p];
+    bb[p] = { minX: r.x, maxX: r.x + r.width, minY: r.y, maxY: r.y + r.height, cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
+  }
+  const torsoCx = bb.torso.cx;
+  const innerX = (b) => (Math.abs(b.maxX - torsoCx) <= Math.abs(b.minX - torsoCx) ? b.maxX : b.minX);
+  return {
+    head: { x: bb.head.cx, y: bb.head.maxY },
+    torso: { x: bb.torso.cx, y: bb.torso.maxY },
+    hips: { x: bb.hips.cx, y: bb.hips.cy },
+    arm_l: { x: innerX(bb.arm_l), y: bb.arm_l.minY + (bb.arm_l.maxY - bb.arm_l.minY) * 0.08 },
+    arm_r: { x: innerX(bb.arm_r), y: bb.arm_r.minY + (bb.arm_r.maxY - bb.arm_r.minY) * 0.08 },
+    leg_l: { x: bb.leg_l.cx, y: bb.leg_l.minY + (bb.leg_l.maxY - bb.leg_l.minY) * 0.1 },
+    leg_r: { x: bb.leg_r.cx, y: bb.leg_r.minY + (bb.leg_r.maxY - bb.leg_r.minY) * 0.1 },
+  };
+}
+let rigAnimRAF = null;
+async function mountRigAnimation(container, packId) {
+  if (rigAnimRAF) { cancelAnimationFrame(rigAnimRAF); rigAnimRAF = null; }
+  container.innerHTML = `<div class="rig-anim-loading">正在加载骨骼部件…</div>`;
+  let preview;
+  try {
+    preview = await api(`/api/packs/${encodeURIComponent(packId)}/spine-sam3/preview.json`);
+  } catch (error) {
+    container.innerHTML = `<div class="rig-anim-loading">骨骼预览加载失败:${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const parts = {}; const rects = {};
+  await Promise.all((preview.parts || []).map((p) => new Promise((resolve) => {
+    const variant = p.cleaned || p.original;
+    if (!variant?.dataUrl || !variant?.sourceRect) return resolve();
+    const img = new Image();
+    img.onload = () => { parts[p.name] = img; rects[p.name] = variant.sourceRect; resolve(); };
+    img.onerror = () => resolve();
+    img.src = variant.dataUrl;
+  })));
+  if (!RIG_PARTS.every((p) => parts[p] && rects[p])) {
+    container.innerHTML = `<div class="rig-anim-loading">部件不足,无法驱动骨骼(需 7 个部位)。</div>`;
+    return;
+  }
+  const pivots = rigPivots(rects);
+  let maxX = 0, maxY = 0;
+  for (const p of RIG_PARTS) { maxX = Math.max(maxX, rects[p].x + rects[p].width); maxY = Math.max(maxY, rects[p].y + rects[p].height); }
+  const padX = 90, padY = 50;
+  const W = Math.ceil(maxX + padX), H = Math.ceil(maxY + padY);
+  container.innerHTML = `
+    <div class="rig-anim-tabs">${RIG_CLIP_TABS.map((c, i) => `<button class="rig-anim-tab${i === 0 ? " is-active" : ""}" data-clip="${c.id}">${c.label}</button>`).join("")}</div>
+    <canvas class="rig-anim-canvas" width="${W}" height="${H}"></canvas>
+    <p class="rig-anim-hint">由 SAM3 分层 + 关节驱动的实时骨骼动画(浏览器渲染)。切换上方动作查看 idle / walk / attack / hurt。</p>`;
+  const canvas = container.querySelector(".rig-anim-canvas");
+  const ctx = canvas.getContext("2d");
+  let clip = "idle"; let startTs = 0;
+  const draw = (ts) => {
+    if (!startTs) startTs = ts;
+    const def = RIG_CLIP_DEFS[clip];
+    const t = ((ts - startTs) % (def.dur * 1000)) / (def.dur * 1000);
+    const poseByPart = {};
+    for (const p of RIG_PARTS) poseByPart[p] = rigSample(def.pose[p], t);
+    const rootP = rigSample(def.root, t);
+    const world = rigWorld(pivots, poseByPart, rootP.dx || 0, rootP.dy || 0);
+    ctx.clearRect(0, 0, W, H);
+    for (const slot of RIG_DRAW_ORDER) {
+      const m = world[slot]; const r = rects[slot];
+      ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      ctx.drawImage(parts[slot], r.x, r.y, r.width, r.height);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    rigAnimRAF = requestAnimationFrame(draw);
+  };
+  rigAnimRAF = requestAnimationFrame(draw);
+  container.querySelectorAll(".rig-anim-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      clip = btn.dataset.clip; startTs = 0;
+      container.querySelectorAll(".rig-anim-tab").forEach((b) => b.classList.toggle("is-active", b === btn));
+    });
+  });
 }
 
 function spineSam3SummaryFromLayerJob(job, result) {

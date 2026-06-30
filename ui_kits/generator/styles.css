@@ -879,6 +879,63 @@
   letter-spacing: 0.02em;
 }
 
+.rig-anim-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.rig-anim-tab {
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--dur-base);
+}
+.rig-anim-tab.is-active {
+  border-color: var(--border-strong);
+  background: rgba(201, 163, 91, 0.14);
+  color: var(--gold-200);
+  box-shadow: var(--glow-gold);
+}
+.rig-anim-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  background: repeating-conic-gradient(#1a1f27 0% 25%, #141820 0% 50%) 50% / 22px 22px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+.rig-anim-hint, .rig-anim-loading {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: var(--space-2);
+  text-align: center;
+}
+.layer-mask-details {
+  margin-top: var(--space-3);
+}
+.layer-mask-details > summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.download-link.is-next-step {
+  border-color: var(--border-strong);
+  background: rgba(201, 163, 91, 0.16);
+  color: var(--gold-200);
+  box-shadow: var(--glow-gold);
+  animation: nextStepPulse 1.8s ease-in-out infinite;
+}
+@keyframes nextStepPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(201,163,91,0); }
+  50% { box-shadow: 0 0 14px rgba(201,163,91,0.45); }
+}
+
 .forge-inspector {
   display: flex;
   flex-direction: column;
