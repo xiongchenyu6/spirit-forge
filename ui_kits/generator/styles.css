@@ -924,6 +924,22 @@
   color: var(--text-secondary);
   font-size: 13px;
 }
+.more-exports {
+  grid-column: 1 / -1;
+  margin-top: var(--space-2);
+}
+.more-exports > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 0;
+  list-style: none;
+}
+.more-exports > summary::before { content: "▸ "; }
+.more-exports[open] > summary::before { content: "▾ "; }
+.more-exports > .output-actions {
+  margin-top: var(--space-2);
+}
 .download-link.is-next-step {
   border-color: var(--border-strong);
   background: rgba(201, 163, 91, 0.16);

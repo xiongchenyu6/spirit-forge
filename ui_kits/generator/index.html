@@ -327,42 +327,47 @@
         <section class="inspector-section">
           <h2>输出</h2>
           <div class="output-actions">
-            <a class="download-link disabled" id="download2d" href="#" download>
-              <i data-lucide="download"></i>
-              <span>下载 PNG</span>
+            <button class="download-link disabled" id="generateLayersBtn" type="button" disabled>
+              <i data-lucide="bone"></i>
+              <span>生成骨骼动画</span>
+            </button>
+            <a class="download-link disabled" id="downloadZip" href="#" download="lingji_asset_pack.zip">
+              <i data-lucide="archive"></i>
+              <span>下载 ZIP（全部）</span>
             </a>
             <a class="download-link disabled" id="downloadTransparent" href="#" download="lingji_asset_alpha.png">
               <i data-lucide="scissors"></i>
               <span>下载透明 PNG</span>
             </a>
-            <a class="download-link disabled" id="downloadSheet" href="#" download="lingji_sprite_sheet.png">
-              <i data-lucide="table-cells-split"></i>
-              <span>下载 Sheet</span>
-            </a>
             <button class="download-link disabled" id="downloadGif" type="button" disabled title="多帧动画（≥2 帧）才能导出 GIF">
               <i data-lucide="film"></i>
               <span>下载 GIF</span>
             </button>
-            <a class="download-link disabled" id="downloadMetadata" href="#" download="lingji_asset_pack.json">
-              <i data-lucide="braces"></i>
-              <span>下载 JSON</span>
-            </a>
-            <a class="download-link disabled" id="downloadZip" href="#" download="lingji_asset_pack.zip">
-              <i data-lucide="archive"></i>
-              <span>下载 ZIP</span>
-            </a>
-            <button class="download-link disabled" id="generateLayersBtn" type="button" disabled>
-              <i data-lucide="bone"></i>
-              <span>生成骨骼动画</span>
-            </button>
-            <a class="download-link disabled" id="downloadPreview" href="#" download="lingji_asset_preview.png">
-              <i data-lucide="eye"></i>
-              <span>下载预览 PNG</span>
-            </a>
-            <a class="download-link disabled" id="download3d" href="#" download>
-              <i data-lucide="box"></i>
-              <span>下载 GLB</span>
-            </a>
+            <details class="more-exports">
+              <summary>更多导出</summary>
+              <div class="output-actions">
+                <a class="download-link disabled" id="download2d" href="#" download>
+                  <i data-lucide="download"></i>
+                  <span>下载 PNG</span>
+                </a>
+                <a class="download-link disabled" id="downloadSheet" href="#" download="lingji_sprite_sheet.png">
+                  <i data-lucide="table-cells-split"></i>
+                  <span>下载 Sheet</span>
+                </a>
+                <a class="download-link disabled" id="downloadMetadata" href="#" download="lingji_asset_pack.json">
+                  <i data-lucide="braces"></i>
+                  <span>下载 JSON</span>
+                </a>
+                <a class="download-link disabled" id="downloadPreview" href="#" download="lingji_asset_preview.png">
+                  <i data-lucide="eye"></i>
+                  <span>下载预览 PNG</span>
+                </a>
+                <a class="download-link disabled" id="download3d" href="#" download>
+                  <i data-lucide="box"></i>
+                  <span>下载 GLB</span>
+                </a>
+              </div>
+            </details>
           </div>
         </section>
 
