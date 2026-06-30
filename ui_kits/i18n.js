@@ -454,6 +454,12 @@
           ["图标", "talisman"],
           ["动画", "crane"],
         ],
+        claimed: {
+          title: "灵石 +25",
+          default: "新手礼包 · 20 灵石",
+          done: "+25",
+        },
+        resultText: "已就绪。",
       },
     },
     en: {
