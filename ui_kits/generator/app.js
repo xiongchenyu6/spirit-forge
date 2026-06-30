@@ -1771,7 +1771,7 @@ function updateLayerButton(busy = false) {
   els.generateLayersBtn.classList.toggle("is-next-step", available && !busy && !hasLayers);
   els.generateLayersBtn.title = state.capabilities?.layerSeparation?.available
     ? available
-      ? "下一步:SAM3 分层→骨骼动画,并采样出 16 帧(每动作4帧)可下载"
+      ? "下一步:SAM3 分层→骨骼动画,并采样出 20 帧(5 动作×每动作4帧)可下载"
       : "先用上方「一句话生成动作包」做出一套角色动作"
     : "需要在 Comfy 安装 SAM3 checkpoint";
 }
@@ -4018,8 +4018,16 @@ const RIG_CLIP_DEFS = {
     arm_r: [{ t: 0, rot: 0 }, { t: 0.18, rot: -40 }, { t: 1, rot: 0 }],
     leg_l: [{ t: 0, rot: 0 }, { t: 0.18, rot: -10 }, { t: 1, rot: 0 }],
   } },
+  death: { dur: 1.0, fps: 12, root: [{ t: 0, dy: 0 }, { t: 0.7, dy: 26 }, { t: 1, dy: 26 }], pose: {
+    torso: [{ t: 0, rot: 0 }, { t: 0.7, rot: 58 }, { t: 1, rot: 58 }],
+    head: [{ t: 0, rot: 0 }, { t: 0.7, rot: 40 }, { t: 1, rot: 40 }],
+    arm_l: [{ t: 0, rot: 0 }, { t: 0.7, rot: -38 }, { t: 1, rot: -38 }],
+    arm_r: [{ t: 0, rot: 0 }, { t: 0.7, rot: 34 }, { t: 1, rot: 34 }],
+    leg_l: [{ t: 0, rot: 0 }, { t: 0.7, rot: 30 }, { t: 1, rot: 30 }],
+    leg_r: [{ t: 0, rot: 0 }, { t: 0.7, rot: -26 }, { t: 1, rot: -26 }],
+  } },
 };
-const RIG_CLIP_TABS = [{ id: "idle", label: "Idle" }, { id: "walk", label: "Walk" }, { id: "attack", label: "Attack" }, { id: "hurt", label: "Hurt" }];
+const RIG_CLIP_TABS = [{ id: "idle", label: "Idle" }, { id: "walk", label: "Walk" }, { id: "attack", label: "Attack" }, { id: "hurt", label: "Hurt" }, { id: "death", label: "Death" }];
 function rigSample(track, t) {
   const d = { rot: 0, dx: 0, dy: 0, sx: 1, sy: 1 };
   if (!track || !track.length) return d;
@@ -4071,14 +4079,20 @@ function rigPivots(rects) {
 let rigAnimRAF = null;
 async function mountRigAnimation(container, packId) {
   if (rigAnimRAF) { cancelAnimationFrame(rigAnimRAF); rigAnimRAF = null; }
-  container.innerHTML = `<div class="rig-anim-loading">正在加载骨骼部件…</div>`;
-  // preview.json 在 Worker 端做部件合成/清理,SAM3 刚完成那一刻偶发 503,重试几次即可。
+  container.innerHTML = `<div class="rig-anim-loading">正在加载骨骼部件…(首次合成约需 10-30 秒)</div>`;
+  // preview.json 首次在 Worker 端合成部件/清理较重,SAM3 刚完成的 ~10-30s 内间歇 503,
+  // 缓存暖了即稳定 200。拉长重试窗口撑过这段;仍失败给「重试」按钮。
+  const backoffs = [2000, 3000, 4000, 5000, 6000, 6000, 6000, 6000];
   let preview = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt <= backoffs.length; attempt++) {
     try { preview = await api(`/api/packs/${encodeURIComponent(packId)}/spine-sam3/preview.json`); break; }
     catch (error) {
-      if (attempt === 3) { container.innerHTML = `<div class="rig-anim-loading">骨骼预览加载失败:${escapeHtml(error.message)}(可重试)</div>`; return; }
-      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      if (attempt === backoffs.length) {
+        container.innerHTML = `<div class="rig-anim-loading">骨骼预览暂时繁忙(${escapeHtml(error.message)})。<button type="button" class="rig-anim-retry">重试</button></div>`;
+        container.querySelector(".rig-anim-retry")?.addEventListener("click", () => mountRigAnimation(container, packId));
+        return;
+      }
+      await new Promise((r) => setTimeout(r, backoffs[attempt]));
     }
   }
   const parts = {}; const rects = {};
@@ -4117,9 +4131,9 @@ async function mountRigAnimation(container, packId) {
   container.innerHTML = `
     <div class="rig-anim-tabs">${RIG_CLIP_TABS.map((c, i) => `<button class="rig-anim-tab${i === 0 ? " is-active" : ""}" data-clip="${c.id}">${c.label}</button>`).join("")}</div>
     <canvas class="rig-anim-canvas" width="${W}" height="${H}"></canvas>
-    <p class="rig-anim-hint">由 SAM3 分层 + 关节驱动的实时骨骼动画(浏览器渲染)。下面是每个动作采样的 16 帧。</p>
+    <p class="rig-anim-hint">由 SAM3 分层 + 关节驱动的实时骨骼动画(浏览器渲染)。下面是 ${RIG_CLIP_TABS.length} 个动作各采样 4 帧 = ${RIG_CLIP_TABS.length * 4} 帧。</p>
     <div class="rig-16">
-      <div class="rig-16-head"><strong>16 帧动作序列</strong><button type="button" class="rig-16-download">下载 16 帧 ZIP</button></div>
+      <div class="rig-16-head"><strong>${RIG_CLIP_TABS.length * 4} 帧动作序列</strong><button type="button" class="rig-16-download">下载 ${RIG_CLIP_TABS.length * 4} 帧 ZIP</button></div>
       <div class="rig-16-grid"></div>
     </div>`;
   const canvas = container.querySelector(".rig-anim-canvas");
@@ -4162,7 +4176,7 @@ async function mountRigAnimation(container, packId) {
     const zip = await createZipBlob(files);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(zip);
-    a.download = "lingji_16_frames.zip";
+    a.download = `lingji_${frames.length}_frames.zip`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
