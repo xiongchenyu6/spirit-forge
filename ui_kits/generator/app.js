@@ -1878,6 +1878,11 @@ async function generatePack() {
       setBusy(false);
       return;
     }
+    // 单图切片异步:先轮询大图就绪,再切片(短请求),根治同步长请求的偶发 503。
+    if (pack.pending && pack.sheet) {
+      await runSheetPackAsync(pack);
+      return;
+    }
     acceptSubmittedPack(pack);
   } catch (error) {
     const recovered = await recoverSubmittedPack(input.requestId);
@@ -1886,6 +1891,35 @@ async function generatePack() {
       return;
     }
     showError(error.message);
+    setBusy(false);
+  }
+}
+
+// 单图切片异步流程:① 轮询整套大图就绪 → ② 调切片接口拿到 4 帧 → ③ 落地。
+async function runSheetPackAsync(pending) {
+  try {
+    setBusy(true, "生成整套大图…");
+    startStageProgress("2d");
+    setStagePhase("生成整套大图");
+    await awaitJobResult(pending.sheetPromptId, "2d", 140); // 大图就绪(可能排队)
+    setBusy(true, "切片成动作帧…");
+    setStagePhase("切片成动作帧");
+    let done = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      done = await api(pending.sliceUrl, { method: "POST", body: "{}" }).catch(() => null);
+      if (done?.ok) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    stopStageProgress(true);
+    if (!done?.ok) {
+      showError(done?.message || "切片失败,请重试");
+      setBusy(false);
+      return;
+    }
+    acceptSubmittedPack(done);
+  } catch (error) {
+    stopStageProgress(false);
+    showError(error.message || "整套生成失败");
     setBusy(false);
   }
 }

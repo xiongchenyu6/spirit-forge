@@ -12,7 +12,7 @@ import { getVideoSpriteDemo } from "./lib/video-sprite-demo.js";
 import { handleAssets } from "./lib/static-assets.js";
 import { PACK_PRESETS } from "./lib/pack-presets.js";
 export { PACK_PRESETS };
-import { loadPackFrameRerunTarget, normalizePackRequestId, recover2DPackRequestById, recoverSubmitted2DPack, rerunPackFrame, submit2DPack, submit2DPackSheet } from "./lib/pack-generation.js";
+import { loadPackFrameRerunTarget, normalizePackRequestId, recover2DPackRequestById, recoverSubmitted2DPack, rerunPackFrame, slicePackSheet, submit2DPack, submit2DPackSheet } from "./lib/pack-generation.js";
 import { prepareVideoSpriteExperiment, submitVideoSpriteExperiment } from "./lib/video-sprite-generation.js";
 import { submit3DJob } from "./lib/model3d-generation.js";
 import { submit2DJob } from "./lib/image2d-generation.js";
@@ -526,6 +526,13 @@ async function handleApi(request, env, url, ctx = null) {
       decodeURIComponent(packSam3PartMatch[3]),
       env,
     );
+  }
+
+  const packSheetSliceMatch = url.pathname.match(/^\/api\/packs\/([^/]+)\/sheet-slice$/);
+  if (packSheetSliceMatch && request.method === "POST") {
+    const authError = authorizeApiRequest(request, env);
+    if (authError) return authError;
+    return jsonResponse(await slicePackSheet(decodeURIComponent(packSheetSliceMatch[1]), env));
   }
 
   const packFrameRerunMatch = url.pathname.match(/^\/api\/packs\/([^/]+)\/frames\/([^/]+)\/rerun$/);

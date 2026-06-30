@@ -545,76 +545,35 @@ export async function submit2DPackSheet(input, env, options = {}) {
     }
   }
   if (!sheetWorkflow) sheetWorkflow = buildFlux1Workflow(sheetArgs);
+  // 异步:只提交大图任务即秒回,避免单请求里同步「生成+切片+上传」超 CF 边缘 ~100s → 503。
+  // 客户端轮询大图就绪后再调 /api/packs/:id/sheet-slice 完成切片(短请求)。
   const submitted = await submitComfyWorkflow(env, sheetWorkflow);
-  const meta = await waitForComfyImageOutput(env, submitted.prompt_id);
-  if (!meta?.filename) {
-    return { ok: false, error: "sheet_generation_failed", message: "Sheet generation produced no image." };
-  }
-  const response = await fetchComfyResponse(env, meta);
-  if (!response.ok) {
-    return { ok: false, error: "sheet_fetch_failed", message: `Sheet fetch failed: ${response.status}` };
-  }
-  const sheet = await decodePngRgba(new Uint8Array(await response.arrayBuffer()));
-
-  // 2) 切片 + 上传 + 归档 R2,逐格成为已完成帧
-  const frames = [];
-  for (let index = 0; index < actions.length; index += 1) {
-    const action = actions[index];
-    const cx = (index % cols) * cellW;
-    const cy = Math.floor(index / cols) * cellH;
-    const cell = sliceRgbaCell(sheet, cx, cy, cellW, cellH);
-    const cellBytes = await encodePngRgba(cellW, cellH, cell);
-    const uploadedName = await uploadImageToComfy(env, new Blob([cellBytes], { type: "image/png" }), `lingji_sheet_${packId}_${action.id}.png`);
-    const framePromptId = `${packId}-${action.id}`;
-    const archived = await archiveResult(env, {
-      promptId: framePromptId,
-      kind: "2d",
-      result: { filename: uploadedName, subfolder: "", type: "input" },
-      entry: { status: { status_str: "success" } },
-    });
-    frames.push({
-      id: action.id,
-      label: action.label,
-      promptId: framePromptId,
-      seed,
-      dimensions: { width: cellW, height: cellH },
-      status: "complete",
-      index,
-      row: Math.floor(index / cols),
-      column: index % cols,
-      direction: null,
-      result: archived
-        ? { ...archived, url: archived.url, filename: archived.filename, fileKey: archived.fileKey }
-        : { filename: uploadedName, subfolder: "", type: "input" },
-    });
-  }
-
+  const sheetPromptId = submitted.prompt_id;
+  const items = actions.map((a, index) => ({ id: a.id, label: a.label, index, row: Math.floor(index / cols), column: index % cols, direction: null }));
   const packMetadata = {
     output: "separate-images",
-    reference: { mode: "single-sheet-slice", auto: true, sheetPromptId: submitted.prompt_id },
-    columns: cols,
-    rows,
-    cellWidth: cellW,
-    cellHeight: cellH,
-    items: frames.map((f) => ({ id: f.id, label: f.label, index: f.index, row: f.row, column: f.column, direction: null })),
+    reference: { mode: "single-sheet-slice", auto: true, sheetPromptId },
+    columns: cols, rows, cellWidth: cellW, cellHeight: cellH,
+    items,
+    // sheetPlan 供 slicePackSheet 复原切片(异步第二段读取)。
+    sheetPlan: { sheetPromptId, cols, rows, cellW, cellH, seed, actions },
     notes: [
       "Generated as one consistent model sheet then sliced per action (identity locked by single generation).",
       "Cloud ZIP downloads compose sheet.png, import manifests, and transparent frames where suitable.",
     ],
   };
-  const counts = { total: frames.length, complete: frames.length, failed: 0, pending: 0 };
-  const storedPack = await rememberPackRecord(env, {
+  await rememberPackRecord(env, {
     id: `2d-pack:${packId}`,
     kind: "2d-pack",
     packId,
-    status: "complete",
+    status: "generating",
     preset: normalized.preset,
     packKind: preset.kind,
     input: normalized,
     reference: packMetadata.reference,
     metadata: packMetadata,
-    counts,
-    frames,
+    counts: { total: actions.length, complete: 0, failed: 0, pending: actions.length },
+    frames: items.map((it) => ({ ...it, promptId: `${packId}-${it.id}`, seed, dimensions: { width: cellW, height: cellH }, status: "queued" })),
   });
   if (requestId) {
     await rememberPackRequestIndex(env, requestId, packId, { preset: normalized.preset, packKind: preset.kind })
@@ -627,9 +586,62 @@ export async function submit2DPackSheet(input, env, options = {}) {
     preset: normalized.preset,
     packKind: preset.kind,
     metadata: packMetadata,
+    sheet: true,
+    pending: true,
+    sheetPromptId,
+    sheetPollUrl: `/api/jobs/${sheetPromptId}?kind=2d`,
+    sliceUrl: `/api/packs/${packId}/sheet-slice`,
+    requestId: requestId || null,
+  };
+}
+
+// 异步第二段:大图就绪后切片成各动作帧、归档 R2、把 pack 标记完成并返回。
+// 单请求只做 fetch+切片+N×上传/归档(~10-20s),稳在 CF 边缘上限内。
+export async function slicePackSheet(packId, env) {
+  if (!env.ASSET_BUCKET) return { ok: false, error: "storage_not_configured" };
+  const pack = await readPackRecord(env, packId).catch(() => null);
+  if (!pack) return { ok: false, error: "not_found", message: "Pack not found." };
+  if (pack.status === "complete" && pack.frames?.every((f) => f.result?.url)) {
+    return { ok: true, kind: "2d-pack", packId, preset: pack.preset, packKind: pack.packKind, metadata: pack.metadata,
+      jobs: pack.frames.map((f) => ({ id: f.id, label: f.label, promptId: f.promptId, seed: f.seed, status: "complete", result: f.result, dimensions: f.dimensions })),
+      pack: await withSignedPackRecord(env, pack).catch(() => pack), sheet: true };
+  }
+  const plan = pack.metadata?.sheetPlan;
+  if (!plan?.sheetPromptId) return { ok: false, error: "sheet_plan_missing", message: "No sheet plan on this pack." };
+  const { cols, cellW, cellH, seed, actions } = plan;
+  const meta = await waitForComfyImageOutput(env, plan.sheetPromptId);
+  if (!meta?.filename) return { ok: false, error: "sheet_generation_failed", message: "Sheet image not ready." };
+  const response = await fetchComfyResponse(env, meta);
+  if (!response.ok) return { ok: false, error: "sheet_fetch_failed", message: `Sheet fetch failed: ${response.status}` };
+  const sheet = await decodePngRgba(new Uint8Array(await response.arrayBuffer()));
+
+  const frames = [];
+  for (let index = 0; index < actions.length; index += 1) {
+    const action = actions[index];
+    const cx = (index % cols) * cellW;
+    const cy = Math.floor(index / cols) * cellH;
+    const cell = sliceRgbaCell(sheet, cx, cy, cellW, cellH);
+    const cellBytes = await encodePngRgba(cellW, cellH, cell);
+    const uploadedName = await uploadImageToComfy(env, new Blob([cellBytes], { type: "image/png" }), `lingji_sheet_${packId}_${action.id}.png`);
+    const framePromptId = `${packId}-${action.id}`;
+    const archived = await archiveResult(env, {
+      promptId: framePromptId, kind: "2d",
+      result: { filename: uploadedName, subfolder: "", type: "input" },
+      entry: { status: { status_str: "success" } },
+    });
+    frames.push({
+      id: action.id, label: action.label, promptId: framePromptId, seed,
+      dimensions: { width: cellW, height: cellH }, status: "complete",
+      index, row: Math.floor(index / cols), column: index % cols, direction: null,
+      result: archived ? { ...archived, url: archived.url, filename: archived.filename, fileKey: archived.fileKey } : { filename: uploadedName, subfolder: "", type: "input" },
+    });
+  }
+  const updated = { ...pack, status: "complete", counts: { total: frames.length, complete: frames.length, failed: 0, pending: 0 }, frames };
+  const storedPack = await rememberPackRecord(env, updated).catch(() => updated);
+  return {
+    ok: true, kind: "2d-pack", packId, preset: pack.preset, packKind: pack.packKind, metadata: pack.metadata,
     jobs: frames.map((f) => ({ id: f.id, label: f.label, promptId: f.promptId, seed, status: "complete", result: f.result, dimensions: f.dimensions })),
     pack: storedPack ? await withSignedPackRecord(env, storedPack).catch(() => storedPack) : null,
-    requestId: requestId || null,
     sheet: true,
   };
 }
