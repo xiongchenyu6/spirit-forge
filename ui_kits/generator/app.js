@@ -83,6 +83,9 @@ const els = {
   usageCosts: $("#usageCosts"),
   usageGuidance: $("#usageGuidance"),
   usageStatus: $("#usageStatus"),
+  stageProgress: $("#stageProgress"),
+  stageProgressFill: $("#stageProgressFill"),
+  stageSub: $("#stageSub"),
   queueSection: $("#queueSection"),
   refreshQueueBtn: $("#refreshQueueBtn"),
   queueRunning: $("#queueRunning"),
@@ -2188,9 +2191,44 @@ async function generate3D() {
   }
 }
 
+// 等待进度:Comfy 逐步进度仅走 WS,REST 轮询只能拿到队列位置;这里用「队列位次 +
+// 已等待秒数 + 按任务类型预估的进度条(封顶 95% 到真完成)」给出体感进度,不引入 WS。
+const STAGE_ETA_MS = { "3d": 180000, "video-sprite": 90000, "layer-separation": 45000, "2d": 30000 };
+let stageProgressTimer = null;
+let stageProgressStart = 0;
+let stageProgressEta = 30000;
+let stageProgressPhase = "";
+function startStageProgress(kind) {
+  stageProgressStart = Date.now();
+  stageProgressEta = STAGE_ETA_MS[kind] || 30000;
+  stageProgressPhase = "";
+  els.stageProgress.hidden = false;
+  tickStageProgress();
+  clearInterval(stageProgressTimer);
+  stageProgressTimer = setInterval(tickStageProgress, 300);
+}
+function setStagePhase(text) { stageProgressPhase = text || ""; }
+function tickStageProgress() {
+  const elapsed = Date.now() - stageProgressStart;
+  const secs = Math.round(elapsed / 1000);
+  const pct = Math.min(95, (elapsed / stageProgressEta) * 100);
+  if (els.stageProgressFill) els.stageProgressFill.style.width = `${pct.toFixed(0)}%`;
+  if (els.stageSub) els.stageSub.textContent = `${stageProgressPhase ? stageProgressPhase + " · " : ""}已等待 ${secs}s`;
+}
+function stopStageProgress(done) {
+  clearInterval(stageProgressTimer);
+  stageProgressTimer = null;
+  if (done && els.stageProgressFill) els.stageProgressFill.style.width = "100%";
+  setTimeout(() => {
+    els.stageProgress.hidden = true;
+    if (els.stageProgressFill) els.stageProgressFill.style.width = "0%";
+  }, done ? 350 : 0);
+}
+
 function pollJob(promptId, kind) {
   let attempts = 0;
   const maxAttempts = kind === "3d" ? 420 : 180;
+  startStageProgress(kind);
   const tick = async () => {
     attempts += 1;
     try {
@@ -2226,6 +2264,7 @@ function pollJob(promptId, kind) {
           });
         }
         refreshCloudJobsInBackground();
+        stopStageProgress(true);
         setBusy(false);
         clearPoll();
         stopQueuePolling();
@@ -2238,10 +2277,19 @@ function pollJob(promptId, kind) {
         setBusy(false);
         clearPoll();
         stopQueuePolling();
+        stopStageProgress(false);
         return;
       }
       if (data.status === "not_in_queue") {
         els.stageStatus.textContent = "队列未发现，等待历史结果";
+        setStagePhase("等待历史结果");
+      } else if (data.status === "running" && data.queue?.state === "pending") {
+        const ahead = Number(data.queue.index) || 0;
+        els.stageStatus.textContent = "排队中";
+        setStagePhase(ahead > 0 ? `排队中 · 前面 ${ahead} 个` : "排队中");
+      } else {
+        els.stageStatus.textContent = "正在生成";
+        setStagePhase("正在生成");
       }
       if (attempts >= maxAttempts) {
         showError("生成超时。Comfy 可能仍在运行，请稍后从任务历史或输出目录确认结果");
@@ -2249,15 +2297,16 @@ function pollJob(promptId, kind) {
         setBusy(false);
         clearPoll();
         stopQueuePolling();
+        stopStageProgress(false);
         return;
       }
-      els.stageStatus.textContent = attempts % 2 === 0 ? "队列运行中" : "等待结果";
     } catch (error) {
       showError(error.message);
       refreshCloudJobsInBackground();
       setBusy(false);
       clearPoll();
       stopQueuePolling();
+      stopStageProgress(false);
     }
   };
   tick();
@@ -2356,6 +2405,7 @@ function clearPoll() {
   state.polling = null;
   state.packPolling = null;
   state.layerPolling = null;
+  if (stageProgressTimer) stopStageProgress(false);
 }
 
 function renderPlan(plan) {
