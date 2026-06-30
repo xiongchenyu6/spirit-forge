@@ -1,5 +1,5 @@
-import { ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, submitComfyWorkflow, uploadImageToComfy, waitForComfyImageOutput } from "./comfy-client.js";
-import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1Workflow } from "./comfy-workflows.js";
+import { ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, listComfyModels, submitComfyWorkflow, uploadImageToComfy, waitForComfyImageOutput } from "./comfy-client.js";
+import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
 import { characterOpenPoseDataUrl } from "./image.js";
 import { decodePngRgba, encodePngRgba } from "./binary.js";
 import { frameStatusCounts, packItemBrief, packStatusFromCounts } from "./pack-export.js";
@@ -532,10 +532,20 @@ export async function submit2DPackSheet(input, env, options = {}) {
   ].join(", ").slice(0, 1800);
   const negativePrompt = `${DEFAULT_NEGATIVE}, inconsistent character, different characters, changing outfit, model sheet labels, text annotations, uneven layout, cropped figure`;
 
-  // 1) 单次文生图整套
-  const submitted = await submitComfyWorkflow(env, buildFlux1Workflow({
-    prompt, negativePrompt, width: sheetW, height: sheetH, seed,
-  }));
+  // 1) 单次文生图整套。像素风(pixel/pixel-art)走 FLUX-2 Klein + pixel LoRA 出真像素,
+  //    与单图 2D 路径一致;模型缺失/异常安全回退 flux1-dev。
+  const sheetArgs = { prompt, negativePrompt, width: sheetW, height: sheetH, seed };
+  let sheetWorkflow = null;
+  if ((normalized.style === "pixel" || normalized.style === "pixel-art") && env.DISABLE_PIXEL_KLEIN !== "true") {
+    try {
+      const models = await listComfyModels(env);
+      sheetWorkflow = buildPixelFlux2Workflow({ ...sheetArgs, models });
+    } catch {
+      sheetWorkflow = null;
+    }
+  }
+  if (!sheetWorkflow) sheetWorkflow = buildFlux1Workflow(sheetArgs);
+  const submitted = await submitComfyWorkflow(env, sheetWorkflow);
   const meta = await waitForComfyImageOutput(env, submitted.prompt_id);
   if (!meta?.filename) {
     return { ok: false, error: "sheet_generation_failed", message: "Sheet generation produced no image." };
