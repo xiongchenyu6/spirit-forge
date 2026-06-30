@@ -1771,7 +1771,7 @@ function updateLayerButton(busy = false) {
   els.generateLayersBtn.classList.toggle("is-next-step", available && !busy && !hasLayers);
   els.generateLayersBtn.title = state.capabilities?.layerSeparation?.available
     ? available
-      ? "下一步:用动作包首帧生成可播放的骨骼动画(idle/walk/attack/hurt)"
+      ? "下一步:SAM3 分层→骨骼动画,并采样出 16 帧(每动作4帧)可下载"
       : "先用上方「一句话生成动作包」做出一套角色动作"
     : "需要在 Comfy 安装 SAM3 checkpoint";
 }
@@ -1918,13 +1918,14 @@ async function finalizeCompletePack(pack, jobs) {
   showPackProgress(jobs.length, jobs.length);
   stopStageProgress(true);
   setBusy(false);
-  await preparePackDownloads(pack);
-  await preparePackProductionPreview(pack);
-  updateLayerButton();
-  addHistoryEntry({ type: "pack", input: state.activeInput || currentInput(), pack, results: state.packResults });
-  refreshCloudJobsInBackground();
+  updateLayerButton(); // 先点亮「生成 16 图」,避免下游 await 异常时漏刷新导致按钮卡禁用
   clearPoll();
   stopQueuePolling();
+  addHistoryEntry({ type: "pack", input: state.activeInput || currentInput(), pack, results: state.packResults });
+  refreshCloudJobsInBackground();
+  try { await preparePackDownloads(pack); } catch (e) { console.warn("pack downloads prep failed", e); }
+  try { await preparePackProductionPreview(pack); } catch (e) { console.warn("pack preview prep failed", e); }
+  updateLayerButton();
 }
 
 // 阻塞式轮询某个 job 直到完成,返回 result(用于自动 FLF 串联尾帧生成)。
@@ -4071,12 +4072,14 @@ let rigAnimRAF = null;
 async function mountRigAnimation(container, packId) {
   if (rigAnimRAF) { cancelAnimationFrame(rigAnimRAF); rigAnimRAF = null; }
   container.innerHTML = `<div class="rig-anim-loading">正在加载骨骼部件…</div>`;
-  let preview;
-  try {
-    preview = await api(`/api/packs/${encodeURIComponent(packId)}/spine-sam3/preview.json`);
-  } catch (error) {
-    container.innerHTML = `<div class="rig-anim-loading">骨骼预览加载失败:${escapeHtml(error.message)}</div>`;
-    return;
+  // preview.json 在 Worker 端做部件合成/清理,SAM3 刚完成那一刻偶发 503,重试几次即可。
+  let preview = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try { preview = await api(`/api/packs/${encodeURIComponent(packId)}/spine-sam3/preview.json`); break; }
+    catch (error) {
+      if (attempt === 3) { container.innerHTML = `<div class="rig-anim-loading">骨骼预览加载失败:${escapeHtml(error.message)}(可重试)</div>`; return; }
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
   }
   const parts = {}; const rects = {};
   await Promise.all((preview.parts || []).map((p) => new Promise((resolve) => {
@@ -4096,10 +4099,29 @@ async function mountRigAnimation(container, packId) {
   for (const p of RIG_PARTS) { maxX = Math.max(maxX, rects[p].x + rects[p].width); maxY = Math.max(maxY, rects[p].y + rects[p].height); }
   const padX = 90, padY = 50;
   const W = Math.ceil(maxX + padX), H = Math.ceil(maxY + padY);
+  // 单帧绘制(实时与采帧共用):把指定 clip 在相位 t 的姿态画到给定 ctx。
+  const drawRigFrame = (targetCtx, clipId, t) => {
+    const def = RIG_CLIP_DEFS[clipId];
+    const poseByPart = {};
+    for (const p of RIG_PARTS) poseByPart[p] = rigSample(def.pose[p], t);
+    const rootP = rigSample(def.root, t);
+    const world = rigWorld(pivots, poseByPart, rootP.dx || 0, rootP.dy || 0);
+    targetCtx.clearRect(0, 0, W, H);
+    for (const slot of RIG_DRAW_ORDER) {
+      const m = world[slot]; const r = rects[slot];
+      targetCtx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      targetCtx.drawImage(parts[slot], r.x, r.y, r.width, r.height);
+    }
+    targetCtx.setTransform(1, 0, 0, 1, 0, 0);
+  };
   container.innerHTML = `
     <div class="rig-anim-tabs">${RIG_CLIP_TABS.map((c, i) => `<button class="rig-anim-tab${i === 0 ? " is-active" : ""}" data-clip="${c.id}">${c.label}</button>`).join("")}</div>
     <canvas class="rig-anim-canvas" width="${W}" height="${H}"></canvas>
-    <p class="rig-anim-hint">由 SAM3 分层 + 关节驱动的实时骨骼动画(浏览器渲染)。切换上方动作查看 idle / walk / attack / hurt。</p>`;
+    <p class="rig-anim-hint">由 SAM3 分层 + 关节驱动的实时骨骼动画(浏览器渲染)。下面是每个动作采样的 16 帧。</p>
+    <div class="rig-16">
+      <div class="rig-16-head"><strong>16 帧动作序列</strong><button type="button" class="rig-16-download">下载 16 帧 ZIP</button></div>
+      <div class="rig-16-grid"></div>
+    </div>`;
   const canvas = container.querySelector(".rig-anim-canvas");
   const ctx = canvas.getContext("2d");
   let clip = "idle"; let startTs = 0;
@@ -4107,17 +4129,7 @@ async function mountRigAnimation(container, packId) {
     if (!startTs) startTs = ts;
     const def = RIG_CLIP_DEFS[clip];
     const t = ((ts - startTs) % (def.dur * 1000)) / (def.dur * 1000);
-    const poseByPart = {};
-    for (const p of RIG_PARTS) poseByPart[p] = rigSample(def.pose[p], t);
-    const rootP = rigSample(def.root, t);
-    const world = rigWorld(pivots, poseByPart, rootP.dx || 0, rootP.dy || 0);
-    ctx.clearRect(0, 0, W, H);
-    for (const slot of RIG_DRAW_ORDER) {
-      const m = world[slot]; const r = rects[slot];
-      ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-      ctx.drawImage(parts[slot], r.x, r.y, r.width, r.height);
-    }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawRigFrame(ctx, clip, t);
     rigAnimRAF = requestAnimationFrame(draw);
   };
   rigAnimRAF = requestAnimationFrame(draw);
@@ -4127,6 +4139,42 @@ async function mountRigAnimation(container, packId) {
       container.querySelectorAll(".rig-anim-tab").forEach((b) => b.classList.toggle("is-active", b === btn));
     });
   });
+  // 采样 16 帧:每个动作 4 个相位(0/0.25/0.5/0.75),用离屏 canvas 渲染成独立 PNG。
+  const PHASES = [0, 0.25, 0.5, 0.75];
+  const off = document.createElement("canvas"); off.width = W; off.height = H;
+  const offCtx = off.getContext("2d");
+  const grid = container.querySelector(".rig-16-grid");
+  const frames = [];
+  for (const c of RIG_CLIP_TABS) {
+    PHASES.forEach((ph, i) => {
+      drawRigFrame(offCtx, c.id, ph);
+      const dataUrl = off.toDataURL("image/png");
+      frames.push({ name: `${c.id}_${i + 1}.png`, label: `${c.label} ${i + 1}`, dataUrl });
+      const fig = document.createElement("figure");
+      fig.className = "rig-16-cell";
+      fig.innerHTML = `<img src="${dataUrl}" alt="${c.label} ${i + 1}" /><figcaption>${c.label} ${i + 1}</figcaption>`;
+      grid.appendChild(fig);
+    });
+  }
+  state.rig16Frames = frames;
+  container.querySelector(".rig-16-download").addEventListener("click", async () => {
+    const files = frames.map((f) => ({ path: f.name, blob: dataUrlToBlob(f.dataUrl) }));
+    const zip = await createZipBlob(files);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(zip);
+    a.download = "lingji_16_frames.zip";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [head, b64] = dataUrl.split(",");
+  const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/png";
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
 }
 
 function spineSam3SummaryFromLayerJob(job, result) {
