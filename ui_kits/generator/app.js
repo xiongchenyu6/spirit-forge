@@ -469,7 +469,10 @@ function packGenerationAvailable() {
   if (isDirectionalWalkPreset() && !state.capabilities?.canDirectionalWalk) {
     return false;
   }
-  return Boolean(state.capabilities?.twoD?.available && isPackPreset() && spriteReferenceState().ok);
+  // 参考图可选:没有也能纯文生整包(后端锚点),所以不再要求 spriteReferenceState().ok。
+  // 仅当参考图正在测尺寸(pending)时短暂禁用,避免半路用到未知尺寸。
+  if (spriteReferenceState().state === "pending") return false;
+  return Boolean(state.capabilities?.twoD?.available && isPackPreset());
 }
 
 function layerGenerationAvailable() {
@@ -666,15 +669,17 @@ function updateRouteControls() {
   }
   const frameCount = presetFrameCount();
   const referenceState = spriteReferenceState();
+  // 参考图是可选的:有合适的单帧就 img2img 锁身份;没有/不合适则纯文生(后端自动锚点+统一种子)。
+  const usableRef = referenceState.state === "single-frame";
   label.textContent = frameCount
-    ? referenceState.state === "invalid" ? "参考图不适合" : "生成资产包"
+    ? usableRef ? "生成资产包" : "一句话生成动作包"
     : "整包不可用";
   els.generatePackBtn.disabled = !packGenerationAvailable();
-  els.generatePackBtn.title = referenceState.state === "invalid" || referenceState.state === "pending"
-    ? referenceState.message
-    : frameCount
-    ? `${frameCount} 帧云端资产包`
-    : "当前预设只支持单张 2D 生成；请使用“生成 2D”或选择动作、地图、UI、VFX 整包预设";
+  els.generatePackBtn.title = !frameCount
+    ? "当前预设只支持单张 2D 生成；请使用“生成 2D”或选择动作、地图、UI、VFX 整包预设"
+    : usableRef
+    ? `${frameCount} 帧云端资产包（以当前 2D 为参考锁身份）`
+    : `${frameCount} 帧云端资产包（无需参考图，直接按提示词生成一套动作）`;
 }
 
 function renderVideoRoutePlan() {
@@ -1814,17 +1819,19 @@ async function generatePack() {
     return;
   }
   const referenceState = spriteReferenceState();
-  if (!referenceState.ok) {
+  // 仅在"正在测参考图尺寸"时短暂拦一下;invalid/missing 不再阻断——直接纯文生整包(后端锚点)。
+  if (referenceState.state === "pending") {
     updateRouteControls();
     renderMotionControlState();
     showError(referenceState.message);
     return;
   }
   clearPoll();
+  const reference = referenceImageForPack(); // 无合适参考则为 null → 后端按提示词锚点生成
   const input = {
     ...currentInput(),
-    referenceImage: referenceImageForPack(),
-    poseImages: poseImagesForPack(),
+    referenceImage: reference,
+    poseImages: reference ? poseImagesForPack() : null,
     requestId: createClientRequestId("2d-pack"),
   };
   state.activeInput = input;
