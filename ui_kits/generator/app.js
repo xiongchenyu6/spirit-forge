@@ -48,6 +48,7 @@ const els = {
   planBtn: $("#planBtn"),
   generate2dBtn: $("#generate2dBtn"),
   generatePackBtn: $("#generatePackBtn"),
+  stepGuide: $("#stepGuide"),
   generate3dBtn: $("#generate3dBtn"),
   capabilityPill: $("#capabilityPill"),
   routeOptions: document.querySelectorAll(".route-option"),
@@ -1759,10 +1760,28 @@ function estimateCurrentUsageCost() {
 function update3DButton() {
   const can3d = Boolean(state.capabilities?.threeD?.available && state.last2d?.result);
   els.generate3dBtn.disabled = !can3d;
+  updateStepGuide();
+}
+
+// 三步引导:① 生成 2D → ② 生成动作包(4图) → ③ 生成 20 图(骨骼)。高亮"下一步"。
+function updateStepGuide() {
+  if (!els.stepGuide) return;
+  const s1 = Boolean(state.last2d?.result?.filename);
+  const s2 = Boolean(state.pack?.packId);
+  const s3 = Boolean(state.rig16Frames?.length) || Boolean(state.pack?.spineSam3Layers || state.lastLayerSeparation);
+  const current = !s1 ? 1 : !s2 ? 2 : !s3 ? 3 : 0;
+  const done = { 1: s1, 2: s2, 3: s3 };
+  els.stepGuide.querySelectorAll(".step").forEach((el) => {
+    const step = Number(el.dataset.step);
+    el.classList.toggle("is-done", done[step]);
+    el.classList.toggle("is-active", step === current);
+    el.classList.toggle("is-locked", step === 3 && !s2);
+  });
 }
 
 function updateLayerButton(busy = false) {
   if (!els.generateLayersBtn) return;
+  updateStepGuide();
   const available = layerGenerationAvailable();
   els.generateLayersBtn.disabled = busy || !available;
   els.generateLayersBtn.classList.toggle("disabled", busy || !available);
@@ -4171,6 +4190,7 @@ async function mountRigAnimation(container, packId) {
     });
   }
   state.rig16Frames = frames;
+  updateStepGuide();
   container.querySelector(".rig-16-download").addEventListener("click", async () => {
     const files = frames.map((f) => ({ path: f.name, blob: dataUrlToBlob(f.dataUrl) }));
     const zip = await createZipBlob(files);
@@ -5692,6 +5712,21 @@ els.generate2dBtn.addEventListener("click", generate2D);
 els.generatePackBtn.addEventListener("click", generatePack);
 els.generate3dBtn.addEventListener("click", generate3D);
 els.generateLayersBtn?.addEventListener("click", generatePackLayers);
+// 三步引导:点步骤即触发对应按钮(锁定的第3步不响应)。
+els.stepGuide?.querySelectorAll(".step").forEach((step) => {
+  step.addEventListener("click", () => {
+    if (step.classList.contains("is-locked")) return;
+    const action = step.dataset.action;
+    const target = action === "2d" ? els.generate2dBtn : action === "pack" ? els.generatePackBtn : els.generateLayersBtn;
+    if (!target || target.disabled) {
+      if (target) target.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    target.click();
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
+});
+updateStepGuide();
 els.saveAccessTokenBtn.addEventListener("click", () => {
   const token = els.accessToken.value.trim();
   if (token) {

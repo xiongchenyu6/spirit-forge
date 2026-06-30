@@ -916,6 +916,54 @@
   margin-top: var(--space-2);
   text-align: center;
 }
+.step-guide {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-1);
+  flex-wrap: wrap;
+}
+.step-guide .step {
+  flex: 1 1 0;
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--dur-base);
+}
+.step-guide .step-num {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+.step-guide .step-body { display: flex; flex-direction: column; line-height: 1.25; }
+.step-guide .step-title { font-size: 13px; font-weight: 600; }
+.step-guide .step-sub { font-size: 11px; color: var(--text-muted); }
+.step-arrow { align-self: center; color: var(--text-muted); }
+/* 已完成 */
+.step-guide .step.is-done { border-color: rgba(127, 208, 192, 0.4); color: var(--text-primary); }
+.step-guide .step.is-done .step-num { background: rgba(127, 208, 192, 0.18); border-color: rgba(127, 208, 192, 0.5); color: #7fd0c0; }
+/* 当前(下一步) */
+.step-guide .step.is-active { border-color: var(--border-strong); background: rgba(201, 163, 91, 0.14); color: var(--gold-200); box-shadow: var(--glow-gold); animation: nextStepPulse 1.8s ease-in-out infinite; }
+.step-guide .step.is-active .step-num { background: var(--gold-500); border-color: var(--gold-300); color: #1a1208; }
+/* 未解锁 */
+.step-guide .step.is-locked { opacity: 0.5; cursor: not-allowed; }
+
 .rig-16 {
   margin-top: var(--space-4);
 }
