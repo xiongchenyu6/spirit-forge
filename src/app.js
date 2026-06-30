@@ -12,7 +12,7 @@ import { getVideoSpriteDemo } from "./lib/video-sprite-demo.js";
 import { handleAssets } from "./lib/static-assets.js";
 import { PACK_PRESETS } from "./lib/pack-presets.js";
 export { PACK_PRESETS };
-import { loadPackFrameRerunTarget, normalizePackRequestId, recover2DPackRequestById, recoverSubmitted2DPack, rerunPackFrame, submit2DPack } from "./lib/pack-generation.js";
+import { loadPackFrameRerunTarget, normalizePackRequestId, recover2DPackRequestById, recoverSubmitted2DPack, rerunPackFrame, submit2DPack, submit2DPackSheet } from "./lib/pack-generation.js";
 import { prepareVideoSpriteExperiment, submitVideoSpriteExperiment } from "./lib/video-sprite-generation.js";
 import { submit3DJob } from "./lib/model3d-generation.js";
 import { submit2DJob } from "./lib/image2d-generation.js";
@@ -465,6 +465,12 @@ async function handleApi(request, env, url, ctx = null) {
     const recovered = await recoverSubmitted2DPack(input, env);
     if (recovered) return jsonResponse(recovered);
     const cost = usageCostForPackInput(input);
+    // sheet=true(且无参考图):一句话单图整套→切片,身份天然一致。有参考图仍走逐帧 img2img。
+    if (input.sheet && !input.referenceImage?.filename) {
+      return await meteredJsonResponse(request, env, "generate2d-pack", cost, async () => (
+        await submit2DPackSheet(input, env, { getCapabilities, planPrompt })
+      ));
+    }
     return await meteredJsonResponse(request, env, "generate2d-pack", cost, async () => (
       await submit2DPack(input, env, { getCapabilities })
     ));

@@ -205,19 +205,18 @@ export function poseDenoiseForPackItem(input, normalized, item) {
   if (input.referenceDenoise !== undefined && input.referenceDenoise !== null) {
     return normalizeDenoise(input.referenceDenoise);
   }
-  // img2img + OpenPose 身份锁定 denoise（经验值，需真机实测微调）：
-  // 锁定同一角色身份的同时让姿态/动作变化生效。动作帧落在 ~0.5–0.7 平衡区间；
-  // idle 与锚点几乎同姿，刻意取更低值以最大化身份一致性。
-  // 提高动作帧 denoise:低 denoise 会贴住站姿锚点导致姿态几乎不变。靠 img2img+
-  // 强 OpenPose ControlNet(end_percent 已延长)保身份,denoise 调高让姿态真正改变。
-  // idle 与锚点几乎同姿,保持低值最大化一致性。
+  // img2img + OpenPose 身份锁定 denoise:姿态由强 OpenPose ControlNet 锁定
+  // (poseStrengthForPackItem walk 0.95 / attack 1.0,end_percent 0.85),故 denoise
+  // 应取低值最大化身份一致性。早期把 denoise 调到 0.7+ 是 ControlNet 还弱时的补偿,
+  // 现在反而让参考身份被噪声抹掉(每帧画成不同角色/画风)——故大幅下调。
+  // 动作差异主要交给 ControlNet 骨架,denoise 仅留少量空间贴合姿态细节。
   const values = {
-    idle: { stable: 0.34, balanced: 0.4, expressive: 0.46 },
-    walk: { stable: 0.68, balanced: 0.76, expressive: 0.82 },
-    move: { stable: 0.68, balanced: 0.76, expressive: 0.82 },
-    attack: { stable: 0.7, balanced: 0.78, expressive: 0.84 },
-    hurt: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
-    death: { stable: 0.66, balanced: 0.72, expressive: 0.78 },
+    idle: { stable: 0.30, balanced: 0.34, expressive: 0.40 },
+    walk: { stable: 0.42, balanced: 0.48, expressive: 0.56 },
+    move: { stable: 0.42, balanced: 0.48, expressive: 0.56 },
+    attack: { stable: 0.46, balanced: 0.52, expressive: 0.60 },
+    hurt: { stable: 0.44, balanced: 0.50, expressive: 0.58 },
+    death: { stable: 0.44, balanced: 0.50, expressive: 0.58 },
   };
   const value = values[item.id]?.[normalized.actionStrength] ?? values[item.id]?.balanced;
   return normalizeDenoise(value ?? denoiseForPackItem(input, normalized, item));

@@ -1,6 +1,7 @@
 import { ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, submitComfyWorkflow, uploadImageToComfy, waitForComfyImageOutput } from "./comfy-client.js";
 import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1Workflow } from "./comfy-workflows.js";
 import { characterOpenPoseDataUrl } from "./image.js";
+import { decodePngRgba, encodePngRgba } from "./binary.js";
 import { frameStatusCounts, packItemBrief, packStatusFromCounts } from "./pack-export.js";
 import { PACK_PRESETS } from "./pack-presets.js";
 import {
@@ -14,6 +15,7 @@ import {
   titleFromBrief,
 } from "./generation-utils.js";
 import {
+  archiveResult,
   putPackRecord,
   readPackRecord,
   readPackRequestIndex,
@@ -445,6 +447,201 @@ export async function submit2DPack(input, env, options = {}) {
     pack: storedPack ? await withSignedPackRecord(env, storedPack).catch(() => storedPack) : null,
     requestId: requestId || null,
   };
+}
+
+// 单动作的网格姿势短语(用于 model sheet 各格)。
+const SHEET_ACTION_PHRASE = {
+  idle: "standing idle in a relaxed ready stance",
+  walk: "walking mid-stride with arms swinging",
+  move: "moving forward mid-stride",
+  attack: "attacking with the weapon in a dynamic action pose",
+  hurt: "recoiling backward after being hit, off-balance",
+  death: "collapsing and falling to the ground",
+};
+const SHEET_STYLE_HINT = {
+  production: "polished 2D game production art, clean line and shading",
+  anime: "anime cel-shaded game art",
+  realistic: "semi-realistic painterly game art",
+  isometric: "isometric game art",
+  pixel: "crisp pixel art",
+  "pixel-art": "crisp pixel art",
+};
+const SHEET_POSITION_WORD = ["top-left", "top-right", "bottom-left", "bottom-right", "center-left", "center-right"];
+
+// 「一句话生成动作包」:一次文生图画出 2×N 网格整套(同一次生成→身份天然一致、严格对题),
+// 再切片成各动作单帧、归档 R2,组成与现有 pack 兼容的记录(ZIP/Spine 照常导出)。
+// 单帧 img2img+pose 逐帧生成会因每帧不同种子、为改姿势重绘半数像素而把角色画成不同人,
+// 故整套改用此单图切片路线。每个动作取一帧(idle/walk/attack/hurt)。
+export async function submit2DPackSheet(input, env, options = {}) {
+  const requestId = normalizePackRequestId(input);
+  const recovered = requestId ? await recover2DPackRequestById(requestId, env) : null;
+  if (recovered) return recovered;
+  const planPrompt = options.planPrompt;
+  const normalized = normalizeGenerationInput(input);
+  const preset = PACK_PRESETS[normalized.preset];
+  if (!preset || preset.kind !== "sprite-actions") {
+    return {
+      ok: false,
+      error: "pack_unavailable",
+      message: "Sheet-pack mode only supports character/monster action presets.",
+      supportedPresets: Object.keys(PACK_PRESETS).filter((k) => PACK_PRESETS[k].kind === "sprite-actions"),
+    };
+  }
+  if (!env.ASSET_BUCKET) {
+    return { ok: false, error: "storage_not_configured", message: "Sheet pack requires R2 storage." };
+  }
+  // 每个动作取一帧:按 item.action(动作,而非每帧唯一的 item.id)去重,最多 4 个走 2×2。
+  const seen = new Set();
+  const actions = [];
+  for (const item of preset.items) {
+    const actionId = item.action || item.clip || item.id;
+    if (seen.has(actionId)) continue;
+    seen.add(actionId);
+    const baseLabel = (item.label || actionId).replace(/\s*\d+$/, "").trim();
+    actions.push({ id: actionId, label: baseLabel });
+    if (actions.length >= 4) break;
+  }
+  const cols = 2;
+  const rows = Math.ceil(actions.length / cols);
+  const [cellW, cellH] = preset.cell;
+  const sheetW = cellW * cols;
+  const sheetH = cellH * rows;
+  const seed = Number.isFinite(Number(input.seed)) ? Number(input.seed) >>> 0 : randomSeed();
+  const packId = crypto.randomUUID();
+
+  const cleanBrief = stripFrameInstructions(normalized.brief);
+  const styleHint = SHEET_STYLE_HINT[normalized.style] || SHEET_STYLE_HINT.production;
+  const cellPhrases = actions
+    .map((a, i) => `${SHEET_POSITION_WORD[i]} cell: ${SHEET_ACTION_PHRASE[a.id] || a.label.toLowerCase()}`)
+    .join(", ");
+  // FLUX 的 T5 对中文支持差,正常 2D 路径经 planPrompt(Mistral)翻译/增强为英文主体描述。
+  // 这里同样把 brief 过一遍 planner 得到强英文角色描述,避免"画成通用角色/无视提示词"。
+  let subjectPrompt = cleanBrief;
+  if (typeof planPrompt === "function") {
+    const plan = await planPrompt({ ...normalized, brief: cleanBrief, preset: "square" }, env).catch(() => null);
+    if (plan?.prompt) subjectPrompt = plan.prompt;
+  }
+  const prompt = [
+    `a ${cols}x${rows} grid game character sprite sheet of the SAME single character repeated in ${actions.length} equal cells`,
+    `the character: (${subjectPrompt}:1.3)`,
+    "the EXACT SAME character in every cell — identical face, hairstyle, hair color, outfit and colors and body proportions",
+    "exactly one centered full-body figure per cell, evenly spaced equal cells with thin gutters",
+    cellPhrases,
+    styleHint,
+    "plain flat light-gray background, full body in frame, clean separable game asset, no text, no watermark, no labels",
+  ].join(", ").slice(0, 1800);
+  const negativePrompt = `${DEFAULT_NEGATIVE}, inconsistent character, different characters, changing outfit, model sheet labels, text annotations, uneven layout, cropped figure`;
+
+  // 1) 单次文生图整套
+  const submitted = await submitComfyWorkflow(env, buildFlux1Workflow({
+    prompt, negativePrompt, width: sheetW, height: sheetH, seed,
+  }));
+  const meta = await waitForComfyImageOutput(env, submitted.prompt_id);
+  if (!meta?.filename) {
+    return { ok: false, error: "sheet_generation_failed", message: "Sheet generation produced no image." };
+  }
+  const response = await fetchComfyResponse(env, meta);
+  if (!response.ok) {
+    return { ok: false, error: "sheet_fetch_failed", message: `Sheet fetch failed: ${response.status}` };
+  }
+  const sheet = await decodePngRgba(new Uint8Array(await response.arrayBuffer()));
+
+  // 2) 切片 + 上传 + 归档 R2,逐格成为已完成帧
+  const frames = [];
+  for (let index = 0; index < actions.length; index += 1) {
+    const action = actions[index];
+    const cx = (index % cols) * cellW;
+    const cy = Math.floor(index / cols) * cellH;
+    const cell = sliceRgbaCell(sheet, cx, cy, cellW, cellH);
+    const cellBytes = await encodePngRgba(cellW, cellH, cell);
+    const uploadedName = await uploadImageToComfy(env, new Blob([cellBytes], { type: "image/png" }), `lingji_sheet_${packId}_${action.id}.png`);
+    const framePromptId = `${packId}-${action.id}`;
+    const archived = await archiveResult(env, {
+      promptId: framePromptId,
+      kind: "2d",
+      result: { filename: uploadedName, subfolder: "", type: "input" },
+      entry: { status: { status_str: "success" } },
+    });
+    frames.push({
+      id: action.id,
+      label: action.label,
+      promptId: framePromptId,
+      seed,
+      dimensions: { width: cellW, height: cellH },
+      status: "complete",
+      index,
+      row: Math.floor(index / cols),
+      column: index % cols,
+      direction: null,
+      result: archived
+        ? { ...archived, url: archived.url, filename: archived.filename, fileKey: archived.fileKey }
+        : { filename: uploadedName, subfolder: "", type: "input" },
+    });
+  }
+
+  const packMetadata = {
+    output: "separate-images",
+    reference: { mode: "single-sheet-slice", auto: true, sheetPromptId: submitted.prompt_id },
+    columns: cols,
+    rows,
+    cellWidth: cellW,
+    cellHeight: cellH,
+    items: frames.map((f) => ({ id: f.id, label: f.label, index: f.index, row: f.row, column: f.column, direction: null })),
+    notes: [
+      "Generated as one consistent model sheet then sliced per action (identity locked by single generation).",
+      "Cloud ZIP downloads compose sheet.png, import manifests, and transparent frames where suitable.",
+    ],
+  };
+  const counts = { total: frames.length, complete: frames.length, failed: 0, pending: 0 };
+  const storedPack = await rememberPackRecord(env, {
+    id: `2d-pack:${packId}`,
+    kind: "2d-pack",
+    packId,
+    status: "complete",
+    preset: normalized.preset,
+    packKind: preset.kind,
+    input: normalized,
+    reference: packMetadata.reference,
+    metadata: packMetadata,
+    counts,
+    frames,
+  });
+  if (requestId) {
+    await rememberPackRequestIndex(env, requestId, packId, { preset: normalized.preset, packKind: preset.kind })
+      .catch((error) => console.warn("sheet pack request index write failed", error));
+  }
+  return {
+    ok: true,
+    kind: "2d-pack",
+    packId,
+    preset: normalized.preset,
+    packKind: preset.kind,
+    metadata: packMetadata,
+    jobs: frames.map((f) => ({ id: f.id, label: f.label, promptId: f.promptId, seed, status: "complete", result: f.result, dimensions: f.dimensions })),
+    pack: storedPack ? await withSignedPackRecord(env, storedPack).catch(() => storedPack) : null,
+    requestId: requestId || null,
+    sheet: true,
+  };
+}
+
+// 从整套大图切出一格 RGBA buffer。
+function sliceRgbaCell(image, x0, y0, w, h) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y += 1) {
+    const sy = y0 + y;
+    if (sy >= image.height) break;
+    for (let x = 0; x < w; x += 1) {
+      const sx = x0 + x;
+      if (sx >= image.width) continue;
+      const si = (sy * image.width + sx) * 4;
+      const di = (y * w + x) * 4;
+      out[di] = image.data[si];
+      out[di + 1] = image.data[si + 1];
+      out[di + 2] = image.data[si + 2];
+      out[di + 3] = image.data[si + 3];
+    }
+  }
+  return out;
 }
 
 async function submitPackItemJob({

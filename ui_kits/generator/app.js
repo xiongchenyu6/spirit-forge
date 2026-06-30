@@ -1827,11 +1827,13 @@ async function generatePack() {
     return;
   }
   clearPoll();
-  const reference = referenceImageForPack(); // 无合适参考则为 null → 后端按提示词锚点生成
+  const reference = referenceImageForPack(); // 无合适参考则为 null
+  // 无参考(一句话整套):走单图 model sheet → 切片,身份天然一致。有参考仍逐帧 img2img 锁身份。
   const input = {
     ...currentInput(),
     referenceImage: reference,
     poseImages: reference ? poseImagesForPack() : null,
+    sheet: !reference,
     requestId: createClientRequestId("2d-pack"),
   };
   state.activeInput = input;
@@ -1879,9 +1881,40 @@ function acceptSubmittedPack(pack) {
     })),
   });
   showPack(jobs, pack);
+  // 单图切片(sheet)模式:帧已生成完成、自带 url,无需轮询 Comfy(其 promptId 是合成的)。
+  if (jobs.length && jobs.every((job) => job.result?.url)) {
+    finalizeCompletePack(pack, jobs);
+    return;
+  }
   showPackProgress(0, jobs.length);
   startQueuePolling(jobs[0]?.promptId);
   pollPack(pack);
+}
+
+// 直接落地一套已完成的帧(单图切片路线),复用与 pollPack 完成分支一致的收尾。
+async function finalizeCompletePack(pack, jobs) {
+  state.packResults = {};
+  for (const job of jobs) {
+    state.packResults[job.id] = {
+      ...job.result,
+      url: job.result.url,
+      label: job.label,
+      seed: job.seed,
+      promptId: job.promptId,
+      dimensions: job.dimensions,
+    };
+    updatePackCard(job.id, { status: "complete", url: job.result.url, filename: job.result.filename });
+  }
+  showPackProgress(jobs.length, jobs.length);
+  stopStageProgress(true);
+  setBusy(false);
+  await preparePackDownloads(pack);
+  await preparePackProductionPreview(pack);
+  updateLayerButton();
+  addHistoryEntry({ type: "pack", input: state.activeInput || currentInput(), pack, results: state.packResults });
+  refreshCloudJobsInBackground();
+  clearPoll();
+  stopQueuePolling();
 }
 
 // 阻塞式轮询某个 job 直到完成,返回 result(用于自动 FLF 串联尾帧生成)。
