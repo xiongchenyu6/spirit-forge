@@ -1879,6 +1879,7 @@ function acceptSubmittedPack(pack) {
     })),
   });
   showPack(jobs, pack);
+  showPackProgress(0, jobs.length);
   startQueuePolling(jobs[0]?.promptId);
   pollPack(pack);
 }
@@ -2215,6 +2216,16 @@ function startStageProgress(kind) {
   stageProgressTimer = setInterval(tickStageProgress, 300);
 }
 function setStagePhase(text) { stageProgressPhase = text || ""; }
+// 动作包用真实「已完成 X/N 帧」进度(非时间估算)。
+function showPackProgress(done, total) {
+  if (!els.stageProgress) return;
+  clearInterval(stageProgressTimer);
+  stageProgressTimer = null;
+  els.stageProgress.hidden = false;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  if (els.stageProgressFill) els.stageProgressFill.style.width = `${pct}%`;
+  if (els.stageSub) els.stageSub.textContent = `已完成 ${done}/${total} 帧`;
+}
 function tickStageProgress() {
   const elapsed = Date.now() - stageProgressStart;
   const secs = Math.round(elapsed / 1000);
@@ -2358,7 +2369,9 @@ function pollPack(pack) {
           }
         }),
       );
+      showPackProgress(pack.jobs.length - pending.size, pack.jobs.length);
       if (pending.size === 0) {
+        stopStageProgress(true);
         setBusy(false);
         await preparePackDownloads(pack);
         await preparePackProductionPreview(pack);
@@ -2379,6 +2392,7 @@ function pollPack(pack) {
           updatePackCard(job.id, { status: "error", message: "生成超时" });
         }
         refreshCloudJobsInBackground();
+        stopStageProgress(false);
         setBusy(false);
         clearPoll();
         stopQueuePolling();
@@ -2389,6 +2403,7 @@ function pollPack(pack) {
     } catch (error) {
       showError(error.message);
       refreshCloudJobsInBackground();
+      stopStageProgress(false);
       setBusy(false);
       clearPoll();
       stopQueuePolling();
