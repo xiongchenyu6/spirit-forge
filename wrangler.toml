@@ -36,6 +36,9 @@ new_sqlite_classes = ["UsageLimiter"]
 
 [vars]
 COMFY_ACCOUNT = "worldsmith"
+# 公开模式:放行所有 /api,前端默认无需令牌(过渡期对外开放,后续接谷歌 SSO 后改为 "false")。
+# 开启即对持有 URL 的任何人开放本机算力,仅在额度无限/自有显卡场景下使用。
+GENERATOR_PUBLIC = "true"
 # 额度上限：自有显卡,不限速。设为极大值 ≈ 不限(限速逻辑保留,便于将来对外开放时再收紧)。
 USAGE_HOURLY_CREDITS = "100000000"
 USAGE_DAILY_CREDITS = "100000000"

@@ -742,6 +742,9 @@ function normalizeLayerRefineIterations(value) {
 }
 
 function authorizeApiRequest(request, env) {
+  // 公开模式:放行所有 /api(过渡期对外开放,后续接谷歌 SSO 再关闭此开关)。
+  // 注意:开启即对持有 URL 的任何人开放本机算力,仅在额度无限/自有显卡场景下使用。
+  if (safeString(env.GENERATOR_PUBLIC) === "true") return null;
   const expected = safeString(env.GENERATOR_ACCESS_TOKEN);
   if (!expected) return null;
   const provided = apiAccessToken(request);

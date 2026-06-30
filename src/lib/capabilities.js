@@ -34,7 +34,7 @@ function minimalCapabilities(env, options = {}) {
     threeD: { available: false, workflow: "Hunyuan3D-v2 image-to-GLB", models: {}, missing: ["object_info unavailable"] },
     videoToSprite: { available: false },
     models: { checkpoints: [], controlnet: [], diffusion: [], clipVision: [], vae: [], textEncoders: [], loras: [] },
-    auth: { required: Boolean(env.GENERATOR_ACCESS_TOKEN) },
+    auth: { required: Boolean(env.GENERATOR_ACCESS_TOKEN) && env.GENERATOR_PUBLIC !== "true" },
     storage: { configured: Boolean(env.ASSET_BUCKET), provider: "cloudflare-r2", bucket: env.ASSET_BUCKET ? "lingji-forge-assets" : null },
     usage: {
       configured: Boolean(env.USAGE_LIMITER),
@@ -121,7 +121,7 @@ async function computeCapabilities(env, options = {}) {
     videoToSprite,
     models: modelLists,
     auth: {
-      required: Boolean(env.GENERATOR_ACCESS_TOKEN),
+      required: Boolean(env.GENERATOR_ACCESS_TOKEN) && env.GENERATOR_PUBLIC !== "true",
     },
     storage: {
       configured: Boolean(env.ASSET_BUCKET),
