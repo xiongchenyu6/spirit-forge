@@ -21,9 +21,11 @@ This repo has **no package.json / npm scripts**. Tooling is Nix + Node + Wrangle
 - **Local Worker dev:** `wrangler dev` (reads secrets from `.dev.vars`: `MISTRAL_API_KEY`, `COMFY_API_TOKEN`, `GENERATOR_ACCESS_TOKEN`).
 - **Deploy:** `node scripts/build-worker-assets.mjs && wrangler deploy`. Set production secrets via `wrangler secret put …` (sourced from `sops -d --extract … secrets/local.env`; see `wrangler.toml` comments).
 - **Static-only preview** (design system without the Worker API): `python3 -m http.server 4173` then open `http://localhost:4173/ui_kits/<kit>/index.html`. (`scripts/serve-with-router.py` mimics the Worker's route-alias behavior.)
-- **Regression test** (the only automated test — verifies the SAM3 layer-separation / Spine pack pipeline against a live Worker):
+- **Regression test** (live-Worker — verifies the SAM3 layer-separation / Spine pack pipeline):
   `node scripts/verify-spine-sam3-regression.mjs [--pack <id>] [--worker-url <url>] [--min-score 75] [--fail-on-drift]`
   Reads `GENERATOR_ACCESS_TOKEN` from `.dev.vars`. Run `--help` for all flags (report/html-report/baseline drift options).
+- **i18n key check** (offline, no Worker — catches the white-screen-on-missing-key class of bug):
+  `node scripts/check-i18n-keys.mjs` — for every UI kit using `__lf`, verifies the i18n keys it references (`__lf.t("a.b")`, `setPageTitle`, and `t.<prop>` under each `raw("section")`) exist in BOTH zh and en dicts. Non-zero exit on any missing key.
 
 ## Architecture
 
