@@ -138,6 +138,11 @@ const VIDEO_SPRITE_PIXEL_CLEANUP_CONFIG = {
   alphaCutoff: 28,
   solidCutoff: 232,
 };
+const VIDEO_SPRITE_GREEN_CONFIG = {
+  color: "#00ff00",
+  startDenoise: 0.68,
+  endDenoise: 0.72,
+};
 
 const HISTORY_KEY = "lingji-forge.generator-history.v1";
 const ACCESS_TOKEN_KEY = "lingji-forge.generator-access-token.v1";
@@ -1892,14 +1897,21 @@ async function generateVideoSprite() {
   }
   const srcRef = { filename: source.filename, subfolder: source.subfolder, type: source.type };
   // 自动 img2img 一帧:把源帧放到纯绿幕(便于抠像)+ 指定动作姿势。helper 复用。
-  const GREEN = "纯绿色背景 chroma key green screen，干净纯色背景，全身入镜";
+  const GREEN = "纯绿色背景 #00ff00 chroma key green screen，flat uniform RGB(0,255,0) backdrop，背景必须是均匀无渐变纯绿，四角和边缘都是同一个绿色，无地面阴影，全身入镜";
+  const greenCompositedSource = source.url
+    ? await createGreenScreenImageDataUrl(source.url).catch((error) => {
+      console.warn("本地绿幕合成失败,退回原始源帧", error);
+      return null;
+    })
+    : null;
+  const sourceRef = greenCompositedSource ? { imageDataUrl: greenCompositedSource } : srcRef;
   const autoImg2img = async (label, prompt, denoise, ref) => {
     setBusy(true, label);
     const j = await api("/api/generate/2d", {
       method: "POST",
       body: JSON.stringify({
         mode: "2d", brief: prompt, assetType: input.assetType, style: input.style,
-        camera: input.camera, preset: "single", denoise, comfyImage: ref,
+        camera: input.camera, preset: "single", denoise, ...imageReferencePayload(ref),
       }),
     });
     if (!j?.promptId) return null;
@@ -1907,15 +1919,15 @@ async function generateVideoSprite() {
     return r?.filename ? { filename: r.filename, subfolder: r.subfolder, type: r.type } : null;
   };
   try {
-    // 自动 FLF + 绿幕:① 源帧→绿幕中性首帧(低 denoise 保身份、换绿幕背景);
-    // ② 绿幕动作尾帧(denoise 0.7 动作更大);③ 首尾帧插值 → 绿幕视频。
+    // 自动 FLF + 绿幕:① 源帧先本地合成到 #00ff00 画布,再生成绿幕中性首帧;
+    // ② 绿幕动作尾帧略高 denoise 放大动作;③ 首尾帧插值 → 绿幕视频。
     // 完成后内置「边缘洪填抠像」自动扣成透明 Sprite。任一步失败安全退回普通图生视频。
-    let startRef = srcRef, endRef = null;
+    let startRef = sourceRef, endRef = null;
     try {
       const base = input.brief || "同一角色";
-      const greenStart = await autoImg2img("① 生成绿幕首帧…", `${base}，原地直立站姿，${GREEN}`, 0.5, srcRef);
+      const greenStart = await autoImg2img("① 生成绿幕首帧…", `${base}，原地直立站姿，${GREEN}`, VIDEO_SPRITE_GREEN_CONFIG.startDenoise, sourceRef);
       if (greenStart) startRef = greenStart;
-      endRef = await autoImg2img("② 生成绿幕动作尾帧…", `${base}，明显动作姿势，动态 pose，肢体大幅变化，${GREEN}`, 0.7, startRef);
+      endRef = await autoImg2img("② 生成绿幕动作尾帧…", `${base}，明显动作姿势，动态 pose，肢体大幅变化，${GREEN}`, VIDEO_SPRITE_GREEN_CONFIG.endDenoise, startRef);
     } catch (e) {
       console.warn("自动绿幕首尾帧失败,退回普通图生视频", e);
     }
@@ -1927,7 +1939,7 @@ async function generateVideoSprite() {
         ...input,
         brief: `${input.brief || "同一角色"}，${GREEN}`,
         submit: true,
-        comfyImage: startRef,
+        ...imageReferencePayload(startRef),
         // 自动推导出尾帧 → 走 Wan 首尾帧插值(FLF2V),单角色更稳、动作更可控。
         ...(endRef ? { endComfyImage: endRef } : {}),
       }),
@@ -1953,6 +1965,34 @@ async function generateVideoSprite() {
     showError(error.message);
     setBusy(false);
   }
+}
+
+function imageReferencePayload(ref) {
+  if (!ref) return {};
+  if (ref.imageDataUrl) return { imageDataUrl: ref.imageDataUrl };
+  if (ref.imageUrl) return { imageUrl: ref.imageUrl };
+  return { comfyImage: ref };
+}
+
+async function createGreenScreenImageDataUrl(sourceUrl) {
+  const image = await loadImage(sourceUrl);
+  const width = image.naturalWidth || 512;
+  const height = image.naturalHeight || 512;
+  const subjectCanvas = document.createElement("canvas");
+  subjectCanvas.width = width;
+  subjectCanvas.height = height;
+  const subjectCtx = subjectCanvas.getContext("2d", { willReadFrequently: true });
+  subjectCtx.drawImage(image, 0, 0, width, height);
+  removeCornerBackground(subjectCtx, width, height);
+
+  const greenCanvas = document.createElement("canvas");
+  greenCanvas.width = width;
+  greenCanvas.height = height;
+  const greenCtx = greenCanvas.getContext("2d");
+  greenCtx.fillStyle = VIDEO_SPRITE_GREEN_CONFIG.color;
+  greenCtx.fillRect(0, 0, width, height);
+  greenCtx.drawImage(subjectCanvas, 0, 0);
+  return greenCanvas.toDataURL("image/png");
 }
 
 function referenceImageForPack() {

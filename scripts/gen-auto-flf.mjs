@@ -12,7 +12,8 @@ const TOKEN = (readFileSync(join(ROOT, ".dev.vars"), "utf8").match(/^GENERATOR_A
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const H = () => ({ "content-type": "application/json", "x-lingji-access-token": TOKEN });
 
-const NEG = "多个角色,两个人,分身,复制人,群像,飞行,御剑,腾空,云海,天空,渐变背景,电影运镜,文字水印";
+const GREEN = "纯绿色背景 #00ff00 chroma key green screen,flat uniform RGB(0,255,0) backdrop,背景必须是均匀无渐变纯绿,四角和边缘都是同一个绿色,无地面阴影,全身入镜";
+const NEG = "多个角色,两个人,分身,复制人,群像,飞行,御剑,腾空,云海,天空,渐变背景,浅蓝灰背景,灰色背景,白色背景,影棚背景,电影运镜,文字水印";
 const SUBJECTS = [
   { id: "xianxia-sword", base: "仙侠青衫剑客,全身直立站姿,纯色背景,游戏立绘", action: "挥剑横劈攻击,持剑手臂大幅前挥,身体前倾" },
   { id: "cyber-girl",   base: "赛博朋克少女,机械义肢,全身直立,纯色背景,游戏立绘", action: "向前迈步奔跑,双臂摆动" },
@@ -50,14 +51,14 @@ for (const s of SUBJECTS) {
   const base = b?.promptId ? await poll(b.promptId, "2d") : null;
   if (!base?.filename) { console.log("  基图失败,跳过"); continue; }
   console.log(" ①b 绿幕首帧");
-  const gs = await api("/api/generate/2d", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},原地直立站姿,纯绿色背景 chroma key green screen,干净纯色背景`, assetType: "character", style: "production", camera: "front", preset: "single", denoise: 0.5, comfyImage: ref(base) }) });
+  const gs = await api("/api/generate/2d", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},原地直立站姿,${GREEN}`, assetType: "character", style: "production", camera: "front", preset: "single", denoise: 0.68, comfyImage: ref(base) }) });
   const gstart = gs?.promptId ? await poll(gs.promptId, "2d") : null;
   const startRef = gstart?.filename ? ref(gstart) : ref(base);
   console.log(" ② 绿幕动作尾帧");
-  const e = await api("/api/generate/2d", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},${s.action},明显动作姿势,动态pose,肢体大幅变化,纯绿色背景 chroma green screen`, assetType: "character", style: "production", camera: "front", preset: "single", denoise: 0.7, comfyImage: startRef }) });
+  const e = await api("/api/generate/2d", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},${s.action},明显动作姿势,动态pose,肢体大幅变化,${GREEN}`, assetType: "character", style: "production", camera: "front", preset: "single", denoise: 0.72, comfyImage: startRef }) });
   const end = e?.promptId ? await poll(e.promptId, "2d") : null;
   console.log(" ③ 首尾帧插值视频(FLF)");
-  const v = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},${s.action},固定镜头,纯色背景`, negativePrompt: NEG, assetType: "character", style: "production", preset: "single", length: 25, submit: true, comfyImage: startRef, ...(end?.filename ? { endComfyImage: ref(end) } : {}) }) });
+  const v = await api("/api/generate/video-sprite", { method: "POST", body: JSON.stringify({ mode: "2d", brief: `${s.base},${s.action},固定镜头,${GREEN}`, negativePrompt: NEG, assetType: "character", style: "production", preset: "single", length: 25, submit: true, comfyImage: startRef, ...(end?.filename ? { endComfyImage: ref(end) } : {}) }) });
   const vid = v?.promptId ? await poll(v.promptId, "video-sprite") : null;
   if (vid?.filename) {
     const u = new URL(`${BASE}/api/comfy/view`); u.searchParams.set("filename", vid.filename); if (vid.subfolder) u.searchParams.set("subfolder", vid.subfolder); u.searchParams.set("type", vid.type || "output");

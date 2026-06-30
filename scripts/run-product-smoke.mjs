@@ -188,7 +188,7 @@ async function runChecks() {
   await checkTextRoute({
     name: "studio official previews",
     path: "/studio/StudioCanvas.jsx",
-    includes: ["GENERATED_PREVIEWS", "VideoSpriteDemoCard", "monster-idle.png", "monster-attack.png"],
+    includes: ["GENERATED_PREVIEWS", "VideoSpriteDemoCard", "rig-monster-idle.gif", "rig-monster-attack.gif"],
   });
   await checkTextRoute({
     name: "pricing routes",

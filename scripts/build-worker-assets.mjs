@@ -36,6 +36,13 @@ for (const entry of entries) {
   });
 }
 
+// Local/generated working outputs under assets/generated are useful for review
+// but should not be published as Worker assets. Keep only curated official
+// samples that product pages reference.
+for (const generatedWorkDir of ["packs", "review", "showcase", "showcase-v2", "showcase-v3"]) {
+  await rm(path.join(out, "assets", "generated", generatedWorkDir), { recursive: true, force: true });
+}
+
 for (const alias of routeAliases) {
   await cp(path.join(root, "ui_kits", alias), path.join(out, alias), {
     recursive: true,

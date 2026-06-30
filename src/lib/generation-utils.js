@@ -182,14 +182,14 @@ export function clampVideoFps(value) {
 export function videoSpritePrompt(input = {}) {
   return [
     safeString(input.brief || input.prompt, "same creature performing a short readable game animation"),
-    "short game sprite animation, same subject identity, readable motion, centered full body, orthographic game sprite, flat chroma green background, no shadow, no floor, no gradient, no scenery, no camera movement, no text, no watermark",
+    "short game sprite animation, same subject identity, readable motion, centered full body, orthographic game sprite, exact flat #00ff00 RGB(0,255,0) chroma key green background, one uniform solid color from edge to edge and corner to corner, no shadow, no floor, no gradient, no scenery, no camera movement, no text, no watermark",
   ].join(", ").slice(0, 1200);
 }
 
 export function videoSpriteNegativePrompt(input = {}) {
   return safeString(
     input.negativePrompt,
-    "text, watermark, subtitles, multiple characters, scene cut, camera shake, zoom, crop, blurry, low quality, extra limbs, morphing identity, busy background, transparent background, floor, ground shadow, cast shadow, gradient background, scenery",
+    "text, watermark, subtitles, multiple characters, scene cut, camera shake, zoom, crop, blurry, low quality, extra limbs, morphing identity, busy background, transparent background, floor, ground shadow, cast shadow, gradient background, scenery, blue background, gray background, grey background, white background, off-white background, studio backdrop, vignette",
   ).slice(0, 900);
 }
 
