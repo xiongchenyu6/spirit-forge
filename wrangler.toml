@@ -2,6 +2,14 @@ name = "lingji-forge"
 account_id = "2764ae0fd9a5cb92c9ac67708620e54c"
 main = "src/worker.js"
 compatibility_date = "2026-05-25"
+
+# 自定义域名:boob.qzz.io 是本账号(Xiongchenyu6@gmail.com)下的独立 zone,
+# custom_domain=true 让 wrangler 自动配置该域的 DNS + 证书并指向本 worker。
+routes = [
+  { pattern = "boob.qzz.io", custom_domain = true },
+]
+# 保留 workers.dev 入口(脚本/showcase 仍引用),与自定义域名并存。
+workers_dev = true
 # 注：当前为 Free plan，无法设置 [limits].cpu_ms。SAM3 抠图较重，首次构建偏慢，
 # 但会写入 R2 缓存（preview JSON + 逐部位 PNG），之后 preview/part 走缓存即快。
 # 若首次构建在 Free plan CPU 上限下无法完成，需升级到 paid 或把抠图移到 ComfyUI 侧。
@@ -54,5 +62,4 @@ COMFY_WS_URL = "wss://worldsmith-comfy-ws.xiongchenyu6.workers.dev"
 #   sops -d --extract '["COMFY_API_TOKEN"]' secrets/local.env | wrangler secret put COMFY_API_TOKEN
 #   sops -d --extract '["GENERATOR_ACCESS_TOKEN"]' secrets/local.env | wrangler secret put GENERATOR_ACCESS_TOKEN
 
-# 可选：如果你要绑定自定义域名，在 Cloudflare 后台添加路由和自定义域后再放开。
-# route = "www.example.com/*"
+# 自定义域名见文件顶部 routes(必须在第一个 [table] 之前,否则会被并入 [vars])。
