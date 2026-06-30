@@ -30,7 +30,7 @@ function Onboard() {
   React.useEffect(() => { const t = setInterval(() => window.lucide && window.lucide.createIcons(), 100); return () => clearInterval(t); });
   const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  const GENRES = t.genreList.map((g) => ({ label: g, icon: t.genreIconMap[g] }));
+  const GENRES = t.genres.map((g) => ({ label: g, icon: t.genreIconMap[g] }));
   const ASSETS = t.assetItems;
   const shownGenres = genres.slice(0, 3).join(sep);
   return (
