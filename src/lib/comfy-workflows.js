@@ -434,6 +434,91 @@ export function buildFlux1PoseImg2ImgWorkflow({
   };
 }
 
+// 文生图 + union OpenPose 控制(整张 sheet 一次生成,poseFilename 为网格级骨架控制图)。
+// 与 buildFlux1PoseImg2ImgWorkflow 的差别:无参考图,从空 latent 起(denoise 1)。
+// 真实 ComfyUI 探针验证:2×3 网格 + 姿态控制,布局稳定、六格姿势全部锁住、身份一致。
+export function buildFlux1PoseSheetWorkflow({
+  prompt,
+  negativePrompt,
+  width,
+  height,
+  seed,
+  poseFilename,
+  controlNetName,
+  controlStrength = 0.9,
+}) {
+  return {
+    "10": {
+      class_type: "CheckpointLoaderSimple",
+      inputs: { ckpt_name: "flux1-dev-fp8.safetensors" },
+    },
+    "2": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: prompt, clip: ["10", 1] },
+    },
+    "3": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: negativePrompt || DEFAULT_NEGATIVE, clip: ["10", 1] },
+    },
+    "20": {
+      class_type: "FluxGuidance",
+      inputs: { guidance: 3.5, conditioning: ["2", 0] },
+    },
+    "40": {
+      class_type: "ControlNetLoader",
+      inputs: { control_net_name: controlNetName },
+    },
+    "41": {
+      class_type: "SetUnionControlNetType",
+      inputs: { control_net: ["40", 0], type: "openpose" },
+    },
+    "42": {
+      class_type: "LoadImage",
+      inputs: { image: poseFilename },
+    },
+    "44": {
+      class_type: "ControlNetApplyAdvanced",
+      inputs: {
+        positive: ["20", 0],
+        negative: ["3", 0],
+        control_net: ["41", 0],
+        image: ["42", 0],
+        strength: controlStrength,
+        start_percent: 0.0,
+        end_percent: 0.85,
+        vae: ["10", 2],
+      },
+    },
+    "5": {
+      class_type: "EmptySD3LatentImage",
+      inputs: { width, height, batch_size: 1 },
+    },
+    "22": {
+      class_type: "KSampler",
+      inputs: {
+        seed,
+        steps: 24,
+        cfg: 1.0,
+        sampler_name: "euler",
+        scheduler: "simple",
+        denoise: 1.0,
+        model: ["10", 0],
+        positive: ["44", 0],
+        negative: ["44", 1],
+        latent_image: ["5", 0],
+      },
+    },
+    "23": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["22", 0], vae: ["10", 2] },
+    },
+    "8": {
+      class_type: "SaveImage",
+      inputs: { filename_prefix: "lingji_2d_asset", images: ["23", 0] },
+    },
+  };
+}
+
 export function buildSam3LayerSeparationWorkflow({
   filename,
   dimensions,

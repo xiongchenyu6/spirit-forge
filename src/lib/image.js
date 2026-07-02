@@ -546,6 +546,36 @@ function resolveOpenPoseTemplate(kind) {
   return CHARACTER_OPENPOSE_TEMPLATES[kind] || CHARACTER_OPENPOSE_TEMPLATES.idle;
 }
 
+// 整张 sheet 的 OpenPose 控制图:各动作骨架画进各自网格格(模板为 512 空间,按格缩放)。
+// 单次生成 + 网格级姿态控制 = 身份、姿势双锁(纯 prompt 的格位动作分配不可靠)。
+export async function sheetOpenPoseControlPng(actionIds, cols, cellW, cellH) {
+  const rows = Math.ceil(actionIds.length / cols);
+  const width = cols * cellW;
+  const height = rows * cellH;
+  const pixels = new Uint8Array(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    pixels[offset + 3] = 255;
+  }
+  actionIds.forEach((action, index) => {
+    const ox = (index % cols) * cellW;
+    const oy = Math.floor(index / cols) * cellH;
+    const sx = cellW / 512;
+    const sy = cellH / 512;
+    const base = resolveOpenPoseTemplate(action);
+    const pose = {};
+    for (const [key, point] of Object.entries(base)) {
+      pose[key] = [Math.round(ox + point[0] * sx), Math.round(oy + point[1] * sy)];
+    }
+    for (const [from, to, color] of OPENPOSE_LIMBS) {
+      drawPoseLineRgba(pixels, width, height, pose[from], pose[to], color, 9);
+    }
+    for (const point of Object.values(pose)) {
+      drawPoseCircleRgba(pixels, width, height, point, 6, [255, 255, 255]);
+    }
+  });
+  return await encodePngRgba(width, height, pixels);
+}
+
 export async function characterOpenPoseDataUrl(kind) {
   const pose = resolveOpenPoseTemplate(kind);
   const width = 512;

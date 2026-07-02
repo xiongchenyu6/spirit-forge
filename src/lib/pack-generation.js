@@ -1,6 +1,6 @@
 import { ensureComfyInputImage, ensureSpriteReferenceImage, fetchComfyResponse, listComfyModels, submitComfyWorkflow, uploadImageToComfy, waitForComfyImageOutput } from "./comfy-client.js";
-import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
-import { characterOpenPoseDataUrl } from "./image.js";
+import { buildFlux1Img2ImgWorkflow, buildFlux1PoseImg2ImgWorkflow, buildFlux1PoseSheetWorkflow, buildFlux1Workflow, buildPixelFlux2Workflow } from "./comfy-workflows.js";
+import { characterOpenPoseDataUrl, sheetOpenPoseControlPng } from "./image.js";
 import { decodePngRgba, encodePngRgba } from "./binary.js";
 import { frameStatusCounts, packItemBrief, packStatusFromCounts } from "./pack-export.js";
 import { PACK_PRESETS } from "./pack-presets.js";
@@ -456,7 +456,8 @@ const SHEET_ACTION_PHRASE = {
   move: "moving forward mid-stride",
   attack: "attacking with the weapon in a dynamic action pose",
   hurt: "recoiling backward after being hit, off-balance",
-  death: "collapsing and falling to the ground",
+  death: "lying collapsed on the ground",
+  victory: "raising both arms in a triumphant victory pose",
 };
 const SHEET_STYLE_HINT = {
   production: "polished 2D game production art, clean line and shading",
@@ -466,7 +467,16 @@ const SHEET_STYLE_HINT = {
   pixel: "crisp pixel art",
   "pixel-art": "crisp pixel art",
 };
-const SHEET_POSITION_WORD = ["top-left", "top-right", "bottom-left", "bottom-right", "center-left", "center-right"];
+// 行主序格位词,按网格行数取行词(2 行=top/bottom,3 行=top/middle/bottom)。
+function sheetPositionWord(index, cols, rows) {
+  const rowWords = rows >= 3 ? ["top", "middle", "bottom"] : ["top", "bottom"];
+  const colWords = cols >= 3 ? ["left", "center", "right"] : ["left", "right"];
+  const row = Math.floor(index / cols);
+  const col = index % cols;
+  return `${rowWords[Math.min(row, rowWords.length - 1)]}-${colWords[Math.min(col, colWords.length - 1)]}`;
+}
+// 姿态控制的角色类动作预设(骨架模板是人形正面;VFX/方向行走不适用)。
+const SHEET_POSE_PRESETS = new Set(["character-actions", "monster-actions"]);
 
 // 「一句话生成动作包」:一次文生图画出 2×N 网格整套(同一次生成→身份天然一致、严格对题),
 // 再切片成各动作单帧、归档 R2,组成与现有 pack 兼容的记录(ZIP/Spine 照常导出)。
@@ -490,16 +500,30 @@ export async function submit2DPackSheet(input, env, options = {}) {
   if (!env.ASSET_BUCKET) {
     return { ok: false, error: "storage_not_configured", message: "Sheet pack requires R2 storage." };
   }
-  // 每个动作取一帧:按 item.action(动作,而非每帧唯一的 item.id)去重,最多 4 个走 2×2。
+  // 每个动作取一帧:按 item.action(动作,而非每帧唯一的 item.id)去重。
   const seen = new Set();
   const actions = [];
+  const isPixelStyle = normalized.style === "pixel" || normalized.style === "pixel-art";
+  const usePoseControl = SHEET_POSE_PRESETS.has(normalized.preset) && !isPixelStyle;
+  // 角色/怪物预设(非像素)扩到 2×3 六动作:补 death + victory,姿态由 OpenPose 控制。
+  // 像素走 Klein 无该 ControlNet,且 2×3 仅在 flux1-dev 上探针验证过,保持 2×2 四动作。
+  const maxActions = usePoseControl ? 6 : 4;
   for (const item of preset.items) {
     const actionId = item.action || item.clip || item.id;
     if (seen.has(actionId)) continue;
     seen.add(actionId);
     const baseLabel = (item.label || actionId).replace(/\s*\d+$/, "").trim();
     actions.push({ id: actionId, label: baseLabel });
-    if (actions.length >= 4) break;
+    if (actions.length >= maxActions) break;
+  }
+  if (usePoseControl) {
+    for (const extra of [{ id: "death", label: "Death" }, { id: "victory", label: "Victory" }]) {
+      if (actions.length >= maxActions) break;
+      if (!seen.has(extra.id)) {
+        seen.add(extra.id);
+        actions.push(extra);
+      }
+    }
   }
   const cols = 2;
   const rows = Math.ceil(actions.length / cols);
@@ -512,7 +536,7 @@ export async function submit2DPackSheet(input, env, options = {}) {
   const cleanBrief = stripFrameInstructions(normalized.brief);
   const styleHint = SHEET_STYLE_HINT[normalized.style] || SHEET_STYLE_HINT.production;
   const cellPhrases = actions
-    .map((a, i) => `${SHEET_POSITION_WORD[i]} cell: ${SHEET_ACTION_PHRASE[a.id] || a.label.toLowerCase()}`)
+    .map((a, i) => `${sheetPositionWord(i, cols, rows)} cell: ${SHEET_ACTION_PHRASE[a.id] || a.label.toLowerCase()}`)
     .join(", ");
   // FLUX 的 T5 对中文支持差,正常 2D 路径经 planPrompt(Mistral)翻译/增强为英文主体描述。
   // 这里同样把 brief 过一遍 planner 得到强英文角色描述,避免"画成通用角色/无视提示词"。
@@ -536,11 +560,37 @@ export async function submit2DPackSheet(input, env, options = {}) {
   //    与单图 2D 路径一致;模型缺失/异常安全回退 flux1-dev。
   const sheetArgs = { prompt, negativePrompt, width: sheetW, height: sheetH, seed };
   let sheetWorkflow = null;
-  if ((normalized.style === "pixel" || normalized.style === "pixel-art") && env.DISABLE_PIXEL_KLEIN !== "true") {
+  let posedSheet = false;
+  if (isPixelStyle && env.DISABLE_PIXEL_KLEIN !== "true") {
     try {
       const models = await listComfyModels(env);
       sheetWorkflow = buildPixelFlux2Workflow({ ...sheetArgs, models });
     } catch {
+      sheetWorkflow = null;
+    }
+  }
+  // 角色/怪物预设:网格级 OpenPose 控制图(各格一副骨架)+ union ControlNet。
+  // 纯 prompt 的格位动作分配不可靠(探针:动作会串格/趋同);姿态控制后六格全锁。
+  // 任一环节失败(能力缺失/上传异常)安全回退纯 prompt sheet。
+  if (!sheetWorkflow && usePoseControl && typeof options.getCapabilities === "function") {
+    try {
+      const poseCapability = (await options.getCapabilities(env)).poseControl;
+      if (poseCapability?.available && poseCapability.model) {
+        const controlPng = await sheetOpenPoseControlPng(actions.map((a) => a.id), cols, cellW, cellH);
+        const poseFilename = await uploadImageToComfy(
+          env,
+          new Blob([controlPng], { type: "image/png" }),
+          `lingji_sheet_pose_${packId}.png`,
+        );
+        sheetWorkflow = buildFlux1PoseSheetWorkflow({
+          ...sheetArgs,
+          poseFilename,
+          controlNetName: poseCapability.model,
+        });
+        posedSheet = true;
+      }
+    } catch (error) {
+      console.warn("sheet pose control unavailable, falling back to prompt-only", error);
       sheetWorkflow = null;
     }
   }
@@ -552,7 +602,7 @@ export async function submit2DPackSheet(input, env, options = {}) {
   const items = actions.map((a, index) => ({ id: a.id, label: a.label, index, row: Math.floor(index / cols), column: index % cols, direction: null }));
   const packMetadata = {
     output: "separate-images",
-    reference: { mode: "single-sheet-slice", auto: true, sheetPromptId },
+    reference: { mode: "single-sheet-slice", auto: true, sheetPromptId, poseControl: posedSheet },
     columns: cols, rows, cellWidth: cellW, cellHeight: cellH,
     items,
     // sheetPlan 供 slicePackSheet 复原切片(异步第二段读取)。
